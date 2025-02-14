@@ -8,6 +8,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:mlw/screens/note_space_settings_screen.dart';
 import 'package:mlw/models/note_space.dart';
 import 'package:mlw/repositories/note_space_repository.dart';
+import 'package:mlw/theme/tokens/color_tokens.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -146,7 +147,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: ColorTokens.primary[50],
       appBar: AppBar(
         title: Text(
           _currentNoteSpace?.name ?? "Loading...",  // 노트 스페이스 이름 표시

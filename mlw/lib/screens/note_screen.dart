@@ -39,9 +39,17 @@ class _NoteScreenState extends State<NoteScreen> {
         maxWidth: 1200,
         maxHeight: 1200,
         imageQuality: 85,
+        requestFullMetadata: true,
       );
       
-      if (pickedFile == null) return;
+      if (pickedFile == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('이미지가 선택되지 않았습니다.')),
+          );
+        }
+        return;
+      }
 
       setState(() {
         _image = File(pickedFile.path);
@@ -60,7 +68,10 @@ class _NoteScreenState extends State<NoteScreen> {
         });
         
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('이미지 선택 중 오류가 발생했습니다: $e')),
+          SnackBar(
+            content: Text('이미지 선택 중 오류가 발생했습니다: $e'),
+            duration: const Duration(seconds: 3),
+          ),
         );
       }
     }

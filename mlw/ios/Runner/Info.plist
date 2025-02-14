@@ -11,7 +11,7 @@
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.example.mylwth</string>
+	<string>com.example.mlwab</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
@@ -26,6 +26,16 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>카메라 접근 권한이 필요합니다. 사진을 촬영하여 노트에 추가할 수 있습니다.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>음성 기능을 사용하기 위해 마이크 접근 권한이 필요합니다.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>사진 라이브러리 접근 권한이 필요합니다. 갤러리에서 이미지를 선택하여 노트에 추가할 수 있습니다.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>음성 인식 기능을 사용하기 위해 권한이 필요합니다.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>사진을 저장하기 위해 사진 라이브러리 접근 권한이 필요합니다.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
@@ -45,13 +55,12 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>This app needs access to microphone for text to speech.</string>
-	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>This app needs access to speech recognition for voice features.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>This app needs access to photo library to upload images.</string>
-	<key>NSCameraUsageDescription</key>
-	<string>This app needs access to camera to take photos.</string>
+	<key>FirebaseAppDelegateProxyEnabled</key>
+	<false/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
 </dict>
 </plist>

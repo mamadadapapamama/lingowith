@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:mlw/models/note.dart';
-import 'package:mlw/screens/note_detail_screen.dart';
-import 'package:mlw/theme/app_theme.dart';
-import 'package:mlw/styles/app_colors.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:flutter/rendering.dart';
 import 'dart:io';
+import 'package:mlw/theme/tokens/color_tokens.dart';
 
 class NoteCard extends StatefulWidget {
   final Note note;
@@ -45,207 +42,125 @@ class _NoteCardState extends State<NoteCard> {
     super.dispose();
   }
 
-  void _startEditing() {
-    setState(() {
-      _isEditing = true;
-    });
-  }
-
-  void _finishEditing() {
-    if (_isEditing) {
-      setState(() {
-        _isEditing = false;
-      });
-      if (widget.onTitleEdit != null && _titleController.text != widget.note.title) {
-        widget.onTitleEdit!(widget.note, _titleController.text);
-      }
-    }
+  String _formatDate(DateTime date) {
+    return '${date.year}.${date.month.toString().padLeft(2, '0')}.${date.day.toString().padLeft(2, '0')}';
   }
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      color: Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(4),
-        side: const BorderSide(
-          color: AppColors.neonGreen,
-          width: 1,
-        ),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(4),
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => NoteDetailScreen(note: widget.note),
-            ),
-          );
-        },
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (widget.note.imageUrl != null)
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.file(
-                    File(widget.note.imageUrl!),
-                    width: 80,
-                    height: 80,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        width: 80,
-                        height: 80,
-                        color: Colors.grey[200],
-                        child: const Icon(Icons.image_not_supported),
-                      );
-                    },
-                  ),
-                ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          _formatDate(widget.note.createdAt),
-                          style: TextStyle(
-                            color: Colors.grey[600],
-                            fontSize: 12,
-                          ),
-                        ),
-                        const Spacer(),
-                        if (widget.hasTestSchedule)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF9BE36D).withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              widget.testMessage,
-                              style: const TextStyle(
-                                color: Color(0xFF9BE36D),
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        PopupMenuButton<String>(
-                          icon: const Icon(Icons.more_vert),
-                          onSelected: (value) {
-                            if (value == 'duplicate') {
-                              widget.onDuplicate(widget.note);
-                            } else if (value == 'delete') {
-                              widget.onDelete(widget.note);
-                            }
-                          },
-                          itemBuilder: (context) => [
-                            const PopupMenuItem(
-                              value: 'duplicate',
-                              child: Text('복제'),
-                            ),
-                            const PopupMenuItem(
-                              value: 'delete',
-                              child: Text('삭제'),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    if (_isEditing)
-                      TextField(
-                        controller: _titleController,
-                        style: GoogleFonts.poppins(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.deepGreen,
-                        ),
-                        decoration: const InputDecoration(
-                          border: OutlineInputBorder(),
-                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        ),
-                        onSubmitted: (_) => _finishEditing(),
-                        autofocus: true,
-                      )
-                    else
-                      GestureDetector(
-                        onTap: _startEditing,
-                        child: Text(
-                          widget.note.title,
-                          style: GoogleFonts.poppins(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.deepGreen,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    if (widget.note.translatedText != null) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        widget.note.translatedText!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: Colors.grey[600],
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 12),
-                    _buildCardCount(),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCardCount() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      width: 360,
+      padding: const EdgeInsets.all(12), // spacing-300
       decoration: BoxDecoration(
-        color: const Color(0xFF9BE36D).withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.style,
-            size: 16,
-            color: Color(0xFF9BE36D),
-          ),
-          const SizedBox(width: 4),
-          Text(
-            '${widget.note.flashCards.length} cards',
-            style: const TextStyle(
-              color: Color(0xFF9BE36D),
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-            ),
+        color: ColorTokens.semantic['surface']!['base'], // surface/base
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(
+            color: ColorTokens.base[800]!.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
-    );
-  }
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Date and Test Schedule
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                _formatDate(widget.note.createdAt),
+                style: GoogleFonts.poppins(
+                  color: ColorTokens.base[400], // base/400
+                  fontSize: 12,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+              if (widget.hasTestSchedule)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: ColorTokens.primary[50], // primary/50
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    'Test in ${widget.testMessage}',
+                    style: TextStyle(
+                      color: ColorTokens.primary[400], // primary/400
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8), // spacing-200
+          
+          // Note Image
+          if (widget.note.imageUrl != null)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: Image.file(
+                File(widget.note.imageUrl!),
+                width: double.infinity,
+                height: 120,
+                fit: BoxFit.cover,
+              ),
+            ),
+          const SizedBox(height: 8), // spacing-200
 
-  String _formatDate(DateTime date) {
-    return '${date.year}.${date.month.toString().padLeft(2, '0')}.${date.day.toString().padLeft(2, '0')}';
+          // Title
+          Text(
+            widget.note.title,
+            style: GoogleFonts.poppins(
+              color: ColorTokens.semantic['text']!['body'], // text/body
+              fontSize: 24,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          
+          // Translation
+          if (widget.note.translatedText != null)
+            Text(
+              widget.note.translatedText!,
+              style: GoogleFonts.inter(
+                color: ColorTokens.semantic['text']!['body'], // text/body
+                fontSize: 12,
+                fontWeight: FontWeight.w400,
+              ),
+            ),
+          
+          // Flash Cards Count
+          if (widget.note.flashCards.isNotEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                color: ColorTokens.primary[50], // primary/50
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.style,
+                    size: 16,
+                    color: ColorTokens.secondary[400], // secondary/400
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    widget.note.flashCards.length.toString(),
+                    style: GoogleFonts.inter(
+                      color: ColorTokens.secondary[400], // secondary/400
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }

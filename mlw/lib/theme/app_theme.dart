@@ -14,30 +14,30 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       colorScheme: ColorScheme.fromSeed(
-        seedColor: getPrimaryColor(400),
-        background: colors['background']!,
-        surface: colors['surface']!,
-        error: colors['error']!,
+        seedColor: ColorTokens.primary[400] ?? Colors.green,
+        background: Colors.white,
+        surface: Colors.white,
+        error: Colors.red,
       ),
-      scaffoldBackgroundColor: colors['background'],
+      scaffoldBackgroundColor: Colors.white,
       textTheme: TextTheme(
         headlineLarge: TextStyle(
           fontSize: 32,
           fontWeight: FontWeight.bold,
-          color: colors['text'],
+          color: ColorTokens.semantic['text']?['body'] ?? Colors.black,
         ),
         headlineMedium: TextStyle(
           fontSize: 24,
           fontWeight: FontWeight.bold,
-          color: colors['text'],
+          color: ColorTokens.semantic['text']?['body'] ?? Colors.black,
         ),
         bodyLarge: TextStyle(
           fontSize: 16,
-          color: colors['text'],
+          color: ColorTokens.semantic['text']?['body'] ?? Colors.black,
         ),
         bodyMedium: TextStyle(
           fontSize: 14,
-          color: colors['textSecondary'],
+          color: ColorTokens.semantic['text']?['body'] ?? Colors.black87,
         ),
       ),
       cardTheme: CardTheme(
@@ -45,22 +45,22 @@ class AppTheme {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
           side: BorderSide(
-            color: colors['cardBorder']!,
+            color: ColorTokens.primary[100] ?? Colors.grey.shade200,
             width: 1,
           ),
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: getPrimaryColor(400),
-          foregroundColor: colors['surface'],
+          backgroundColor: ColorTokens.primary[400] ?? Colors.green,
+          foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(8),
           ),
         ),
       ),
       iconTheme: IconThemeData(
-        color: getPrimaryColor(700),
+        color: ColorTokens.primary[700] ?? Colors.green.shade700,
       ),
     );
   }
