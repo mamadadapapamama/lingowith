@@ -54,7 +54,8 @@
         "primary": "#FE6A15",
         "primary-hover": "#CB5511",
         "secondary": "#226357",
-        "secondary-hover": "#143B34"
+        "secondary-hover": "#143B34",
+        "disabled": "#B2B2B2"
       }
     },
     "border": {

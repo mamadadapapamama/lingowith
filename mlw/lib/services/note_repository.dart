@@ -70,4 +70,28 @@ class NoteRepository {
   Future<void> deleteNote(String noteId) async {
     await _notes.doc(noteId).delete();
   }
+
+  // 특정 사용자의 모든 노트 삭제
+  Future<void> deleteAllUserNotes(String userId) async {
+    final batch = _firestore.batch();
+    final snapshots = await _notes.where('userId', isEqualTo: userId).get();
+    
+    for (var doc in snapshots.docs) {
+      batch.delete(doc.reference);
+    }
+    
+    await batch.commit();
+  }
+
+  // 특정 스페이스의 모든 노트 삭제
+  Future<void> deleteAllSpaceNotes(String spaceId) async {
+    final batch = _firestore.batch();
+    final snapshots = await _notes.where('spaceId', isEqualTo: spaceId).get();
+    
+    for (var doc in snapshots.docs) {
+      batch.delete(doc.reference);
+    }
+    
+    await batch.commit();
+  }
 } 

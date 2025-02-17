@@ -4,30 +4,49 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mlw/screens/home_screen.dart';
 import 'package:mlw/theme/app_theme.dart';
 import 'package:flutter/foundation.dart';
+import 'dart:io' show Platform;
 
-Future<void> main() async {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   try {
-    await Firebase.initializeApp(
-      options: const FirebaseOptions(
-        apiKey: 'AIzaSyBid3pr9pUgXowZiVo4ZRuP0C-AFuGeC38',
-        appId: '1:1113863334:ios:a912bd2d8a4d2014353067',
-        messagingSenderId: '1113863334',
-        projectId: 'mylingowith',
-        storageBucket: 'mylingowith.appspot.com',
-        iosClientId: '1113863334-ios',
-      ),
-    );
-    
+    if (Firebase.apps.isEmpty) {
+      final options = Platform.isIOS
+          ? const FirebaseOptions(
+              apiKey: 'AIzaSyBid3pr9pUgXowZiVo4ZRuP0C-AFuGeC38',
+              appId: '1:1113863334:ios:a912bd2d8a4d2014353067',
+              messagingSenderId: '1113863334',
+              projectId: 'mylingowith',
+              storageBucket: 'mylingowith.appspot.com',
+              iosClientId: '1113863334-ios',
+            )
+          : const FirebaseOptions(
+              apiKey: 'AIzaSyBid3pr9pUgXowZiVo4ZRuP0C-AFuGeC38',
+              appId: '1:1113863334:android:YOUR_ANDROID_APP_ID',
+              messagingSenderId: '1113863334',
+              projectId: 'mylingowith',
+              storageBucket: 'mylingowith.appspot.com',
+            );
+
+      await Firebase.initializeApp(options: options);
+      
+      if (kDebugMode) {
+        print('Firebase initialized with options');
+      }
+    } else {
+      if (kDebugMode) {
+        print('Firebase already initialized');
+      }
+    }
+
     // Firestore 설정
     FirebaseFirestore.instance.settings = const Settings(
       persistenceEnabled: true,
       cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
     );
-    
+
     if (kDebugMode) {
-      print('Firebase initialized successfully');
+      print('Firestore settings configured');
     }
   } catch (e, stack) {
     if (kDebugMode) {
@@ -35,12 +54,12 @@ Future<void> main() async {
       print('Stack trace: $stack');
     }
   }
-  
-  runApp(const MLWApp());
+
+  runApp(const MyApp());
 }
 
-class MLWApp extends StatelessWidget {
-  const MLWApp({super.key});
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {

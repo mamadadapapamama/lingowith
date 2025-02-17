@@ -14,8 +14,8 @@ import 'package:mlw/services/translator.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class NoteScreen extends StatefulWidget {
-  final String spaceId;  // 노트 스페이스 ID 추가
-  final String userId;   // 사용자 ID 추가
+  final String spaceId;
+  final String userId;
 
   const NoteScreen({
     super.key,
@@ -24,11 +24,12 @@ class NoteScreen extends StatefulWidget {
   });
 
   @override
-  _NoteScreenState createState() => _NoteScreenState();
+  State<NoteScreen> createState() => _NoteScreenState();
 }
 
 class _NoteScreenState extends State<NoteScreen> {
   final ImagePicker _picker = ImagePicker();
+  final NoteRepository _noteRepository = NoteRepository();
   File? _image;
   String? _extractedText;
   bool _isProcessing = false;
@@ -81,7 +82,6 @@ class _NoteScreenState extends State<NoteScreen> {
       if (source == ImageSource.camera) {
         hasPermission = await _requestPermission(Permission.camera);
       } else {
-        // iOS에서는 storage 대신 photos 권한 사용
         hasPermission = Platform.isIOS 
             ? await _requestPermission(Permission.photos)
             : await _requestPermission(Permission.storage);
@@ -90,10 +90,7 @@ class _NoteScreenState extends State<NoteScreen> {
       if (!hasPermission) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('이미지를 선택하려면 권한을 허용해주세요.'),
-              duration: Duration(seconds: 2),
-            ),
+            const SnackBar(content: Text('이미지를 선택하려면 권한을 허용해주세요.')),
           );
         }
         return;
@@ -109,10 +106,7 @@ class _NoteScreenState extends State<NoteScreen> {
       if (pickedFile == null) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('이미지가 선택되지 않았습니다.'),
-              duration: Duration(seconds: 2),
-            ),
+            const SnackBar(content: Text('이미지가 선택되지 않았습니다.')),
           );
         }
         return;
@@ -128,8 +122,7 @@ class _NoteScreenState extends State<NoteScreen> {
         _isProcessing = true;
       });
 
-      // 이미지 처리를 비동기로 처리
-      unawaited(_processImage(pickedFile));
+      await _processImage(pickedFile);
       
     } catch (e) {
       print('Image picking error: $e');
@@ -140,12 +133,52 @@ class _NoteScreenState extends State<NoteScreen> {
         });
         
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('이미지 선택 중 오류가 발생했습니다: $e'),
-            duration: const Duration(seconds: 3),
-          ),
+          SnackBar(content: Text('이미지 선택 중 오류가 발생했습니다: $e')),
         );
       }
+    }
+  }
+
+  Future<String> _extractTextFromImage(List<int> imageBytes) async {
+    try {
+      final keyJson = await rootBundle.loadString('assets/service-account-key.json');
+      final credentials = ServiceAccountCredentials.fromJson(keyJson);
+      final client = await clientViaServiceAccount(credentials, [vision.VisionApi.cloudVisionScope]);
+      final api = vision.VisionApi(client);
+
+      try {
+        final request = vision.BatchAnnotateImagesRequest(requests: [
+          vision.AnnotateImageRequest(
+            image: vision.Image(content: base64Encode(imageBytes)),
+            features: [vision.Feature(type: 'TEXT_DETECTION')],
+            imageContext: vision.ImageContext(languageHints: ['zh']),
+          ),
+        ]);
+        
+        final response = await api.images.annotate(request)
+          .timeout(const Duration(seconds: 30));
+
+        if (response.responses == null || response.responses!.isEmpty) {
+          return '';
+        }
+
+        final texts = response.responses!.first.textAnnotations;
+        if (texts == null || texts.isEmpty) return '';
+
+        final lines = texts.first.description?.split('\n') ?? [];
+        final chineseLines = lines.where((line) {
+          final hasChineseChar = RegExp(r'[\u4e00-\u9fa5]').hasMatch(line);
+          final isOnlyNumbers = RegExp(r'^[0-9\s]*$').hasMatch(line);
+          return hasChineseChar && !isOnlyNumbers;
+        }).toList();
+
+        return chineseLines.join('\n');
+      } finally {
+        client.close();
+      }
+    } catch (e) {
+      print('Vision API error: $e');
+      rethrow;
     }
   }
 
@@ -171,51 +204,6 @@ class _NoteScreenState extends State<NoteScreen> {
           SnackBar(content: Text('이미지 처리 중 오류가 발생했습니다: $e')),
         );
       }
-    }
-  }
-
-  Future<String> _extractTextFromImage(List<int> imageBytes) async {
-    try {
-      final keyJson = await rootBundle.loadString('assets/service-account-key.json');
-      final credentials = ServiceAccountCredentials.fromJson(keyJson);
-      final client = await clientViaServiceAccount(credentials, [vision.VisionApi.cloudVisionScope]);
-      final api = vision.VisionApi(client);
-
-      try {
-        final request = vision.BatchAnnotateImagesRequest(requests: [
-          vision.AnnotateImageRequest(
-            image: vision.Image(content: base64Encode(imageBytes)),
-            features: [vision.Feature(type: 'TEXT_DETECTION')],
-            imageContext: vision.ImageContext(
-              languageHints: ['zh'],
-            ),
-          ),
-        ]);
-        
-        final response = await api.images.annotate(request)
-          .timeout(const Duration(seconds: 30));  // 타임아웃 추가
-
-        if (response.responses == null || response.responses!.isEmpty) {
-          return '';
-        }
-
-        final texts = response.responses!.first.textAnnotations;
-        if (texts == null || texts.isEmpty) return '';
-
-        final lines = texts.first.description?.split('\n') ?? [];
-        final chineseLines = lines.where((line) {
-          final hasChineseChar = RegExp(r'[\u4e00-\u9fa5]').hasMatch(line);
-          final isOnlyNumbers = RegExp(r'^[0-9\s]*$').hasMatch(line);
-          return hasChineseChar && !isOnlyNumbers;
-        }).toList();
-
-        return chineseLines.join('\n');
-      } finally {
-        client.close();
-      }
-    } catch (e) {
-      print('Vision API error: $e');
-      rethrow;
     }
   }
 
@@ -255,7 +243,6 @@ class _NoteScreenState extends State<NoteScreen> {
         }
       }
       
-      final repository = NoteRepository();
       final newNote = Note(
         id: '',
         spaceId: widget.spaceId,  // 전달받은 spaceId 사용
@@ -269,7 +256,7 @@ class _NoteScreenState extends State<NoteScreen> {
         updatedAt: DateTime.now(),
       );
 
-      final createdNote = await repository.createNote(newNote);
+      final createdNote = await _noteRepository.createNote(newNote);
       if (mounted) {
         Navigator.pushReplacement(
           context,
@@ -294,10 +281,31 @@ class _NoteScreenState extends State<NoteScreen> {
   @override
   void initState() {
     super.initState();
+    print('NoteScreen initialized');
+    print('spaceId: ${widget.spaceId}');
+    print('userId: ${widget.userId}');
+    
+    // 권한 체크를 미리 수행
+    _checkPermissions();
+  }
+
+  Future<void> _checkPermissions() async {
+    try {
+      final cameraStatus = await Permission.camera.status;
+      final photosStatus = Platform.isIOS 
+          ? await Permission.photos.status
+          : await Permission.storage.status;
+      
+      print('Camera permission status: $cameraStatus');
+      print('Photos/Storage permission status: $photosStatus');
+    } catch (e) {
+      print('Error checking permissions: $e');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    print('Building NoteScreen');
     return Scaffold(
       appBar: AppBar(
         title: const Text('새로운 노트'),

@@ -9,6 +9,8 @@ import 'package:mlw/screens/note_space_settings_screen.dart';
 import 'package:mlw/models/note_space.dart';
 import 'package:mlw/repositories/note_space_repository.dart';
 import 'package:mlw/theme/tokens/color_tokens.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:mlw/widgets/custom_button.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -147,10 +149,10 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     return Scaffold(
-      backgroundColor: ColorTokens.primary[50],
+      backgroundColor: ColorTokens.semantic['surface']?['page'] ?? Colors.white,
       appBar: AppBar(
         title: Text(
-          _currentNoteSpace?.name ?? "Loading...",  // 노트 스페이스 이름 표시
+          _currentNoteSpace?.name ?? "Loading...",
           style: GoogleFonts.poppins(
             fontSize: 24,
             fontWeight: FontWeight.bold,
@@ -164,6 +166,45 @@ class _HomeScreenState extends State<HomeScreen> {
             icon: Icon(Icons.search, color: AppColors.deepGreen.withOpacity(0.7)),
             onPressed: () {
               // TODO: 검색 기능 구현
+            },
+          ),
+          IconButton(
+            icon: Icon(Icons.delete_sweep, color: AppColors.deepGreen.withOpacity(0.7)),
+            onPressed: () async {
+              final shouldDelete = await showDialog<bool>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('노트 전체 삭제'),
+                  content: const Text('현재 스페이스의 모든 노트를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('취소'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('삭제'),
+                    ),
+                  ],
+                ),
+              );
+
+              if (shouldDelete == true && _currentNoteSpace != null) {
+                try {
+                  await _noteRepository.deleteAllSpaceNotes(_currentNoteSpace!.id);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('모든 노트가 삭제되었습니다.')),
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('노트 삭제 중 오류가 발생했습니다: $e')),
+                    );
+                  }
+                }
+              }
             },
           ),
           IconButton(
@@ -183,104 +224,149 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: _currentNoteSpace == null
           ? const Center(child: CircularProgressIndicator())
-          : StreamBuilder<List<Note>>(
-              stream: _noteRepository.getNotes(userId, _currentNoteSpace!.id),
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.error_outline,
-                          color: Colors.red,
-                          size: 60,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Error: ${snapshot.error}',
-                          style: Theme.of(context).textTheme.bodyLarge,
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
+          : SafeArea(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    StreamBuilder<List<Note>>(
+                      stream: _noteRepository.getNotes(userId, _currentNoteSpace!.id),
+                      builder: (context, snapshot) {
+                        if (snapshot.hasError) {
+                          return Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.error_outline,
+                                  color: Colors.red,
+                                  size: 60,
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'Error: ${snapshot.error}',
+                                  style: Theme.of(context).textTheme.bodyLarge,
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+
+                        if (!snapshot.hasData) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        }
+
+                        final notes = snapshot.data!;
+                        
+                        if (notes.isEmpty) {
+                          return SizedBox(
+                            height: MediaQuery.of(context).size.height - 200,
+                            child: Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.note_add,
+                                    size: 60,
+                                    color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    '노트가 없습니다.\n새로운 노트를 추가해보세요!',
+                                    style: Theme.of(context).textTheme.bodyLarge,
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }
+
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 80),
+                          child: ListView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            itemCount: notes.length,
+                            itemBuilder: (context, index) {
+                              final note = notes[index];
+                              final bool hasTestSchedule = note.title.contains('家人');
+                              final String testMessage = hasTestSchedule ? 'Test tomorrow!' : '';
+                              
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 16),
+                                child: NoteCard(
+                                  note: note,
+                                  hasTestSchedule: hasTestSchedule,
+                                  testMessage: testMessage,
+                                  onDuplicate: duplicateNote,
+                                  onDelete: deleteNote,
+                                  onTitleEdit: updateNoteTitle,
+                                ),
+                              );
+                            },
+                          ),
+                        );
+                      },
                     ),
-                  );
-                }
-
-                if (!snapshot.hasData) {
-                  return const Center(
-                    child: CircularProgressIndicator(),
-                  );
-                }
-
-                final notes = snapshot.data!;
-                
-                if (notes.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.note_add,
-                          size: 60,
-                          color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          '노트가 없습니다.\n새로운 노트를 추가해보세요!',
-                          style: Theme.of(context).textTheme.bodyLarge,
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                return ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: notes.length,
-                  itemBuilder: (context, index) {
-                    final note = notes[index];
-                    // 테스트 예정 메시지 (실제로는 Note 모델에 이 정보가 포함되어야 함)
-                    final bool hasTestSchedule = note.title.contains('家人');
-                    final String testMessage = hasTestSchedule ? 'Test tomorrow!' : '';
-                    
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: NoteCard(
-                        note: note,
-                        hasTestSchedule: hasTestSchedule,
-                        testMessage: testMessage,
-                        onDuplicate: duplicateNote,
-                        onDelete: deleteNote,
-                        onTitleEdit: updateNoteTitle,
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          if (_currentNoteSpace == null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('노트 스페이스를 먼저 로드해주세요')),
-            );
-            return;
-          }
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => NoteScreen(
-                spaceId: _currentNoteSpace!.id,
-                userId: userId,
+                  ],
+                ),
               ),
             ),
-          );
-        },
-        backgroundColor: AppColors.neonGreen,
-        shape: const CircleBorder(),
-        child: Icon(Icons.add, color: AppColors.deepGreen),
+      floatingActionButton: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        decoration: BoxDecoration(
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.25),
+              offset: const Offset(0, 4),
+              blurRadius: 4,
+            ),
+          ],
+        ),
+        child: CustomButton(
+          text: 'Add new note',
+          icon: Icon(
+            Icons.add,
+            size: 24,
+            color: ColorTokens.semantic['text']?['primary'] ?? Colors.white,
+          ),
+          onPressed: () async {
+            if (_currentNoteSpace != null) {
+              print('Current note space ID: ${_currentNoteSpace!.id}');
+              try {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => NoteScreen(
+                      spaceId: _currentNoteSpace!.id,
+                      userId: userId,
+                    ),
+                  ),
+                );
+                print('Returned from NoteScreen');
+              } catch (e) {
+                print('Navigation error: $e');
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('화면 전환 중 오류가 발생했습니다: $e')),
+                  );
+                }
+              }
+            } else {
+              print('_currentNoteSpace is null');
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('노트 스페이스를 불러오는 중입니다.')),
+                );
+              }
+            }
+          },
+          isPrimary: true,
+        ),
       ),
     );
   }

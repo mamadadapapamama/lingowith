@@ -48,6 +48,10 @@ class ColorTokens {
     'surface': {
       'page': Color(0xFFFFF9F1),
       'base': Color(0xFFFFFFFF),
+      'button-primary': Color(0xFFFE6A15),
+      'button-primary-hover': Color(0xFFFE975B),
+      'button-primary-on': Color(0xFFCB5511),
+      'disabled': Color(0xFFE5E5E5),
     },
     'border': {
       'base': Color(0xFFFFE1D0),
