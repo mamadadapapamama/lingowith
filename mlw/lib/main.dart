@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mlw/screens/home_screen.dart';
 import 'package:mlw/theme/app_theme.dart';
 import 'package:flutter/foundation.dart';
-import 'dart:async';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,10 +15,17 @@ Future<void> main() async {
         appId: '1:1113863334:ios:a912bd2d8a4d2014353067',
         messagingSenderId: '1113863334',
         projectId: 'mylingowith',
-        storageBucket: 'mylingowith.firebasestorage.app',
+        storageBucket: 'mylingowith.appspot.com',
         iosClientId: '1113863334-ios',
       ),
     );
+    
+    // Firestore 설정
+    FirebaseFirestore.instance.settings = const Settings(
+      persistenceEnabled: true,
+      cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+    );
+    
     if (kDebugMode) {
       print('Firebase initialized successfully');
     }

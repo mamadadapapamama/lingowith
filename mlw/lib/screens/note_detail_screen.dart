@@ -24,11 +24,14 @@ class NoteDetailScreen extends StatefulWidget {
 
 class _NoteDetailScreenState extends State<NoteDetailScreen> {
   late Note _note;
-  final FlutterTts flutterTts = FlutterTts();
-  final TranslatorService translatorService = TranslatorService();
-  bool _showTranslation = false;  // 번역 표시 여부
-  bool _showPinyin = false;      // 병음 표시 여부
+  final FlutterTts _tts = FlutterTts();
+  final TranslatorService _translator = TranslatorService();
+  final NoteRepository _repository = NoteRepository();
+  
+  bool _showTranslation = false;
+  bool _showPinyin = false;
   bool _isHighlightMode = false;
+  bool _isSpeaking = false;
 
   @override
   void initState() {
@@ -37,49 +40,91 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     _initTts();
   }
 
+  @override
+  void dispose() {
+    _tts.stop();
+    super.dispose();
+  }
+
   Future<void> _initTts() async {
     try {
-      // iOS에서는 공유 인스턴스 먼저 설정
       if (Platform.isIOS) {
-        await flutterTts.setSharedInstance(true);
-        await flutterTts.setIosAudioCategory(
-          IosTextToSpeechAudioCategory.playback,
-          [
-            IosTextToSpeechAudioCategoryOptions.defaultToSpeaker,
-            IosTextToSpeechAudioCategoryOptions.mixWithOthers,
-          ],
+        await _tts.setSharedInstance(true);
+        await _tts.setIosAudioCategory(
+          IosTextToSpeechAudioCategory.ambient,
+          [IosTextToSpeechAudioCategoryOptions.mixWithOthers],
         );
       }
 
-      // 기본 설정
-      await Future.wait([
-        flutterTts.setLanguage("zh-CN"),
-        flutterTts.setSpeechRate(0.5),
-        flutterTts.setVolume(1.0),
-        flutterTts.setPitch(1.0),
-      ]);
+      await _tts.setLanguage("zh-CN");
+      await _tts.setSpeechRate(0.5);
+      await _tts.setVolume(1.0);
+      await _tts.setPitch(1.0);
 
+      _tts.setCompletionHandler(() {
+        if (mounted) setState(() => _isSpeaking = false);
+      });
     } catch (e) {
-      debugPrint('TTS 초기화 에러: $e');
-      // TTS 초기화 실패해도 앱은 계속 실행
+      debugPrint('TTS initialization error: $e');
     }
   }
 
   Future<void> _speak(String text) async {
+    if (_isSpeaking) {
+      await _stop();
+      return;
+    }
+
     try {
-      await flutterTts.speak(text);
+      setState(() => _isSpeaking = true);
+      await _tts.speak(text);
     } catch (e) {
-      debugPrint('TTS 실행 에러: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('음성 재생 중 오류가 발생했습니다')),
-      );
+      debugPrint('TTS speak error: $e');
+      if (mounted) setState(() => _isSpeaking = false);
     }
   }
 
-  @override
-  void dispose() {
-    flutterTts.stop();
-    super.dispose();
+  Future<void> _stop() async {
+    try {
+      await _tts.stop();
+      if (mounted) setState(() => _isSpeaking = false);
+    } catch (e) {
+      debugPrint('TTS stop error: $e');
+    }
+  }
+
+  Future<void> _addFlashCard(String text) async {
+    try {
+      final translation = await _translator.translate(text, from: 'zh', to: 'ko');
+      
+      final flashCard = FlashCard(
+        id: DateTime.now().toString(),
+        noteId: _note.id,
+        text: text,
+        translation: translation,
+        createdAt: DateTime.now(),
+      );
+
+      final updatedNote = _note.copyWith(
+        flashCards: [..._note.flashCards, flashCard],
+      );
+
+      await _repository.updateNote(updatedNote);
+      
+      if (mounted) {
+        setState(() => _note = updatedNote);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('플래시카드가 저장되었습니다')),
+        );
+      }
+    } catch (e) {
+      debugPrint('Add flashcard error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('플래시카드 저장 실패: $e')),
+        );
+      }
+    }
   }
 
   Widget _buildHeader() {
@@ -105,227 +150,181 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                 fontWeight: FontWeight.w600,
               ),
             ),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => FlashCardScreen(
-                    flashCards: _note.flashCards,
-                  ),
-                ),
-              );
-            },
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => FlashCardScreen(flashCards: _note.flashCards),
+              ),
+            ),
           ),
         ],
       ),
     );
   }
 
+  Widget _buildImageSection() {
+    if (_note.imageUrl == null) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.neonGreen.withOpacity(0.3)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        children: [
+          _buildImageViewer(),
+          if (_note.extractedText != null) _buildExtractedTextSection(),
+        ],
+      ),
+    );
+  }
+
   Widget _buildImageViewer() {
-    return Column(
+    return Stack(
       children: [
-        if (_note.imageUrl != null)
-          Container(
-            decoration: BoxDecoration(
-              border: Border.all(color: AppColors.neonGreen.withOpacity(0.3)),
-              borderRadius: BorderRadius.circular(8),
+        ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+          child: FutureBuilder<bool>(
+            future: File(_note.imageUrl!).exists(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const SizedBox(
+                  height: 150,
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+              
+              if (snapshot.data == true) {
+                return Image.file(
+                  File(_note.imageUrl!),
+                  height: 150,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, error, __) {
+                    debugPrint('Error loading image: $error');
+                    return const SizedBox(
+                      height: 150,
+                      child: Center(child: Text('이미지를 불러올 수 없습니다.')),
+                    );
+                  },
+                );
+              }
+              
+              return const SizedBox(
+                height: 150,
+                child: Center(child: Text('이미지 파일이 존재하지 않습니다.')),
+              );
+            },
+          ),
+        ),
+        Positioned(
+          top: 8,
+          right: 8,
+          child: IconButton.filled(
+            icon: const Icon(Icons.fullscreen),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ImageViewerScreen(imageUrl: _note.imageUrl!),
+              ),
             ),
-            margin: const EdgeInsets.symmetric(horizontal: 16),
+            style: IconButton.styleFrom(
+              backgroundColor: Colors.black.withOpacity(0.5),
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildExtractedTextSection() {
+    final extractedTexts = _note.extractedText!
+        .split('\n')
+        .where((s) => s.trim().isNotEmpty)
+        .toList();
+    final translations = _note.translatedText?.split('\n')
+        .where((s) => s.trim().isNotEmpty)
+        .toList() ?? [];
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(8)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildControlButtons(),
+          ...extractedTexts.asMap().entries.map((entry) {
+            final index = entry.key;
+            final text = entry.value;
+            final translation = index < translations.length ? translations[index] : '';
+            return _buildTextItem(text, translation);
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTextItem(String text, String translation) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.volume_up, size: 20),
+            onPressed: () => _speak(text),
+            color: AppColors.deepGreen,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(
+              minWidth: 32,
+              minHeight: 32,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 이미지 섹션
-                Stack(
-                  children: [
-                    ClipRRect(
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
-                      child: FutureBuilder<bool>(
-                        future: File(_note.imageUrl!).exists(),
-                        builder: (context, snapshot) {
-                          if (snapshot.connectionState == ConnectionState.waiting) {
-                            return const SizedBox(
-                              height: 150,
-                              child: Center(child: CircularProgressIndicator()),
-                            );
-                          }
-                          
-                          if (snapshot.data == true) {
-                            return Image.file(
-                              File(_note.imageUrl!),
-                              height: 150,
-                              width: double.infinity,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                debugPrint('Error loading image: $error');
-                                return const SizedBox(
-                                  height: 150,
-                                  child: Center(
-                                    child: Text('이미지를 불러올 수 없습니다.'),
-                                  ),
-                                );
-                              },
-                            );
-                          } else {
-                            return const SizedBox(
-                              height: 150,
-                              child: Center(
-                                child: Text('이미지 파일이 존재하지 않습니다.'),
-                              ),
-                            );
-                          }
-                        },
-                      ),
-                    ),
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: IconButton.filled(
-                        icon: const Icon(Icons.fullscreen),
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => ImageViewerScreen(
-                                imageUrl: _note.imageUrl!,
-                              ),
-                            ),
-                          );
-                        },
-                        style: IconButton.styleFrom(
-                          backgroundColor: Colors.black.withOpacity(0.5),
-                          foregroundColor: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ],
+                TextHighlighter(
+                  text: text,
+                  isHighlightMode: _isHighlightMode,
+                  onHighlighted: _addFlashCard,
                 ),
-                // OCR 텍스트 섹션 with TTS
-                if (_note.extractedText != null)
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: const BorderRadius.vertical(
-                        bottom: Radius.circular(8),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildToggleButtons(),  // 토글 버튼 추가
-                        ..._note.extractedText!
-                            .split('\n')
-                            .where((s) => s.trim().isNotEmpty)
-                            .map((sentence) {
-                          final index = _note.extractedText!
-                              .split('\n')
-                              .indexOf(sentence);
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                IconButton(
-                                  icon: const Icon(Icons.volume_up, size: 20),
-                                  onPressed: () => _speak(sentence),
-                                  color: AppColors.deepGreen,
-                                  padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(
-                                    minWidth: 32,
-                                    minHeight: 32,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: _buildTextContent(sentence, index),  // 수정된 부분
-                                ),
-                              ],
-                            ),
-                          );
-                        }).toList(),
-                      ],
+                if (_showTranslation) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    translation,
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      color: Colors.grey[800],
                     ),
                   ),
+                ],
+                if (_showPinyin) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'TODO: 병음',
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
-      ],
+        ],
+      ),
     );
   }
 
-  Widget _buildTextContent(String sentence, int index) {
-    // 번역 텍스트 가져오기
-    final translations = _note.translatedText?.split('\n').where((s) => s.trim().isNotEmpty).toList() ?? [];
-    final translation = index < translations.length ? translations[index] : '';
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        TextHighlighter(
-          text: sentence,
-          isHighlightMode: _isHighlightMode,
-          onHighlighted: (selectedText) async {
-            if (selectedText.isNotEmpty) {
-              final translation = await translatorService.translate(
-                selectedText,
-                from: 'zh',
-                to: 'ko',
-              );
-              
-              final flashCard = FlashCard(
-                id: DateTime.now().toString(),
-                noteId: _note.id,
-                text: selectedText,
-                translation: translation,
-                createdAt: DateTime.now(),
-              );
-
-              final updatedNote = _note.copyWith(
-                flashCards: [..._note.flashCards, flashCard],
-              );
-
-              await NoteRepository().updateNote(updatedNote);
-              setState(() {
-                _note = updatedNote;
-              });
-
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('플래시카드가 저장되었습니다')),
-                );
-              }
-            }
-          },
-        ),
-        // 번역 (토글 시)
-        if (_showTranslation) ...[
-          const SizedBox(height: 4),
-          Text(
-            translation,  // 위에서 정의한 translation 변수 사용
-            style: GoogleFonts.poppins(
-              fontSize: 14,
-              color: Colors.grey[800],
-            ),
-          ),
-        ],
-        // 병음 (토글 시)
-        if (_showPinyin) ...[
-          const SizedBox(height: 4),
-          Text(
-            'TODO: 병음',
-            style: GoogleFonts.poppins(
-              fontSize: 14,
-              color: Colors.grey[600],
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-
-  // 토글 버튼 UI
-  Widget _buildToggleButtons() {
+  Widget _buildControlButtons() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
@@ -377,7 +376,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildHeader(),
-            _buildImageViewer(),
+            _buildImageSection(),
           ],
         ),
       ),

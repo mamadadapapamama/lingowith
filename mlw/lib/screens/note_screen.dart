@@ -11,6 +11,7 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:mlw/services/translator.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class NoteScreen extends StatefulWidget {
   final String spaceId;  // 노트 스페이스 ID 추가
@@ -32,27 +33,98 @@ class _NoteScreenState extends State<NoteScreen> {
   String? _extractedText;
   bool _isProcessing = false;
 
-  Future<void> _getImage(ImageSource source) async {
+  Future<bool> _requestPermission(Permission permission) async {
+    // iOS에서는 시뮬레이터에서 항상 권한이 있다고 가정
+    if (Platform.isIOS && !await Permission.photos.isRestricted) {
+      return true;
+    }
+
+    if (await permission.isGranted) {
+      return true;
+    }
+    
+    final status = await permission.request();
+    
+    if (status.isPermanentlyDenied) {
+      if (context.mounted) {
+        final shouldOpenSettings = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('권한 필요'),
+            content: const Text('이 기능을 사용하기 위해서는 설정에서 권한을 허용해주세요.'),
+            actions: [
+              TextButton(
+                child: const Text('취소'),
+                onPressed: () => Navigator.pop(context, false),
+              ),
+              TextButton(
+                child: const Text('설정으로 이동'),
+                onPressed: () => Navigator.pop(context, true),
+              ),
+            ],
+          ),
+        );
+        
+        if (shouldOpenSettings == true) {
+          await openAppSettings();
+        }
+      }
+      return false;
+    }
+    
+    return status.isGranted;
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
     try {
-      final XFile? pickedFile = await _picker.pickImage(
-        source: source,
-        maxWidth: 1200,
-        maxHeight: 1200,
-        imageQuality: 85,
-        requestFullMetadata: true,
-      );
-      
-      if (pickedFile == null) {
-        if (mounted) {
+      bool hasPermission;
+      if (source == ImageSource.camera) {
+        hasPermission = await _requestPermission(Permission.camera);
+      } else {
+        // iOS에서는 storage 대신 photos 권한 사용
+        hasPermission = Platform.isIOS 
+            ? await _requestPermission(Permission.photos)
+            : await _requestPermission(Permission.storage);
+      }
+
+      if (!hasPermission) {
+        if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('이미지가 선택되지 않았습니다.')),
+            const SnackBar(
+              content: Text('이미지를 선택하려면 권한을 허용해주세요.'),
+              duration: Duration(seconds: 2),
+            ),
           );
         }
         return;
       }
 
+      final XFile? pickedFile = await _picker.pickImage(
+        source: source,
+        maxWidth: 1200,
+        maxHeight: 1200,
+        imageQuality: 85,
+      );
+      
+      if (pickedFile == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('이미지가 선택되지 않았습니다.'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+        return;
+      }
+
+      final imageFile = File(pickedFile.path);
+      if (!await imageFile.exists()) {
+        throw Exception('선택된 이미지 파일이 존재하지 않습니다.');
+      }
+
       setState(() {
-        _image = File(pickedFile.path);
+        _image = imageFile;
         _isProcessing = true;
       });
 
@@ -219,6 +291,10 @@ class _NoteScreenState extends State<NoteScreen> {
     }
   }
 
+  @override
+  void initState() {
+    super.initState();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -236,10 +312,22 @@ class _NoteScreenState extends State<NoteScreen> {
             Expanded(
               child: Stack(
                 children: [
-                  Image.file(_image!),
+                  Image.file(
+                    _image!,
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) {
+                      print('Image error: $error');
+                      return const Center(
+                        child: Text('이미지를 불러올 수 없습니다.'),
+                      );
+                    },
+                  ),
                   if (_isProcessing)
-                    const Center(
-                      child: CircularProgressIndicator(),
+                    Container(
+                      color: Colors.black.withOpacity(0.5),
+                      child: const Center(
+                        child: CircularProgressIndicator(),
+                      ),
                     ),
                 ],
               ),
@@ -254,15 +342,15 @@ class _NoteScreenState extends State<NoteScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                IconButton(
+                ElevatedButton.icon(
                   icon: const Icon(Icons.photo_library),
-                  onPressed: () => _getImage(ImageSource.gallery),
-                  tooltip: '갤러리에서 선택',
+                  label: const Text('갤러리'),
+                  onPressed: () => _pickImage(ImageSource.gallery),
                 ),
-                IconButton(
+                ElevatedButton.icon(
                   icon: const Icon(Icons.camera_alt),
-                  onPressed: () => _getImage(ImageSource.camera),
-                  tooltip: '사진 촬영',
+                  label: const Text('카메라'),
+                  onPressed: () => _pickImage(ImageSource.camera),
                 ),
               ],
             ),
