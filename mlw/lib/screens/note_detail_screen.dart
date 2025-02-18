@@ -1,389 +1,308 @@
 import 'package:flutter/material.dart';
-import 'package:mlw/models/note.dart';
-import 'dart:io';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:mlw/styles/app_colors.dart';
+import 'package:mlw/models/note.dart' as note_model;
 import 'package:flutter_tts/flutter_tts.dart';
-import 'package:mlw/screens/image_viewer_screen.dart';
-import 'package:mlw/services/translator.dart';
-import 'package:mlw/services/note_repository.dart';
 import 'package:mlw/widgets/text_highlighter.dart';
-import 'package:mlw/screens/flashcard_screen.dart';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter/services.dart';
+import 'package:mlw/services/translator.dart';
+import 'package:googleapis/vision/v1.dart' as vision;
+import 'package:googleapis_auth/auth_io.dart';
+import 'dart:convert';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class NoteDetailScreen extends StatefulWidget {
-  final Note note;
+  final note_model.Note note;
 
-  const NoteDetailScreen({
-    super.key,
-    required this.note,
-  });
+  NoteDetailScreen({Key? key, required this.note}) : super(key: key);
 
   @override
-  State<NoteDetailScreen> createState() => _NoteDetailScreenState();
+  _NoteDetailScreenState createState() => _NoteDetailScreenState();
 }
 
 class _NoteDetailScreenState extends State<NoteDetailScreen> {
-  late Note _note;
-  final FlutterTts _tts = FlutterTts();
-  final TranslatorService _translator = TranslatorService();
-  final NoteRepository _repository = NoteRepository();
-  
-  bool _showTranslation = false;
-  bool _showPinyin = false;
-  bool _isHighlightMode = false;
-  bool _isSpeaking = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _note = widget.note;
-    _initTts();
-  }
-
-  @override
-  void dispose() {
-    _tts.stop();
-    super.dispose();
-  }
-
-  Future<void> _initTts() async {
-    try {
-      if (Platform.isIOS) {
-        await _tts.setSharedInstance(true);
-        await _tts.setIosAudioCategory(
-          IosTextToSpeechAudioCategory.ambient,
-          [IosTextToSpeechAudioCategoryOptions.mixWithOthers],
-        );
-      }
-
-      await _tts.setLanguage("zh-CN");
-      await _tts.setSpeechRate(0.5);
-      await _tts.setVolume(1.0);
-      await _tts.setPitch(1.0);
-
-      _tts.setCompletionHandler(() {
-        if (mounted) setState(() => _isSpeaking = false);
-      });
-    } catch (e) {
-      debugPrint('TTS initialization error: $e');
-    }
-  }
+  final FlutterTts _flutterTts = FlutterTts();
+  final FirebaseFirestore firestore = FirebaseFirestore.instance;
 
   Future<void> _speak(String text) async {
-    if (_isSpeaking) {
-      await _stop();
-      return;
-    }
-
-    try {
-      setState(() => _isSpeaking = true);
-      await _tts.speak(text);
-    } catch (e) {
-      debugPrint('TTS speak error: $e');
-      if (mounted) setState(() => _isSpeaking = false);
-    }
+    await _flutterTts.setLanguage('ko-KR');
+    await _flutterTts.speak(text);
   }
 
-  Future<void> _stop() async {
-    try {
-      await _tts.stop();
-      if (mounted) setState(() => _isSpeaking = false);
-    } catch (e) {
-      debugPrint('TTS stop error: $e');
+  Future<bool> _requestPermission(BuildContext context, Permission permission) async {
+    if (Platform.isIOS && !await Permission.photos.isRestricted) {
+      return true;
     }
-  }
 
-  Future<void> _addFlashCard(String text) async {
-    try {
-      final translation = await _translator.translate(text, from: 'zh', to: 'ko');
-      
-      final flashCard = FlashCard(
-        id: DateTime.now().toString(),
-        noteId: _note.id,
-        text: text,
-        translation: translation,
-        createdAt: DateTime.now(),
-      );
-
-      final updatedNote = _note.copyWith(
-        flashCards: [..._note.flashCards, flashCard],
-      );
-
-      await _repository.updateNote(updatedNote);
-      
-      if (mounted) {
-        setState(() => _note = updatedNote);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('플래시카드가 저장되었습니다')),
+    if (await permission.isGranted) {
+      return true;
+    }
+    
+    final status = await permission.request();
+    
+    if (status.isPermanentlyDenied) {
+      if (context.mounted) {
+        final shouldOpenSettings = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('권한 필요'),
+            content: const Text('이 기능을 사용하기 위해서는 설정에서 권한을 허용해주세요.'),
+            actions: [
+              TextButton(
+                child: const Text('취소'),
+                onPressed: () => Navigator.pop(context, false),
+              ),
+              TextButton(
+                child: const Text('설정으로 이동'),
+                onPressed: () => Navigator.pop(context, true),
+              ),
+            ],
+          ),
         );
+        
+        if (shouldOpenSettings == true) {
+          await openAppSettings();
+        }
       }
-    } catch (e) {
-      debugPrint('Add flashcard error: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('플래시카드 저장 실패: $e')),
-        );
-      }
+      return false;
     }
+    
+    return status.isGranted;
   }
 
-  Widget _buildHeader() {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Row(
-        children: [
-          Text(
-            _formatDate(_note.createdAt),
-            style: GoogleFonts.poppins(
-              color: Colors.grey[600],
-              fontSize: 14,
+  Future<void> _pickImage(BuildContext context) async {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: <Widget>[
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('갤러리에서 선택'),
+              onTap: () {
+                Navigator.of(context).pop();
+                _selectImage(context, ImageSource.gallery);
+              },
             ),
-          ),
-          const Spacer(),
-          TextButton.icon(
-            icon: const Icon(Icons.style),
-            label: Text(
-              '${_note.flashCards.length} cards',
-              style: GoogleFonts.poppins(
-                color: AppColors.neonGreen,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('카메라로 촬영'),
+              onTap: () {
+                Navigator.of(context).pop();
+                _selectImage(context, ImageSource.camera);
+              },
             ),
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => FlashCardScreen(flashCards: _note.flashCards),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildImageSection() {
-    if (_note.imageUrl == null) return const SizedBox.shrink();
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        border: Border.all(color: AppColors.neonGreen.withOpacity(0.3)),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        children: [
-          _buildImageViewer(),
-          if (_note.extractedText != null) _buildExtractedTextSection(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildImageViewer() {
-    return Stack(
-      children: [
-        ClipRRect(
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
-          child: FutureBuilder<bool>(
-            future: File(_note.imageUrl!).exists(),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const SizedBox(
-                  height: 150,
-                  child: Center(child: CircularProgressIndicator()),
-                );
-              }
-              
-              if (snapshot.data == true) {
-                return Image.file(
-                  File(_note.imageUrl!),
-                  height: 150,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, error, __) {
-                    debugPrint('Error loading image: $error');
-                    return const SizedBox(
-                      height: 150,
-                      child: Center(child: Text('이미지를 불러올 수 없습니다.')),
-                    );
-                  },
-                );
-              }
-              
-              return const SizedBox(
-                height: 150,
-                child: Center(child: Text('이미지 파일이 존재하지 않습니다.')),
-              );
-            },
-          ),
-        ),
-        Positioned(
-          top: 8,
-          right: 8,
-          child: IconButton.filled(
-            icon: const Icon(Icons.fullscreen),
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => ImageViewerScreen(imageUrl: _note.imageUrl!),
-              ),
-            ),
-            style: IconButton.styleFrom(
-              backgroundColor: Colors.black.withOpacity(0.5),
-              foregroundColor: Colors.white,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildExtractedTextSection() {
-    final extractedTexts = _note.extractedText!
-        .split('\n')
-        .where((s) => s.trim().isNotEmpty)
-        .toList();
-    final translations = _note.translatedText?.split('\n')
-        .where((s) => s.trim().isNotEmpty)
-        .toList() ?? [];
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(8)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildControlButtons(),
-          ...extractedTexts.asMap().entries.map((entry) {
-            final index = entry.key;
-            final text = entry.value;
-            final translation = index < translations.length ? translations[index] : '';
-            return _buildTextItem(text, translation);
-          }),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTextItem(String text, String translation) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          IconButton(
-            icon: const Icon(Icons.volume_up, size: 20),
-            onPressed: () => _speak(text),
-            color: AppColors.deepGreen,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(
-              minWidth: 32,
-              minHeight: 32,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TextHighlighter(
-                  text: text,
-                  isHighlightMode: _isHighlightMode,
-                  onHighlighted: _addFlashCard,
-                ),
-                if (_showTranslation) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    translation,
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      color: Colors.grey[800],
-                    ),
-                  ),
-                ],
-                if (_showPinyin) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    'TODO: 병음',
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildControlButtons() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.end,
-      children: [
-        IconButton(
-          icon: Icon(
-            Icons.g_translate,
-            color: _showTranslation ? AppColors.neonGreen : Colors.grey,
-          ),
-          onPressed: () => setState(() => _showTranslation = !_showTranslation),
-        ),
-        IconButton(
-          icon: Text(
-            '拼',
-            style: TextStyle(
-              color: _showPinyin ? AppColors.neonGreen : Colors.grey,
-            ),
-          ),
-          onPressed: () => setState(() => _showPinyin = !_showPinyin),
-        ),
-        IconButton(
-          icon: Icon(
-            Icons.highlight,
-            color: _isHighlightMode ? AppColors.neonGreen : Colors.grey,
-          ),
-          onPressed: () => setState(() => _isHighlightMode = !_isHighlightMode),
-        ),
-      ],
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: Text(
-          _note.title,
-          style: GoogleFonts.poppins(
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
-            color: AppColors.deepGreen,
-          ),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildHeader(),
-            _buildImageSection(),
           ],
         ),
       ),
     );
   }
 
-  String _formatDate(DateTime date) {
-    return '${date.year}.${date.month.toString().padLeft(2, '0')}.${date.day.toString().padLeft(2, '0')}';
+  Future<void> _selectImage(BuildContext context, ImageSource source) async {
+    try {
+      bool hasPermission;
+      if (source == ImageSource.camera) {
+        hasPermission = await _requestPermission(context, Permission.camera);
+      } else {
+        hasPermission = Platform.isIOS 
+            ? await _requestPermission(context, Permission.photos)
+            : await _requestPermission(context, Permission.storage);
+      }
+
+      if (!hasPermission) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('이미지를 선택하려면 권한을 허용해주세요.')),
+          );
+        }
+        return;
+      }
+
+      final XFile? pickedFile = await ImagePicker().pickImage(
+        source: source,
+        maxWidth: 1200,
+        maxHeight: 1200,
+        imageQuality: 85,
+      );
+      
+      if (pickedFile == null) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('이미지가 선택되지 않았습니다.')),
+          );
+        }
+        return;
+      }
+
+      final imageFile = File(pickedFile.path);
+      if (!await imageFile.exists()) {
+        throw Exception('선택된 이미지 파일이 존재하지 않습니다.');
+      }
+
+      // Process the image
+      await _processImage(context, imageFile);
+      
+    } catch (e) {
+      print('Image picking error: $e');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('이미지 선택 중 오류가 발생했습니다: $e')),
+        );
+      }
+    }
   }
-} 
+
+  Future<void> _processImage(BuildContext context, File imageFile) async {
+    try {
+      final imageBytes = await imageFile.readAsBytes();
+      final text = await _extractTextFromImage(imageBytes);
+      
+      // Create a new page with the image and extracted text
+      final newPage = note_model.Page(
+        imageUrl: imageFile.path,
+        extractedText: text,
+        translatedText: await translatorService.translate(text, from: 'zh', to: 'ko'),
+      );
+
+      // Update the note with the new page
+      final updatedNote = widget.note.addPage(newPage);
+
+      // Log the new page creation
+      print('New page created: ${newPage.imageUrl}');
+
+      // Update Firestore with the updated note
+      await firestore.collection('notes').doc(widget.note.id).update(updatedNote.toFirestore());
+
+      // Log Firestore update
+      print('Firestore updated with new page');
+
+      // Refresh the UI
+      setState(() {
+        widget.note.pages.add(newPage);
+      });
+
+      // Log UI refresh
+      print('UI refreshed with new page');
+
+    } catch (e) {
+      print('Image processing error: $e');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('이미지 처리 중 오류가 발생했습니다: $e')),
+        );
+      }
+    }
+  }
+
+  Future<String> _extractTextFromImage(List<int> imageBytes) async {
+    try {
+      final keyJson = await rootBundle.loadString('assets/service-account-key.json');
+      final credentials = ServiceAccountCredentials.fromJson(keyJson);
+      final client = await clientViaServiceAccount(credentials, [vision.VisionApi.cloudVisionScope]);
+      final api = vision.VisionApi(client);
+
+      try {
+        final request = vision.BatchAnnotateImagesRequest(requests: [
+          vision.AnnotateImageRequest(
+            image: vision.Image(content: base64Encode(imageBytes)),
+            features: [vision.Feature(type: 'TEXT_DETECTION')],
+            imageContext: vision.ImageContext(languageHints: ['zh']),
+          ),
+        ]);
+        
+        final response = await api.images.annotate(request)
+          .timeout(const Duration(seconds: 30));
+
+        if (response.responses == null || response.responses!.isEmpty) {
+          return '';
+        }
+
+        final texts = response.responses!.first.textAnnotations;
+        if (texts == null || texts.isEmpty) return '';
+
+        final lines = texts.first.description?.split('\n') ?? [];
+        final chineseLines = lines.where((line) {
+          final hasChineseChar = RegExp(r'[\u4e00-\u9fa5]').hasMatch(line);
+          final isOnlyNumbers = RegExp(r'^[0-9\s]*$').hasMatch(line);
+          return hasChineseChar && !isOnlyNumbers;
+        }).toList();
+
+        return chineseLines.join('\n');
+      } finally {
+        client.close();
+      }
+    } catch (e) {
+      print('Vision API error: $e');
+      rethrow;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.note.title),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: ListView.builder(
+          itemCount: widget.note.pages.length,
+          itemBuilder: (context, index) {
+            final page = widget.note.pages[index];
+            return Card(
+              margin: const EdgeInsets.symmetric(vertical: 8.0),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Image.file(
+                      File(page.imageUrl),
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      height: 200,
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.volume_up),
+                          onPressed: () => _speak(page.extractedText),
+                        ),
+                        ToggleButtons(
+                          children: const [
+                            Icon(Icons.translate),
+                            Icon(Icons.text_fields),
+                            Icon(Icons.highlight),
+                          ],
+                          isSelected: [false, false, false],
+                          onPressed: (int index) {
+                            // Handle toggle logic
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      page.extractedText,
+                      style: Theme.of(context).textTheme.bodyLarge,
+                    ),
+                    // Add logic to show translation or pinyin based on toggle
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () async {
+          await _pickImage(context);
+        },
+        child: const Icon(Icons.add_a_photo),
+      ),
+    );
+  }
+}
+

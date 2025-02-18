@@ -6,6 +6,7 @@ class Note {
   final String userId;
   final String title;
   final String content;
+  final List<Page> pages;
   final String? imageUrl;
   final String? extractedText;
   final String? translatedText;
@@ -22,6 +23,7 @@ class Note {
     required this.userId,
     required this.title,
     required this.content,
+    this.pages = const [],
     this.imageUrl,
     this.extractedText,
     this.translatedText,
@@ -33,6 +35,27 @@ class Note {
     this.testDate,
   });
 
+  // Add a method to add a page
+  Note addPage(Page page) {
+    return Note(
+      id: id,
+      spaceId: spaceId,
+      userId: userId,
+      title: title,
+      content: content,
+      pages: [...pages, page],
+      imageUrl: imageUrl,
+      extractedText: extractedText,
+      translatedText: translatedText,
+      pinyin: pinyin,
+      flashCards: flashCards,
+      highlightedTexts: highlightedTexts,
+      createdAt: createdAt,
+      updatedAt: DateTime.now(),
+      testDate: testDate,
+    );
+  }
+
   // Firebase에서 데이터를 가져올 때 사용하는 팩토리 생성자
   factory Note.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
@@ -42,13 +65,12 @@ class Note {
       userId: data['userId'],
       title: data['title'],
       content: data['content'],
+      pages: (data['pages'] as List?)?.map((page) => Page.fromMap(page as Map<String, dynamic>)).toList() ?? [],
       imageUrl: data['imageUrl'],
       extractedText: data['extractedText'],
       translatedText: data['translatedText'],
       pinyin: data['pinyin'],
-      flashCards: (data['flashCards'] as List?)
-          ?.map((card) => FlashCard.fromFirestore(card as Map<String, dynamic>))
-          .toList() ?? [],
+      flashCards: (data['flashCards'] as List?)?.map((card) => FlashCard.fromFirestore(card as Map<String, dynamic>)).toList() ?? [],
       highlightedTexts: List<String>.from(data['highlightedTexts'] ?? []),
       createdAt: (data['createdAt'] as Timestamp).toDate(),
       updatedAt: (data['updatedAt'] as Timestamp).toDate(),
@@ -63,6 +85,7 @@ class Note {
       'userId': userId,
       'title': title,
       'content': content,
+      'pages': pages.map((page) => page.toMap()).toList(),
       'imageUrl': imageUrl,
       'extractedText': extractedText,
       'translatedText': translatedText,
@@ -82,6 +105,7 @@ class Note {
     String? userId,
     String? title,
     String? content,
+    List<Page>? pages,
     String? imageUrl,
     String? extractedText,
     String? translatedText,
@@ -98,6 +122,7 @@ class Note {
       userId: userId ?? this.userId,
       title: title ?? this.title,
       content: content ?? this.content,
+      pages: pages ?? this.pages,
       imageUrl: imageUrl ?? this.imageUrl,
       extractedText: extractedText ?? this.extractedText,
       translatedText: translatedText ?? this.translatedText,
@@ -117,6 +142,7 @@ class Note {
     'userId': userId,
     'title': title,
     'content': content,
+    'pages': pages.map((page) => page.toMap()).toList(),
     'imageUrl': imageUrl,
     'extractedText': extractedText,
     'translatedText': translatedText,
@@ -135,6 +161,9 @@ class Note {
     userId: json['userId'] as String,
     title: json['title'] as String,
     content: json['content'] as String,
+    pages: (json['pages'] as List<dynamic>?)
+        ?.map((e) => Page.fromMap(e as Map<String, dynamic>))
+        .toList() ?? [],
     imageUrl: json['imageUrl'] as String?,
     extractedText: json['extractedText'] as String?,
     translatedText: json['translatedText'] as String?,
@@ -151,6 +180,34 @@ class Note {
         ? DateTime.parse(json['testDate'] as String)
         : null,
   );
+}
+
+class Page {
+  final String imageUrl;
+  final String extractedText;
+  final String translatedText;
+
+  Page({
+    required this.imageUrl,
+    required this.extractedText,
+    required this.translatedText,
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'imageUrl': imageUrl,
+      'extractedText': extractedText,
+      'translatedText': translatedText,
+    };
+  }
+
+  factory Page.fromMap(Map<String, dynamic> map) {
+    return Page(
+      imageUrl: map['imageUrl'],
+      extractedText: map['extractedText'],
+      translatedText: map['translatedText'],
+    );
+  }
 }
 
 class FlashCard {

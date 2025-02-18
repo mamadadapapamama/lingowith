@@ -144,7 +144,7 @@ class NoteCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header row with date and test schedule
+            // Header row with date and page count
             Row(
               children: [
                 Text(
@@ -155,23 +155,16 @@ class NoteCard extends StatelessWidget {
                     fontWeight: FontWeight.w400,
                   ),
                 ),
-                const Spacer(),
-                if (hasTestSchedule)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: ColorTokens.primary[50],
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      'Test in 1 day',
-                      style: GoogleFonts.poppins(
-                        color: ColorTokens.primary[400],
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                const SizedBox(width: 8),
+                Text(
+                  '| ${note.pages.length} pages',
+                  style: GoogleFonts.poppins(
+                    color: ColorTokens.base[400],
+                    fontSize: 12,
+                    fontWeight: FontWeight.w400,
                   ),
+                ),
+                const Spacer(),
                 IconButton(
                   icon: Icon(Icons.more_vert),
                   onPressed: () {
@@ -205,11 +198,11 @@ class NoteCard extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (note.imageUrl != null)
+                if (note.pages.isNotEmpty && note.pages.first.imageUrl != null)
                   ClipRRect(
                     borderRadius: BorderRadius.circular(4),
                     child: Image.file(
-                      File(note.imageUrl!),
+                      File(note.pages.first.imageUrl),
                       width: 80,
                       height: 80,
                       fit: BoxFit.cover,
@@ -221,7 +214,7 @@ class NoteCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        note.title,
+                        note.title.isNotEmpty ? note.title : note.pages.first.extractedText.split('\n').first,
                         style: GoogleFonts.poppins(
                           fontSize: 20,
                           fontWeight: FontWeight.w600,

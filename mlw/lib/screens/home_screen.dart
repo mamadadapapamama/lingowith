@@ -1,14 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:mlw/models/note.dart';
+import 'package:mlw/models/note.dart' as note_model;
 import 'package:mlw/services/note_repository.dart';
 import 'package:mlw/widgets/note_card.dart';
 import 'package:mlw/styles/app_colors.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:mlw/screens/note_space_settings_screen.dart';
 import 'package:mlw/models/note_space.dart';
 import 'package:mlw/repositories/note_space_repository.dart';
 import 'package:mlw/theme/tokens/color_tokens.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:mlw/widgets/custom_button.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
@@ -18,6 +16,8 @@ import 'package:googleapis/vision/v1.dart' as vision;
 import 'package:googleapis_auth/auth_io.dart';
 import 'package:mlw/services/translator.dart';
 import 'dart:convert';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:mlw/screens/note_detail_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -55,7 +55,7 @@ class _HomeScreenState extends State<HomeScreen> {
         final defaultSpace = NoteSpace(
           id: '',
           userId: userId,
-          name: "Chinese note",
+          name: "Chinese book",
           language: "zh",
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
@@ -160,8 +160,8 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     // 노트 복제 함수
-    Future<void> duplicateNote(Note note) async {
-      final newNote = Note(
+    Future<void> duplicateNote(note_model.Note note) async {
+      final newNote = note_model.Note(
         id: '',
         spaceId: note.spaceId,
         userId: note.userId,
@@ -193,7 +193,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     // 노트 삭제 함수
-    Future<void> deleteNote(Note note) async {
+    Future<void> deleteNote(note_model.Note note) async {
       try {
         await _noteRepository.deleteNote(note.id);
         if (context.mounted) {
@@ -211,7 +211,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     // HomeScreen 클래스 내부에 추가
-    Future<void> updateNoteTitle(Note note, String newTitle) async {
+    Future<void> updateNoteTitle(note_model.Note note, String newTitle) async {
       try {
         final updatedNote = note.copyWith(
           title: newTitle,
@@ -230,14 +230,15 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: ColorTokens.semantic['surface']?['page'] ?? Colors.white,
       appBar: AppBar(
-        title: Row(
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SvgPicture.asset(
-              'assets/icons/logo_small.svg',
+              'assets/icon/logo_small.svg',
               width: 71,
               height: 21,
             ),
-            const SizedBox(width: 8),
+            const SizedBox(height: 4),
             Text(
               _currentNoteSpace?.name ?? "Loading...",
               style: TextStyle(
@@ -247,7 +248,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 color: ColorTokens.semantic['text']?['body'],
               ),
             ),
-            const Icon(Icons.arrow_drop_down),
           ],
         ),
         backgroundColor: Colors.transparent,
@@ -274,7 +274,7 @@ class _HomeScreenState extends State<HomeScreen> {
               child: SingleChildScrollView(
                 child: Column(
                   children: [
-                    StreamBuilder<List<Note>>(
+                    StreamBuilder<List<note_model.Note>>(
                       stream: _noteRepository.getNotes(userId, _currentNoteSpace!.id),
                       builder: (context, snapshot) {
                         if (snapshot.hasError) {
@@ -426,16 +426,21 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       }
 
+      // Create a new page with the image and extracted text
+      final newPage = note_model.Page(
+        imageUrl: imagePath,
+        extractedText: extractedText ?? '',
+        translatedText: translatedText ?? '',
+      );
+
       // Create a new note with the extracted and translated text
-      final newNote = Note(
+      final newNote = note_model.Note(
         id: '',
         spaceId: _currentNoteSpace?.id ?? '',
         userId: userId,
         title: extractedText?.split('\n').first ?? 'New Note',
         content: '',
-        imageUrl: imagePath,
-        extractedText: extractedText,
-        translatedText: translatedText,
+        pages: [newPage], // Add the new page to the note
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -449,11 +454,21 @@ class _HomeScreenState extends State<HomeScreen> {
           const SnackBar(content: Text('노트가 생성되었습니다.')),
         );
       }
+
+      // Navigate to NoteDetailScreen after creating the note
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => NoteDetailScreen(note: createdNote),
+          ),
+        );
+      }
     } catch (e) {
-      print('Note creation error: $e');
+      print('Note creation error: ${e.toString()}');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('노트 생성 실패: $e')),
+          SnackBar(content: Text('노트 생성 실패: ${e.toString()}')),
         );
       }
     } finally {

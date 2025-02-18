@@ -336,9 +336,24 @@ class _NoteScreenState extends State<NoteScreen> {
     }
   }
 
+  Future<void> _addNewNote() async {
+    await _pickImage(ImageSource.gallery);
+    if (_image == null) return;
+
+    // Create a new note with the uploaded image
+    await _createNote();
+  }
+
+  Future<void> _addMoreImage() async {
+    await _pickImage(ImageSource.gallery);
+    if (_image == null) return;
+
+    // Add a new page to the existing note with the uploaded image
+    await _createNote();
+  }
+
   @override
   Widget build(BuildContext context) {
-    print('Building NoteScreen');
     return Scaffold(
       appBar: AppBar(
         title: const Text('새로운 노트'),
@@ -392,12 +407,12 @@ class _NoteScreenState extends State<NoteScreen> {
                 ElevatedButton.icon(
                   icon: const Icon(Icons.photo_library),
                   label: const Text('갤러리'),
-                  onPressed: () => _pickImage(ImageSource.gallery),
+                  onPressed: _addNewNote,
                 ),
                 ElevatedButton.icon(
                   icon: const Icon(Icons.camera_alt),
                   label: const Text('카메라'),
-                  onPressed: () => _pickImage(ImageSource.camera),
+                  onPressed: _addMoreImage,
                 ),
               ],
             ),
