@@ -230,43 +230,47 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: ColorTokens.semantic['surface']?['page'] ?? Colors.white,
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            SvgPicture.asset(
-              'assets/icon/logo_small.svg',
-              width: 71,
-              height: 21,
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SvgPicture.asset(
+                  'assets/icon/logo_small.svg',
+                  width: 71,
+                  height: 21,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _currentNoteSpace?.name ?? "Loading...",
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w700,
+                    fontFamily: 'Poppins',
+                    color: ColorTokens.semantic['text']?['body'],
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 4),
-            Text(
-              _currentNoteSpace?.name ?? "Loading...",
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.w700,
-                fontFamily: 'Poppins',
-                color: ColorTokens.semantic['text']?['body'],
-              ),
+            const SizedBox(width: 79),
+            IconButton(
+              icon: Icon(Icons.account_circle, color: AppColors.deepGreen.withOpacity(0.7)),
+              onPressed: _currentNoteSpace == null ? null : () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => NoteSpaceSettingsScreen(
+                      noteSpace: _currentNoteSpace!,
+                    ),
+                  ),
+                );
+              },
             ),
           ],
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        actions: [
-          IconButton(
-            icon: Icon(Icons.account_circle, color: AppColors.deepGreen.withOpacity(0.7)),
-            onPressed: _currentNoteSpace == null ? null : () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => NoteSpaceSettingsScreen(
-                    noteSpace: _currentNoteSpace!,
-                  ),
-                ),
-              );
-            },
-          ),
-        ],
       ),
       body: _currentNoteSpace == null
           ? const Center(child: CircularProgressIndicator())

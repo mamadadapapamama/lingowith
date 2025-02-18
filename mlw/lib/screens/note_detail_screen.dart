@@ -26,7 +26,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   final FirebaseFirestore firestore = FirebaseFirestore.instance;
 
   Future<void> _speak(String text) async {
-    await _flutterTts.setLanguage('ko-KR');
+    await _flutterTts.setLanguage('zh-CN');
     await _flutterTts.speak(text);
   }
 
@@ -250,6 +250,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
           itemCount: widget.note.pages.length,
           itemBuilder: (context, index) {
             final page = widget.note.pages[index];
+            bool showTranslation = false; // Placeholder for actual condition
             return Card(
               margin: const EdgeInsets.symmetric(vertical: 8.0),
               child: Padding(
@@ -278,7 +279,45 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                           ],
                           isSelected: [false, false, false],
                           onPressed: (int index) {
-                            // Handle toggle logic
+                            if (index == 0) {
+                              // Toggle translation visibility
+                              setState(() {
+                                showTranslation = !showTranslation;
+                              });
+                            } else if (index == 2) {
+                              // Enable highlight mode
+                              setState(() {
+                                // Logic to enable highlight mode
+                              });
+                            }
+                          },
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.more_vert),
+                          onPressed: () {
+                            showModalBottomSheet(
+                              context: context,
+                              builder: (context) => Wrap(
+                                children: [
+                                  ListTile(
+                                    leading: const Icon(Icons.edit),
+                                    title: const Text('Edit'),
+                                    onTap: () {
+                                      Navigator.pop(context);
+                                      // Logic to edit detected text
+                                    },
+                                  ),
+                                  ListTile(
+                                    leading: const Icon(Icons.delete),
+                                    title: const Text('Delete'),
+                                    onTap: () {
+                                      Navigator.pop(context);
+                                      // Logic to delete page
+                                    },
+                                  ),
+                                ],
+                              ),
+                            );
                           },
                         ),
                       ],
@@ -288,7 +327,13 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                       page.extractedText,
                       style: Theme.of(context).textTheme.bodyLarge,
                     ),
-                    // Add logic to show translation or pinyin based on toggle
+                    if (showTranslation) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        page.translatedText,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ],
                   ],
                 ),
               ),
