@@ -251,6 +251,8 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
           itemBuilder: (context, index) {
             final page = widget.note.pages[index];
             bool showTranslation = false; // Placeholder for actual condition
+            final lines = page.extractedText.split('\n'); // Split text into lines
+            final translatedLines = page.translatedText.split('\n');
             return Card(
               margin: const EdgeInsets.symmetric(vertical: 8.0),
               child: Padding(
@@ -265,12 +267,32 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                       height: 200,
                     ),
                     const SizedBox(height: 8),
+                    for (int i = 0; i < lines.length; i++) ...[
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.volume_up),
+                            onPressed: () => _speak(lines[i].trim()),
+                          ),
+                          Expanded(
+                            child: Text(
+                              lines[i].trim(),
+                              style: Theme.of(context).textTheme.bodyLarge,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (showTranslation && i < translatedLines.length) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          translatedLines[i].trim(),
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ],
+                      const SizedBox(height: 8),
+                    ],
                     Row(
                       children: [
-                        IconButton(
-                          icon: const Icon(Icons.volume_up),
-                          onPressed: () => _speak(page.extractedText),
-                        ),
                         ToggleButtons(
                           children: const [
                             Icon(Icons.translate),
@@ -322,18 +344,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      page.extractedText,
-                      style: Theme.of(context).textTheme.bodyLarge,
-                    ),
-                    if (showTranslation) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        page.translatedText,
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                    ],
                   ],
                 ),
               ),
