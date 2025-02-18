@@ -278,6 +278,34 @@ class _NoteScreenState extends State<NoteScreen> {
     }
   }
 
+  Future<void> _showImageSourceActionSheet() async {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: <Widget>[
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('갤러리에서 선택'),
+              onTap: () {
+                Navigator.of(context).pop();
+                _pickImage(ImageSource.gallery);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('카메라로 촬영'),
+              onTap: () {
+                Navigator.of(context).pop();
+                _pickImage(ImageSource.camera);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -287,6 +315,11 @@ class _NoteScreenState extends State<NoteScreen> {
     
     // 권한 체크를 미리 수행
     _checkPermissions();
+    
+    // 이미지 소스 선택 모달 표시
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _showImageSourceActionSheet();
+    });
   }
 
   Future<void> _checkPermissions() async {
@@ -313,6 +346,12 @@ class _NoteScreenState extends State<NoteScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.camera_alt),
+            onPressed: () => _pickImage(ImageSource.camera),
+          ),
+        ],
       ),
       body: Column(
         children: [

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/note_space.dart';
 import '../repositories/note_space_repository.dart';
-import '../styles/app_colors.dart';
 
 class NoteSpaceSettingsScreen extends StatefulWidget {
   final NoteSpace noteSpace;
@@ -78,6 +77,46 @@ class _NoteSpaceSettingsScreenState extends State<NoteSpaceSettingsScreen> {
             onChanged: (value) {
               final updated = _noteSpace.copyWith(isPinyinEnabled: value);
               _updateSettings(updated);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.delete_sweep),
+            title: const Text('모든 노트 삭제'),
+            onTap: () async {
+              final shouldDelete = await showDialog<bool>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('노트 전체 삭제'),
+                  content: const Text('현재 스페이스의 모든 노트를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('취소'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('삭제'),
+                    ),
+                  ],
+                ),
+              );
+
+              if (shouldDelete == true) {
+                try {
+                  await _repository.deleteAllSpaceNotes(_noteSpace.id);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('모든 노트가 삭제되었습니다.')),
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('노트 삭제 중 오류가 발생했습니다: $e')),
+                    );
+                  }
+                }
+              }
             },
           ),
         ],

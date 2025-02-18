@@ -45,16 +45,16 @@ dependencies:
   
   # UI components
   flutter_staggered_grid_view: ^0.7.0
-  flutter_svg: ^2.0.9
+  flutter_svg: ^2.0.17
 
   
   # State management
   provider: ^6.1.1
   
   # Utils
-  intl: ^0.20.2
+  intl: ^0.18.1
   google_fonts: ^6.1.0
-  flutter_tts: ^4.2.2
+  flutter_tts: ^3.8.5
 
 # Google API
   # googleapis: ^13.2.0  # 11.0.0 -> 13.2.0
@@ -75,7 +75,7 @@ dev_dependencies:
   # activated in the `analysis_options.yaml` file located at the root of your
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
-  flutter_lints: ^5.0.0
+  flutter_lints: ^2.0.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -93,6 +93,7 @@ flutter:
     - assets/service-account-key.json
     - assets/design_tokens/
     - assets/icons/
+    - assets/icons/logo_small.svg
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

@@ -129,7 +129,7 @@ class NoteCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(8),
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
         decoration: BoxDecoration(
           color: ColorTokens.semantic['surface']?['base'] ?? Colors.white,
           borderRadius: BorderRadius.circular(8),

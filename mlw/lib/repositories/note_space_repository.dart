@@ -39,4 +39,21 @@ class NoteSpaceRepository {
   Future<void> deleteNoteSpace(String id) async {
     await _spaces.doc(id).delete();
   }
+
+  Future<void> deleteAllSpaceNotes(String spaceId) async {
+    try {
+      final notes = await _firestore
+          .collection('notes')
+          .where('spaceId', isEqualTo: spaceId)
+          .get();
+
+      for (var doc in notes.docs) {
+        await doc.reference.delete();
+      }
+      print('All notes in space $spaceId have been deleted.');
+    } catch (e) {
+      print('Error deleting all notes in space $spaceId: $e');
+      rethrow;
+    }
+  }
 } 
