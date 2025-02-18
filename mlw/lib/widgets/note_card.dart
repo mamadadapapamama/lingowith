@@ -92,6 +92,29 @@ class NoteCard extends StatelessWidget {
     );
   }
 
+  void _showDeleteConfirmation(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Delete Note'),
+        content: Text('Do you want to delete this note?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('No'),
+          ),
+          TextButton(
+            onPressed: () {
+              onDelete(note);
+              Navigator.pop(context);
+            },
+            child: Text('Yes'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return InkWell(
@@ -150,16 +173,29 @@ class NoteCard extends StatelessWidget {
                     ),
                   ),
                 IconButton(
-                  icon: SvgPicture.asset(
-                    'assets/icons/more.svg',
-                    width: 24,
-                    height: 24,
-                    colorFilter: ColorFilter.mode(
-                      ColorTokens.base[400] ?? Colors.grey,
-                      BlendMode.srcIn,
-                    ),
-                  ),
-                  onPressed: () => _showOptionsDialog(context),
+                  icon: Icon(Icons.more_vert),
+                  onPressed: () {
+                    showMenu(
+                      context: context,
+                      position: RelativeRect.fromLTRB(100, 100, 0, 0),
+                      items: [
+                        PopupMenuItem(
+                          child: Text('Edit'),
+                          value: 'edit',
+                        ),
+                        PopupMenuItem(
+                          child: Text('Delete'),
+                          value: 'delete',
+                        ),
+                      ],
+                    ).then((value) {
+                      if (value == 'edit') {
+                        _showEditDialog(context);
+                      } else if (value == 'delete') {
+                        _showDeleteConfirmation(context);
+                      }
+                    });
+                  },
                 ),
               ],
             ),

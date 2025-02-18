@@ -72,6 +72,7 @@ class _CustomButtonState extends State<CustomButton> {
         onTapDown: widget.onPressed == null ? null : (_) => setState(() => _isPressed = true),
         onTapUp: widget.onPressed == null ? null : (_) => setState(() => _isPressed = false),
         onTapCancel: widget.onPressed == null ? null : () => setState(() => _isPressed = false),
+        onTap: widget.onPressed,
         child: Container(
           padding: EdgeInsets.symmetric(
             horizontal: widget.isSmall ? 12.0 : 16.0,

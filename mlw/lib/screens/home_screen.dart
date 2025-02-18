@@ -335,34 +335,39 @@ class _HomeScreenState extends State<HomeScreen> {
             color: ColorTokens.semantic['text']?['primary'] ?? Colors.white,
           ),
           onPressed: () async {
+            print('Add new note button pressed'); // 디버깅 로그 추가
             if (_currentNoteSpace != null) {
-              print('Current note space ID: ${_currentNoteSpace!.id}');
-              try {
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => NoteScreen(
-                      spaceId: _currentNoteSpace!.id,
-                      userId: userId,
-                    ),
-                  ),
-                );
-                print('Returned from NoteScreen');
-              } catch (e) {
-                print('Navigation error: $e');
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('화면 전환 중 오류가 발생했습니다: $e')),
-                  );
+                print('Current note space ID: ${_currentNoteSpace!.id}');
+                try {
+                    print('Attempting to navigate to NoteScreen...'); // 디버깅 로그 추가
+                    await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) {
+                                print('Building NoteScreen...'); // 디버깅 로그 추가
+                                return NoteScreen(
+                                    spaceId: _currentNoteSpace!.id,
+                                    userId: userId,
+                                );
+                            },
+                        ),
+                    );
+                    print('Returned from NoteScreen');
+                } catch (e) {
+                    print('Navigation error: $e');
+                    if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('화면 전환 중 오류가 발생했습니다: $e')),
+                        );
+                    }
                 }
-              }
             } else {
-              print('_currentNoteSpace is null');
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('노트 스페이스를 불러오는 중입니다.')),
-                );
-              }
+                print('_currentNoteSpace is null');
+                if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('노트 스페이스를 불러오는 중입니다.')),
+                    );
+                }
             }
           },
           isPrimary: true,
