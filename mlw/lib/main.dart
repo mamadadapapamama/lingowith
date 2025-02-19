@@ -3,25 +3,46 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mlw/screens/home_screen.dart';
 import 'package:mlw/theme/app_theme.dart';
+import 'package:mlw/theme/tokens/color_tokens.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'dart:io' show Platform;
+import 'package:flutter/rendering.dart';
 
-Future<void> initializeFirebase() async {
+void main() async {
+  try {
+    WidgetsFlutterBinding.ensureInitialized();
+    
+    // Set system UI overlay style
+    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
+      statusBarColor: ColorTokens.semantic['surface']?['background'],
+      systemNavigationBarColor: ColorTokens.semantic['surface']?['background'],
+      statusBarIconBrightness: Brightness.dark,
+      systemNavigationBarIconBrightness: Brightness.dark,
+      statusBarBrightness: Brightness.light,
+    ));
+    
+    await _initializeFirebase();
+    runApp(const MyApp());
+  } catch (e, stack) {
+    if (kDebugMode) {
+      print('App initialization error: $e');
+      print('Stack trace: $stack');
+    }
+  }
+}
+
+Future<void> _initializeFirebase() async {
   if (kDebugMode) {
     print('Starting Firebase initialization...');
   }
 
   try {
-    // Check if Firebase is already initialized
     if (Firebase.apps.isNotEmpty) {
       if (kDebugMode) {
-        print('Firebase already initialized, using existing app');
+        print('Firebase already initialized');
       }
       return;
-    }
-
-    if (kDebugMode) {
-      print('Configuring Firebase options...');
     }
 
     final options = Platform.isIOS
@@ -41,61 +62,80 @@ Future<void> initializeFirebase() async {
             storageBucket: 'mylingowith.appspot.com',
           );
 
-    if (kDebugMode) {
-      print('Initializing Firebase app...');
-    }
-
     await Firebase.initializeApp(options: options);
     
-    if (kDebugMode) {
-      print('Firebase initialized successfully');
-    }
-
-    // Firestore 설정
+    // Configure Firestore settings
     FirebaseFirestore.instance.settings = const Settings(
       persistenceEnabled: true,
       cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
     );
 
     if (kDebugMode) {
-      print('Firestore settings configured');
+      print('Firebase initialized successfully');
     }
-  } catch (e, stack) {
+  } catch (e) {
     if (kDebugMode) {
       print('Firebase initialization error: $e');
-      print('Stack trace: $stack');
     }
-    // Don't rethrow the error if it's just a duplicate app error
     if (!e.toString().contains('duplicate-app')) {
       rethrow;
     }
   }
 }
 
-void main() async {
-  try {
-    WidgetsFlutterBinding.ensureInitialized();
-    await initializeFirebase();
-  } catch (e, stack) {
-    if (kDebugMode) {
-      print('App initialization error: $e');
-      print('Stack trace: $stack');
-    }
-  }
-
-  runApp(const MyApp());
-}
-
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
+
+  // 임시 사용자 ID - 나중에 인증 시스템으로 대체
+  static const String defaultUserId = 'test_user';
+  static const String defaultSpaceId = 'default_space';
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'MLW',
-      theme: AppTheme.lightTheme,
-      home: const HomeScreen(),
+      theme: AppTheme.lightTheme.copyWith(
+        appBarTheme: AppTheme.lightTheme.appBarTheme.copyWith(
+          toolbarHeight: 80, // Increased height for top padding
+          titleSpacing: 4, // Side padding
+        ),
+        scaffoldBackgroundColor: ColorTokens.semantic['surface']?['background'],
+      ),
+      home: Container(
+        color: ColorTokens.semantic['surface']?['background'],
+        child: SafeArea(
+          bottom: false,
+          child: Container(
+            color: ColorTokens.semantic['surface']?['background'],
+            child: Padding(
+              padding: const EdgeInsets.only(
+                top: 10,
+                left: 4,
+                right: 4,
+              ),
+              child: const HomeScreen(
+                userId: defaultUserId,
+                spaceId: defaultSpaceId,
+              ),
+            ),
+          ),
+        ),
+      ),
       debugShowCheckedModeBanner: false,
+      builder: (context, child) {
+        // Apply global MediaQuery settings
+        final mediaQuery = MediaQuery.of(context);
+        
+        return MediaQuery(
+          data: mediaQuery.copyWith(
+            textScaleFactor: 1.0,
+            padding: mediaQuery.padding.copyWith(
+              top: mediaQuery.padding.top + 10, // Additional top padding
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
   }
 }

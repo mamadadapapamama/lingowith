@@ -9,8 +9,6 @@ import 'package:mlw/screens/note_detail_screen.dart';
 
 class NoteCard extends StatelessWidget {
   final Note note;
-  final bool hasTestSchedule;
-  final String testMessage;
   final Function(Note) onDuplicate;
   final Function(Note) onDelete;
   final Function(Note, String)? onTitleEdit;
@@ -18,8 +16,6 @@ class NoteCard extends StatelessWidget {
   const NoteCard({
     super.key,
     required this.note,
-    required this.hasTestSchedule,
-    required this.testMessage,
     required this.onDuplicate,
     required this.onDelete,
     this.onTitleEdit,
@@ -31,61 +27,53 @@ class NoteCard extends StatelessWidget {
 
   void _showEditDialog(BuildContext context) {
     final titleController = TextEditingController(text: note.title);
-    final translationController = TextEditingController(text: note.translatedText);
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Edit Note'),
+        title: Text(
+          'Edit Note',
+          style: GoogleFonts.poppins(
+            color: ColorTokens.semantic['text']?['body'],
+            fontWeight: FontWeight.w600,
+          ),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: titleController,
-              decoration: const InputDecoration(labelText: 'Title'),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: translationController,
-              decoration: const InputDecoration(labelText: 'Translation'),
+              decoration: InputDecoration(
+                labelText: 'Title',
+                labelStyle: GoogleFonts.poppins(
+                  color: ColorTokens.semantic['text']?['body'],
+                ),
+              ),
             ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.poppins(
+                color: ColorTokens.semantic['text']?['body'],
+              ),
+            ),
           ),
           TextButton(
             onPressed: () {
               onTitleEdit?.call(note, titleController.text);
               Navigator.pop(context);
             },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showOptionsDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => SimpleDialog(
-        children: [
-          SimpleDialogOption(
-            onPressed: () {
-              Navigator.pop(context);
-              _showEditDialog(context);
-            },
-            child: const Text('Edit'),
-          ),
-          SimpleDialogOption(
-            onPressed: () {
-              Navigator.pop(context);
-              onDelete(note);
-            },
-            child: const Text('Delete'),
+            child: Text(
+              'Save',
+              style: GoogleFonts.poppins(
+                color: ColorTokens.primary[400],
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ],
       ),
@@ -96,19 +84,41 @@ class NoteCard extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Delete Note'),
-        content: Text('Do you want to delete this note?'),
+        title: Text(
+          'Delete Note',
+          style: GoogleFonts.poppins(
+            color: ColorTokens.semantic['text']?['body'],
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        content: Text(
+          'Do you want to delete this note?',
+          style: GoogleFonts.poppins(
+            color: ColorTokens.semantic['text']?['body'],
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('No'),
+            child: Text(
+              'No',
+              style: GoogleFonts.poppins(
+                color: ColorTokens.semantic['text']?['body'],
+              ),
+            ),
           ),
           TextButton(
             onPressed: () {
               onDelete(note);
               Navigator.pop(context);
             },
-            child: Text('Yes'),
+            child: Text(
+              'Yes',
+              style: GoogleFonts.poppins(
+                color: ColorTokens.primary[400],
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ],
       ),
@@ -135,7 +145,7 @@ class NoteCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
           boxShadow: [
             BoxShadow(
-              color: ColorTokens.base[800]!.withOpacity(0.05),
+              color: (ColorTokens.base[800] ?? Colors.black).withOpacity(0.05),
               blurRadius: 4,
               offset: const Offset(0, 2),
             ),
@@ -144,7 +154,6 @@ class NoteCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header row with date and page count
             Row(
               children: [
                 Text(
@@ -166,18 +175,31 @@ class NoteCard extends StatelessWidget {
                 ),
                 const Spacer(),
                 IconButton(
-                  icon: Icon(Icons.more_vert),
+                  icon: Icon(
+                    Icons.more_vert,
+                    color: ColorTokens.semantic['text']?['body'],
+                  ),
                   onPressed: () {
                     showMenu(
                       context: context,
                       position: RelativeRect.fromLTRB(100, 100, 0, 0),
                       items: [
                         PopupMenuItem(
-                          child: Text('Edit'),
+                          child: Text(
+                            'Edit',
+                            style: GoogleFonts.poppins(
+                              color: ColorTokens.semantic['text']?['body'],
+                            ),
+                          ),
                           value: 'edit',
                         ),
                         PopupMenuItem(
-                          child: Text('Delete'),
+                          child: Text(
+                            'Delete',
+                            style: GoogleFonts.poppins(
+                              color: ColorTokens.semantic['text']?['body'],
+                            ),
+                          ),
                           value: 'delete',
                         ),
                       ],
@@ -193,12 +215,10 @@ class NoteCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-
-            // Content row with image and text
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (note.pages.isNotEmpty && note.pages.first.imageUrl != null)
+                if (note.pages.isNotEmpty && note.pages.first.imageUrl.isNotEmpty)
                   ClipRRect(
                     borderRadius: BorderRadius.circular(4),
                     child: Image.file(
@@ -221,10 +241,10 @@ class NoteCard extends StatelessWidget {
                           color: ColorTokens.semantic['text']?['body'],
                         ),
                       ),
-                      if (note.translatedText != null) ...[
+                      if (note.pages.isNotEmpty && note.pages.first.translatedText.isNotEmpty) ...[
                         const SizedBox(height: 4),
                         Text(
-                          note.translatedText!.split('\n').first,
+                          note.pages.first.translatedText.split('\n').first,
                           style: GoogleFonts.poppins(
                             fontSize: 14,
                             color: ColorTokens.base[600],
@@ -238,8 +258,6 @@ class NoteCard extends StatelessWidget {
                 ),
               ],
             ),
-
-            // Flash card count
             if (note.flashCards.isNotEmpty) ...[
               const SizedBox(height: 12),
               Container(

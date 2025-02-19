@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
-import 'dart:async';  // TimeoutException을 위한 import 추가
-import 'package:mlw/models/note.dart';
+import 'dart:async';
+import 'package:mlw/models/note.dart' as note_model;
 import 'package:mlw/services/note_repository.dart';
 import 'package:mlw/screens/note_detail_screen.dart';
 import 'package:googleapis/vision/v1.dart' as vision;
@@ -12,6 +12,8 @@ import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:mlw/services/translator.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:mlw/theme/tokens/color_tokens.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class NoteScreen extends StatefulWidget {
   final String spaceId;
@@ -34,8 +36,35 @@ class _NoteScreenState extends State<NoteScreen> {
   String? _extractedText;
   bool _isProcessing = false;
 
+  @override
+  void initState() {
+    super.initState();
+    print('NoteScreen initialized');
+    print('spaceId: ${widget.spaceId}');
+    print('userId: ${widget.userId}');
+    
+    _checkPermissions();
+    
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _showImageSourceActionSheet();
+    });
+  }
+
+  Future<void> _checkPermissions() async {
+    try {
+      final cameraStatus = await Permission.camera.status;
+      final photosStatus = Platform.isIOS 
+          ? await Permission.photos.status
+          : await Permission.storage.status;
+      
+      print('Camera permission status: $cameraStatus');
+      print('Photos/Storage permission status: $photosStatus');
+    } catch (e) {
+      print('Error checking permissions: $e');
+    }
+  }
+
   Future<bool> _requestPermission(Permission permission) async {
-    // iOS에서는 시뮬레이터에서 항상 권한이 있다고 가정
     if (Platform.isIOS && !await Permission.photos.isRestricted) {
       return true;
     }
@@ -51,15 +80,37 @@ class _NoteScreenState extends State<NoteScreen> {
         final shouldOpenSettings = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
-            title: const Text('권한 필요'),
-            content: const Text('이 기능을 사용하기 위해서는 설정에서 권한을 허용해주세요.'),
+            title: Text(
+              '권한 필요',
+              style: GoogleFonts.poppins(
+                color: ColorTokens.semantic['text']?['body'],
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            content: Text(
+              '이 기능을 사용하기 위해서는 설정에서 권한을 허용해주세요.',
+              style: GoogleFonts.poppins(
+                color: ColorTokens.semantic['text']?['body'],
+              ),
+            ),
             actions: [
               TextButton(
-                child: const Text('취소'),
+                child: Text(
+                  '취소',
+                  style: GoogleFonts.poppins(
+                    color: ColorTokens.semantic['text']?['body'],
+                  ),
+                ),
                 onPressed: () => Navigator.pop(context, false),
               ),
               TextButton(
-                child: const Text('설정으로 이동'),
+                child: Text(
+                  '설정으로 이동',
+                  style: GoogleFonts.poppins(
+                    color: ColorTokens.primary[400],
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 onPressed: () => Navigator.pop(context, true),
               ),
             ],
@@ -76,6 +127,50 @@ class _NoteScreenState extends State<NoteScreen> {
     return status.isGranted;
   }
 
+  Future<void> _showImageSourceActionSheet() async {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: <Widget>[
+            ListTile(
+              leading: Icon(
+                Icons.photo_library,
+                color: ColorTokens.semantic['text']?['body'],
+              ),
+              title: Text(
+                '갤러리에서 선택',
+                style: GoogleFonts.poppins(
+                  color: ColorTokens.semantic['text']?['body'],
+                ),
+              ),
+              onTap: () {
+                Navigator.of(context).pop();
+                _pickImage(ImageSource.gallery);
+              },
+            ),
+            ListTile(
+              leading: Icon(
+                Icons.camera_alt,
+                color: ColorTokens.semantic['text']?['body'],
+              ),
+              title: Text(
+                '카메라로 촬영',
+                style: GoogleFonts.poppins(
+                  color: ColorTokens.semantic['text']?['body'],
+                ),
+              ),
+              onTap: () {
+                Navigator.of(context).pop();
+                _pickImage(ImageSource.camera);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _pickImage(ImageSource source) async {
     try {
       bool hasPermission;
@@ -90,7 +185,12 @@ class _NoteScreenState extends State<NoteScreen> {
       if (!hasPermission) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('이미지를 선택하려면 권한을 허용해주세요.')),
+            SnackBar(
+              content: Text(
+                '이미지를 선택하려면 권한을 허용해주세요.',
+                style: GoogleFonts.poppins(),
+              ),
+            ),
           );
         }
         return;
@@ -106,7 +206,12 @@ class _NoteScreenState extends State<NoteScreen> {
       if (pickedFile == null) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('이미지가 선택되지 않았습니다.')),
+            SnackBar(
+              content: Text(
+                '이미지가 선택되지 않았습니다.',
+                style: GoogleFonts.poppins(),
+              ),
+            ),
           );
         }
         return;
@@ -133,7 +238,42 @@ class _NoteScreenState extends State<NoteScreen> {
         });
         
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('이미지 선택 중 오류가 발생했습니다: $e')),
+          SnackBar(
+            content: Text(
+              '이미지 선택 중 오류가 발생했습니다: $e',
+              style: GoogleFonts.poppins(),
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _processImage(XFile pickedFile) async {
+    try {
+      final imageBytes = await _image!.readAsBytes();
+      final text = await _extractTextFromImage(imageBytes);
+      
+      if (mounted) {
+        setState(() {
+          _extractedText = text;
+          _isProcessing = false;
+        });
+        await _createNote();
+      }
+    } catch (e) {
+      print('Image processing error: $e');
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '이미지 처리 중 오류가 발생했습니다: $e',
+              style: GoogleFonts.poppins(),
+            ),
+          ),
         );
       }
     }
@@ -182,31 +322,6 @@ class _NoteScreenState extends State<NoteScreen> {
     }
   }
 
-  Future<void> _processImage(XFile pickedFile) async {
-    try {
-      final imageBytes = await _image!.readAsBytes();
-      final text = await _extractTextFromImage(imageBytes);
-      
-      if (mounted) {
-        setState(() {
-          _extractedText = text;
-          _isProcessing = false;
-        });
-        await _createNote();
-      }
-    } catch (e) {
-      print('Image processing error: $e');
-      if (mounted) {
-        setState(() {
-          _isProcessing = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('이미지 처리 중 오류가 발생했습니다: $e')),
-        );
-      }
-    }
-  }
-
   Future<String> _saveImageLocally(File image) async {
     try {
       final directory = await getApplicationDocumentsDirectory();
@@ -229,7 +344,6 @@ class _NoteScreenState extends State<NoteScreen> {
     try {
       final imagePath = await _saveImageLocally(_image!);
       
-      // OCR 텍스트 번역
       String? translatedText;
       if (_extractedText != null) {
         try {
@@ -243,15 +357,19 @@ class _NoteScreenState extends State<NoteScreen> {
         }
       }
       
-      final newNote = Note(
+      final newPage = note_model.Page(
+        imageUrl: imagePath,
+        extractedText: _extractedText ?? '',
+        translatedText: translatedText ?? '',
+      );
+
+      final newNote = note_model.Note(
         id: '',
-        spaceId: widget.spaceId,  // 전달받은 spaceId 사용
-        userId: widget.userId,     // 전달받은 userId 사용
+        spaceId: widget.spaceId,
+        userId: widget.userId,
         title: _extractedText?.split('\n').first ?? '새로운 노트',
         content: '',
-        imageUrl: imagePath,
-        extractedText: _extractedText,
-        translatedText: translatedText,
+        pages: [newPage],
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -268,7 +386,12 @@ class _NoteScreenState extends State<NoteScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('노트 생성 실패: $e')),
+          SnackBar(
+            content: Text(
+              '노트 생성 실패: $e',
+              style: GoogleFonts.poppins(),
+            ),
+          ),
         );
       }
     } finally {
@@ -278,92 +401,34 @@ class _NoteScreenState extends State<NoteScreen> {
     }
   }
 
-  Future<void> _showImageSourceActionSheet() async {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Wrap(
-          children: <Widget>[
-            ListTile(
-              leading: const Icon(Icons.photo_library),
-              title: const Text('갤러리에서 선택'),
-              onTap: () {
-                Navigator.of(context).pop();
-                _pickImage(ImageSource.gallery);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.camera_alt),
-              title: const Text('카메라로 촬영'),
-              onTap: () {
-                Navigator.of(context).pop();
-                _pickImage(ImageSource.camera);
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    print('NoteScreen initialized');
-    print('spaceId: ${widget.spaceId}');
-    print('userId: ${widget.userId}');
-    
-    // 권한 체크를 미리 수행
-    _checkPermissions();
-    
-    // 이미지 소스 선택 모달 표시
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _showImageSourceActionSheet();
-    });
-  }
-
-  Future<void> _checkPermissions() async {
-    try {
-      final cameraStatus = await Permission.camera.status;
-      final photosStatus = Platform.isIOS 
-          ? await Permission.photos.status
-          : await Permission.storage.status;
-      
-      print('Camera permission status: $cameraStatus');
-      print('Photos/Storage permission status: $photosStatus');
-    } catch (e) {
-      print('Error checking permissions: $e');
-    }
-  }
-
-  Future<void> _addNewNote() async {
-    await _pickImage(ImageSource.gallery);
-    if (_image == null) return;
-
-    // Create a new note with the uploaded image
-    await _createNote();
-  }
-
-  Future<void> _addMoreImage() async {
-    await _pickImage(ImageSource.gallery);
-    if (_image == null) return;
-
-    // Add a new page to the existing note with the uploaded image
-    await _createNote();
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: ColorTokens.semantic['surface']?['page'],
       appBar: AppBar(
-        title: const Text('새로운 노트'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        title: Text(
+          '새로운 노트',
+          style: GoogleFonts.poppins(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+            color: ColorTokens.semantic['text']?['body'],
+          ),
+        ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: Icon(
+            Icons.arrow_back,
+            color: ColorTokens.semantic['text']?['body'],
+          ),
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.camera_alt),
+            icon: Icon(
+              Icons.camera_alt,
+              color: ColorTokens.semantic['text']?['body'],
+            ),
             onPressed: () => _pickImage(ImageSource.camera),
           ),
         ],
@@ -379,8 +444,13 @@ class _NoteScreenState extends State<NoteScreen> {
                     fit: BoxFit.contain,
                     errorBuilder: (context, error, stackTrace) {
                       print('Image error: $error');
-                      return const Center(
-                        child: Text('이미지를 불러올 수 없습니다.'),
+                      return Center(
+                        child: Text(
+                          '이미지를 불러올 수 없습니다.',
+                          style: GoogleFonts.poppins(
+                            color: ColorTokens.semantic['text']?['body'],
+                          ),
+                        ),
                       );
                     },
                   ),
@@ -397,7 +467,12 @@ class _NoteScreenState extends State<NoteScreen> {
           if (_extractedText != null)
             Padding(
               padding: const EdgeInsets.all(16.0),
-              child: Text(_extractedText!),
+              child: Text(
+                _extractedText!,
+                style: GoogleFonts.poppins(
+                  color: ColorTokens.semantic['text']?['body'],
+                ),
+              ),
             ),
           Padding(
             padding: const EdgeInsets.all(16.0),
@@ -405,14 +480,36 @@ class _NoteScreenState extends State<NoteScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 ElevatedButton.icon(
-                  icon: const Icon(Icons.photo_library),
-                  label: const Text('갤러리'),
-                  onPressed: _addNewNote,
+                  icon: Icon(
+                    Icons.photo_library,
+                    color: ColorTokens.semantic['text']?['primary'],
+                  ),
+                  label: Text(
+                    '갤러리',
+                    style: GoogleFonts.poppins(
+                      color: ColorTokens.semantic['text']?['primary'],
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: ColorTokens.semantic['surface']?['button-primary'],
+                  ),
+                  onPressed: () => _pickImage(ImageSource.gallery),
                 ),
                 ElevatedButton.icon(
-                  icon: const Icon(Icons.camera_alt),
-                  label: const Text('카메라'),
-                  onPressed: _addMoreImage,
+                  icon: Icon(
+                    Icons.camera_alt,
+                    color: ColorTokens.semantic['text']?['primary'],
+                  ),
+                  label: Text(
+                    '카메라',
+                    style: GoogleFonts.poppins(
+                      color: ColorTokens.semantic['text']?['primary'],
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: ColorTokens.semantic['surface']?['button-primary'],
+                  ),
+                  onPressed: () => _pickImage(ImageSource.camera),
                 ),
               ],
             ),

@@ -48,7 +48,7 @@
       "success": "#32543F"
     },
     "surface": {
-      "page": "#FFF9F1",
+      "background": "#FFF9F1",
       "base": "#FFFFFF",
       "button": {
         "primary": "#FE6A15",

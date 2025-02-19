@@ -12,6 +12,9 @@ import 'package:googleapis_auth/auth_io.dart';
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mlw/screens/flashcard_screen.dart'; // Import FlashCardScreen
+import 'package:mlw/theme/tokens/color_tokens.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:path_provider/path_provider.dart';
 
 class NoteDetailScreen extends StatefulWidget {
   final note_model.Note note;
@@ -25,7 +28,7 @@ class NoteDetailScreen extends StatefulWidget {
 class _NoteDetailScreenState extends State<NoteDetailScreen> {
   final FlutterTts _flutterTts = FlutterTts();
   final FirebaseFirestore firestore = FirebaseFirestore.instance;
-  bool showTranslation = false;
+  bool showTranslation = true;
   bool isHighlightMode = false;
   String? selectedText; // Store temporarily selected text
 
@@ -271,17 +274,50 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     }
   }
 
+  Future<String> _saveImageLocally(File image) async {
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final savedImage = await image.copy('${directory.path}/$fileName');
+      return savedImage.path;
+    } catch (e) {
+      print('Error saving image: $e');
+      rethrow;
+    }
+  }
+
+  final translatorService = TranslatorService();
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: ColorTokens.semantic['surface']?['background'],
       appBar: AppBar(
-        title: Text(widget.note.title),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: Icon(
+            Icons.arrow_back,
+            color: ColorTokens.semantic['text']?['body'],
+          ),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          widget.note.title,
+          style: GoogleFonts.poppins(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+            color: ColorTokens.semantic['text']?['body'],
+          ),
+        ),
         actions: [
           IconButton(
-            icon: Icon(Icons.style),
+            icon: Icon(
+              Icons.style,
+              color: ColorTokens.semantic['text']?['body'],
+            ),
             onPressed: () {
               if (widget.note.flashCards.isNotEmpty) {
-                // Navigate to flashcard screen
                 Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -295,10 +331,17 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
               }
             },
           ),
-          Padding(
-            padding: const EdgeInsets.all(8.0),
+          Container(
+            margin: const EdgeInsets.only(right: 16),
             child: CircleAvatar(
-              child: Text('${widget.note.flashCards.length}'),
+              backgroundColor: ColorTokens.primary[100],
+              child: Text(
+                '${widget.note.flashCards.length}',
+                style: GoogleFonts.poppins(
+                  color: ColorTokens.primary[400],
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ),
         ],
@@ -312,109 +355,100 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
             final lines = page.extractedText.split('\n');
             final translatedLines = page.translatedText.split('\n');
             return Card(
-              margin: const EdgeInsets.symmetric(vertical: 8.0),
+              elevation: 0,
+              color: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(
+                  color: ColorTokens.semantic['border']?['base'] ?? Colors.grey.shade200,
+                  width: 1,
+                ),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Image.file(
-                      File(page.imageUrl),
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                      height: 200,
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.file(
+                        File(page.imageUrl),
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                        height: 200,
+                      ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 16),
                     for (int i = 0; i < lines.length; i++) ...[
                       Row(
                         children: [
                           IconButton(
-                            icon: const Icon(Icons.volume_up),
+                            icon: Icon(
+                              Icons.volume_up,
+                              color: ColorTokens.semantic['text']?['body'],
+                            ),
                             onPressed: () => _speak(lines[i].trim()),
                           ),
                           Expanded(
-                            child: Stack(
-                              children: [
-                                TextHighlighter(
-                                  text: lines[i].trim(),
-                                  onHighlighted: _onTextSelected,
-                                  isHighlightMode: isHighlightMode,
-                                ),
-                                if (selectedText != null && isHighlightMode)
-                                  Positioned(
-                                    right: 0,
-                                    child: ElevatedButton.icon(
-                                      icon: const Icon(Icons.add),
-                                      label: const Text('추가'),
-                                      onPressed: () => _addToFlashcards(selectedText!),
-                                      style: ElevatedButton.styleFrom(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                                        minimumSize: const Size(0, 36),
-                                      ),
-                                    ),
-                                  ),
-                              ],
+                            child: TextHighlighter(
+                              text: lines[i].trim(),
+                              onHighlighted: _onTextSelected,
+                              isHighlightMode: isHighlightMode,
                             ),
                           ),
                         ],
                       ),
-                      if (showTranslation && i < translatedLines.length) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          translatedLines[i].trim(),
-                          style: Theme.of(context).textTheme.bodyMedium,
+                      if (showTranslation && i < translatedLines.length && translatedLines[i].trim().isNotEmpty) ...[
+                        Padding(
+                          padding: const EdgeInsets.only(left: 56, bottom: 8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: ColorTokens.primary[50],
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: ColorTokens.primary[100] ?? Colors.transparent,
+                                width: 1,
+                              ),
+                            ),
+                            child: Text(
+                              translatedLines[i].trim(),
+                              style: GoogleFonts.poppins(
+                                fontSize: 14,
+                                color: ColorTokens.semantic['text']?['secondary'] ?? ColorTokens.base[600],
+                              ),
+                            ),
+                          ),
                         ),
                       ],
-                      const SizedBox(height: 8),
                     ],
+                    const SizedBox(height: 16),
                     Row(
                       children: [
                         ToggleButtons(
+                          borderRadius: BorderRadius.circular(8),
+                          selectedColor: ColorTokens.primary[400],
+                          fillColor: ColorTokens.primary[50],
+                          color: ColorTokens.semantic['text']?['body'],
+                          constraints: const BoxConstraints(
+                            minHeight: 36,
+                            minWidth: 36,
+                          ),
+                          isSelected: [showTranslation, false, isHighlightMode],
+                          onPressed: (int index) {
+                            setState(() {
+                              if (index == 0) {
+                                showTranslation = !showTranslation;
+                              } else if (index == 2) {
+                                _toggleHighlightMode();
+                              }
+                            });
+                          },
                           children: const [
                             Icon(Icons.translate),
                             Icon(Icons.text_fields),
                             Icon(Icons.highlight),
                           ],
-                          isSelected: [showTranslation, false, isHighlightMode],
-                          onPressed: (int index) {
-                            if (index == 0) {
-                              // Toggle translation visibility
-                              setState(() {
-                                showTranslation = !showTranslation;
-                              });
-                            } else if (index == 2) {
-                              // Enable highlight mode
-                              _toggleHighlightMode();
-                            }
-                          },
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.more_vert),
-                          onPressed: () {
-                            showModalBottomSheet(
-                              context: context,
-                              builder: (context) => Wrap(
-                                children: [
-                                  ListTile(
-                                    leading: const Icon(Icons.edit),
-                                    title: const Text('Edit'),
-                                    onTap: () {
-                                      Navigator.pop(context);
-                                      // Logic to edit detected text
-                                    },
-                                  ),
-                                  ListTile(
-                                    leading: const Icon(Icons.delete),
-                                    title: const Text('Delete'),
-                                    onTap: () {
-                                      Navigator.pop(context);
-                                      // Logic to delete page
-                                    },
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
                         ),
                       ],
                     ),
@@ -425,13 +459,153 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
           },
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          await _pickImage(context);
-        },
-        child: const Icon(Icons.add_a_photo),
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          if (isHighlightMode)
+            FloatingActionButton.extended(
+              onPressed: selectedText != null 
+                  ? () {
+                      _addToFlashcards(selectedText!);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('플래시카드가 추가되었습니다')),
+                      );
+                    } 
+                  : null,
+              label: const Text('플래시카드 추가'),
+              icon: const Icon(Icons.add),
+              backgroundColor: selectedText != null 
+                  ? (ColorTokens.semantic['surface']?['button-primary'] as Color?) ?? Colors.orange
+                  : Colors.grey,
+            ),
+          const SizedBox(height: 16),
+          FloatingActionButton(
+            onPressed: _showImageSourceActionSheet,
+            child: const Icon(Icons.add_photo_alternate),
+            backgroundColor: (ColorTokens.semantic['surface']?['button-primary'] as Color?) ?? Colors.orange,
+          ),
+        ],
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+    );
+  }
+
+  Future<void> _showImageSourceActionSheet() async {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: <Widget>[
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: Text(
+                '갤러리에서 선택',
+                style: GoogleFonts.poppins(),
+              ),
+              onTap: () {
+                Navigator.of(context).pop();
+                _addNewPage(ImageSource.gallery);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: Text(
+                '카메라로 촬영',
+                style: GoogleFonts.poppins(),
+              ),
+              onTap: () {
+                Navigator.of(context).pop();
+                _addNewPage(ImageSource.camera);
+              },
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  Future<void> _addNewPage(ImageSource source) async {
+    try {
+      final XFile? pickedFile = await ImagePicker().pickImage(
+        source: source,
+        maxWidth: 1200,
+        maxHeight: 1200,
+        imageQuality: 85,
+      );
+
+      if (pickedFile == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(
+              '이미지가 선택되지 않았습니다.',
+              style: GoogleFonts.poppins(),
+            )),
+          );
+        }
+        return;
+      }
+
+      final imageFile = File(pickedFile.path);
+      if (!await imageFile.exists()) {
+        throw Exception('선택된 이미지 파일이 존재하지 않습니다.');
+      }
+
+      // Save the image locally
+      final imagePath = await _saveImageLocally(imageFile);
+      
+      // Extract text from the image
+      final extractedText = await _extractTextFromImage(await imageFile.readAsBytes());
+      
+      // Translate the extracted text
+      String translatedText = '';
+      if (extractedText.isNotEmpty) {
+        final lines = extractedText.split('\n').where((s) => s.trim().isNotEmpty).toList();
+        final translatedLines = await Future.wait(
+          lines.map((line) => translatorService.translate(line, from: 'zh', to: 'ko'))
+        );
+        translatedText = translatedLines.join('\n');
+      }
+
+      // Create a new page
+      final newPage = note_model.Page(
+        imageUrl: imagePath,
+        extractedText: extractedText,
+        translatedText: translatedText,
+      );
+
+      // Update the note with the new page
+      final updatedPages = [...widget.note.pages, newPage];
+      final updatedNote = widget.note.copyWith(
+        pages: updatedPages,
+        updatedAt: DateTime.now(),
+      );
+
+      // Update in Firestore
+      await firestore.collection('notes').doc(widget.note.id).update(updatedNote.toFirestore());
+
+      if (mounted) {
+        setState(() {
+          widget.note.pages.add(newPage);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(
+            '새로운 페이지가 추가되었습니다.',
+            style: GoogleFonts.poppins(),
+          )),
+        );
+      }
+
+    } catch (e) {
+      print('Error adding new page: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(
+            '페이지 추가 중 오류가 발생했습니다: $e',
+            style: GoogleFonts.poppins(),
+          )),
+        );
+      }
+    }
   }
 }
 

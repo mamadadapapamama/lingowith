@@ -17,9 +17,17 @@ import 'package:mlw/services/translator.dart';
 import 'dart:convert';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:mlw/screens/note_detail_screen.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final String spaceId;
+  final String userId;
+
+  const HomeScreen({
+    super.key,
+    required this.spaceId,
+    required this.userId,
+  });
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -35,6 +43,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   File? _image;
   bool _isProcessing = false;
+  List<note_model.Note> _notes = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
@@ -67,6 +77,7 @@ class _HomeScreenState extends State<HomeScreen> {
           setState(() {
             _currentNoteSpace = createdSpace;
           });
+          _loadNotes(createdSpace.id);
         }
       } else {
         print('Using existing space: ${spaces.first.id}'); // 디버깅용 로그
@@ -74,6 +85,7 @@ class _HomeScreenState extends State<HomeScreen> {
           setState(() {
             _currentNoteSpace = spaces.first;
           });
+          _loadNotes(spaces.first.id);
         }
       }
     } catch (e, stackTrace) {
@@ -82,6 +94,34 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('노트 스페이스 로딩 실패: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _loadNotes(String spaceId) async {
+    try {
+      final notesStream = _noteRepository.getNotes(spaceId, userId);
+      final loadedNotes = await notesStream.first;
+      if (mounted) {
+        setState(() {
+          _notes = loadedNotes;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading notes: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '노트를 불러오는 중 오류가 발생했습니다.',
+              style: GoogleFonts.poppins(),
+            ),
+          ),
         );
       }
     }
@@ -159,75 +199,113 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     // 노트 복제 함수
-    Future<void> duplicateNote(note_model.Note note) async {
-      final newNote = note_model.Note(
-        id: '',
-        spaceId: note.spaceId,
-        userId: note.userId,
-        title: '${note.title} (복사본)',
-        content: note.content,
-        flashCards: note.flashCards,
-        highlightedTexts: note.highlightedTexts,
-        extractedText: note.extractedText,
-        translatedText: note.translatedText,
-        pinyin: note.pinyin,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
-
+    Future<void> _duplicateNote(note_model.Note note) async {
       try {
-        await _noteRepository.createNote(newNote);
-        if (context.mounted) {
+        final newNote = note_model.Note(
+          id: '',
+          spaceId: note.spaceId,
+          userId: note.userId,
+          title: '${note.title} (복사본)',
+          content: note.content,
+          pages: note.pages,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+        
+        final createdNote = await _noteRepository.createNote(newNote);
+        if (mounted) {
+          setState(() {
+            _notes = [..._notes, createdNote];
+          });
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('노트가 복제되었습니다.')),
+            SnackBar(
+              content: Text(
+                '노트가 복제되었습니다.',
+                style: GoogleFonts.poppins(),
+              ),
+            ),
           );
         }
       } catch (e) {
-        if (context.mounted) {
+        if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('노트 복제 실패: $e')),
+            SnackBar(
+              content: Text(
+                '노트 복제 중 오류가 발생했습니다.',
+                style: GoogleFonts.poppins(),
+              ),
+            ),
           );
         }
       }
     }
 
     // 노트 삭제 함수
-    Future<void> deleteNote(note_model.Note note) async {
+    Future<void> _deleteNote(note_model.Note note) async {
       try {
         await _noteRepository.deleteNote(note.id);
-        if (context.mounted) {
+        if (mounted) {
+          setState(() {
+            _notes = _notes.where((n) => n.id != note.id).toList();
+          });
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('노트가 삭제되었습니다.')),
+            SnackBar(
+              content: Text(
+                '노트가 삭제되었습니다.',
+                style: GoogleFonts.poppins(),
+              ),
+            ),
           );
         }
       } catch (e) {
-        if (context.mounted) {
+        if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('노트 삭제 실패: $e')),
+            SnackBar(
+              content: Text(
+                '노트 삭제 중 오류가 발생했습니다.',
+                style: GoogleFonts.poppins(),
+              ),
+            ),
           );
         }
       }
     }
 
     // HomeScreen 클래스 내부에 추가
-    Future<void> updateNoteTitle(note_model.Note note, String newTitle) async {
+    Future<void> _updateNoteTitle(note_model.Note note, String newTitle) async {
       try {
         final updatedNote = note.copyWith(
           title: newTitle,
           updatedAt: DateTime.now(),
         );
+        
         await _noteRepository.updateNote(updatedNote);
+        
+        if (mounted) {
+          setState(() {
+            final index = _notes.indexWhere((n) => n.id == note.id);
+            if (index != -1) {
+              _notes = List<note_model.Note>.from(_notes)
+                ..[index] = updatedNote;
+            }
+          });
+        }
       } catch (e) {
-        if (context.mounted) {
+        if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('제목 수정 실패: $e')),
+            SnackBar(
+              content: Text(
+                '노트 제목 수정 중 오류가 발생했습니다.',
+                style: GoogleFonts.poppins(),
+              ),
+            ),
           );
         }
       }
     }
 
     return Scaffold(
-      backgroundColor: ColorTokens.semantic['surface']?['page'] ?? Colors.white,
+      backgroundColor: ColorTokens.semantic['surface']?['background'],
       appBar: AppBar(
         title: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -267,110 +345,50 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
-        backgroundColor: Colors.transparent,
+        backgroundColor: ColorTokens.semantic['surface']?['background'],
         elevation: 0,
       ),
-      body: _currentNoteSpace == null
-          ? const Center(child: CircularProgressIndicator())
-          : SafeArea(
-              child: SingleChildScrollView(
-                child: Column(
-                  children: [
-                    StreamBuilder<List<note_model.Note>>(
-                      stream: _noteRepository.getNotes(userId, _currentNoteSpace!.id),
-                      builder: (context, snapshot) {
-                        if (snapshot.hasError) {
-                          return Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(
-                                  Icons.error_outline,
-                                  color: Colors.red,
-                                  size: 60,
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  'Error: ${snapshot.error}',
-                                  style: Theme.of(context).textTheme.bodyLarge,
-                                  textAlign: TextAlign.center,
-                                ),
-                              ],
-                            ),
-                          );
-                        }
-
-                        if (!snapshot.hasData) {
-                          return const Center(
-                            child: CircularProgressIndicator(),
-                          );
-                        }
-
-                        final notes = snapshot.data!;
-                        
-                        if (notes.isEmpty) {
-                          return SizedBox(
-                            height: MediaQuery.of(context).size.height - 200,
-                            child: Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.note_add,
-                                    size: 60,
-                                    color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    '노트가 없습니다.\n새로운 노트를 추가해보세요!',
-                                    style: Theme.of(context).textTheme.bodyLarge,
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        }
-
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 80),
-                          child: ListView.builder(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            itemCount: notes.length,
-                            itemBuilder: (context, index) {
-                              final note = notes[index];
-                              final bool hasTestSchedule = note.title.contains('家人');
-                              final String testMessage = hasTestSchedule ? 'Test tomorrow!' : '';
-                              
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 16),
-                                child: NoteCard(
-                                  note: note,
-                                  hasTestSchedule: hasTestSchedule,
-                                  testMessage: testMessage,
-                                  onDuplicate: duplicateNote,
-                                  onDelete: deleteNote,
-                                  onTitleEdit: updateNoteTitle,
-                                ),
-                              );
-                            },
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
+      body: _isLoading
+          ? Center(
+              child: CircularProgressIndicator(
+                color: ColorTokens.primary[400],
               ),
-            ),
+            )
+          : _notes.isEmpty
+              ? Center(
+                  child: Text(
+                    '노트가 없습니다.\n새로운 노트를 추가해보세요.',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      color: ColorTokens.semantic['text']?['body'] as Color? ?? Colors.black,
+                    ),
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: _notes.length,
+                  itemBuilder: (context, index) {
+                    final note = _notes[index];
+                    
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: NoteCard(
+                        note: note,
+                        onDuplicate: _duplicateNote,
+                        onDelete: _deleteNote,
+                        onTitleEdit: _updateNoteTitle,
+                      ),
+                    );
+                  },
+                ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           print('Add new note button pressed');
           _showImageSourceActionSheet();
         },
         child: const Icon(Icons.add_photo_alternate),
-        backgroundColor: ColorTokens.semantic['surface']?['button-primary'] ?? Colors.orange,
+        backgroundColor: (ColorTokens.semantic['surface']?['button-primary'] as Color?) ?? Colors.orange,
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );

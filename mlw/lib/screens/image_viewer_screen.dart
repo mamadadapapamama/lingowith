@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
+import 'package:mlw/theme/tokens/color_tokens.dart';
 
 class ImageViewerScreen extends StatelessWidget {
   final String imageUrl;
@@ -12,10 +13,12 @@ class ImageViewerScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: ColorTokens.semantic['surface']?['background'],
       appBar: AppBar(
-        backgroundColor: Colors.black,
-        iconTheme: const IconThemeData(color: Colors.white),
+        backgroundColor: ColorTokens.semantic['surface']?['background'],
+        iconTheme: IconThemeData(
+          color: ColorTokens.semantic['text']?['body'],
+        ),
       ),
       body: Center(
         child: InteractiveViewer(
@@ -25,10 +28,12 @@ class ImageViewerScreen extends StatelessWidget {
             File(imageUrl),
             fit: BoxFit.contain,
             errorBuilder: (context, error, stackTrace) {
-              return const Center(
+              return Center(
                 child: Text(
                   '이미지를 불러올 수 없습니다.',
-                  style: TextStyle(color: Colors.white),
+                  style: TextStyle(
+                    color: ColorTokens.semantic['text']?['body'],
+                  ),
                 ),
               );
             },
