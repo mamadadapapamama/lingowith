@@ -15,6 +15,7 @@ import 'package:mlw/screens/flashcard_screen.dart'; // Import FlashCardScreen
 import 'package:mlw/theme/tokens/color_tokens.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:mlw/theme/tokens/typography_tokens.dart';
 
 class NoteDetailScreen extends StatefulWidget {
   final note_model.Note note;
@@ -30,7 +31,16 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   final FirebaseFirestore firestore = FirebaseFirestore.instance;
   bool showTranslation = true;
   bool isHighlightMode = false;
-  String? selectedText; // Store temporarily selected text
+  String? selectedText;
+  int? _currentPlayingIndex;
+  Set<String> highlightedTexts = {};  // 하이라이트된 텍스트들을 저장
+
+  @override
+  void initState() {
+    super.initState();
+    // 플래시카드에 있는 텍스트들을 하이라이트된 텍스트 목록에 추가
+    highlightedTexts = widget.note.flashCards.map((card) => card.text).toSet();
+  }
 
   Future<void> _speak(String text) async {
     try {
@@ -62,7 +72,8 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
         text: text,
         createdAt: DateTime.now(),
       ));
-      selectedText = null; // Clear selection after adding
+      highlightedTexts.add(text);  // 하이라이트된 텍스트 목록에 추가
+      selectedText = null;
     });
   }
 
@@ -304,10 +315,8 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
         ),
         title: Text(
           widget.note.title,
-          style: GoogleFonts.poppins(
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
-            color: ColorTokens.semantic['text']?['body'],
+          style: TypographyTokens.getStyle('h1').copyWith(
+            color: ColorTokens.semantic['text']?['heading'],
           ),
         ),
         actions: [
@@ -380,47 +389,53 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                     ),
                     const SizedBox(height: 16),
                     for (int i = 0; i < lines.length; i++) ...[
-                      Row(
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          IconButton(
-                            icon: Icon(
-                              Icons.volume_up,
-                              color: ColorTokens.semantic['text']?['body'],
-                            ),
-                            onPressed: () => _speak(lines[i].trim()),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              IconButton(
+                                icon: Icon(
+                                  Icons.volume_up,
+                                  color: _currentPlayingIndex == i 
+                                    ? ColorTokens.secondary[200]
+                                    : ColorTokens.secondary[100],
+                                ),
+                                onPressed: () {
+                                  setState(() {
+                                    _currentPlayingIndex = i;
+                                  });
+                                  _speak(lines[i].trim());
+                                },
+                              ),
+                              Expanded(
+                                child: TextHighlighter(
+                                  text: lines[i].trim(),
+                                  onHighlighted: _onTextSelected,
+                                  isHighlightMode: isHighlightMode,
+                                  highlightedTexts: highlightedTexts.toList(),
+                                  style: TypographyTokens.getStyle('body').copyWith(
+                                    color: ColorTokens.semantic['text']?['body'],
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                          Expanded(
-                            child: TextHighlighter(
-                              text: lines[i].trim(),
-                              onHighlighted: _onTextSelected,
-                              isHighlightMode: isHighlightMode,
+                          if (showTranslation && i < translatedLines.length && translatedLines[i].trim().isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 56, top: 4, bottom: 8),
+                              child: Text(
+                                translatedLines[i].trim(),
+                                style: TypographyTokens.getButtonStyle(isSmall: true).copyWith(
+                                  color: ColorTokens.semantic['text']?['translation'],
+                                ),
+                              ),
                             ),
-                          ),
                         ],
                       ),
-                      if (showTranslation && i < translatedLines.length && translatedLines[i].trim().isNotEmpty) ...[
-                        Padding(
-                          padding: const EdgeInsets.only(left: 56, bottom: 8),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: ColorTokens.primary[50],
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: ColorTokens.primary[100] ?? Colors.transparent,
-                                width: 1,
-                              ),
-                            ),
-                            child: Text(
-                              translatedLines[i].trim(),
-                              style: GoogleFonts.poppins(
-                                fontSize: 14,
-                                color: ColorTokens.semantic['text']?['secondary'] ?? ColorTokens.base[600],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
+                      if (i < lines.length - 1)
+                        const SizedBox(height: 8),
                     ],
                     const SizedBox(height: 16),
                     Row(

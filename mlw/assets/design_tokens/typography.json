@@ -1,66 +1,60 @@
 {
-  "primitive": {
-    "base": {
-      "0": "#FFFFFF",
-      "200": "#E5E5E5",
-      "400": "#B2B2B2",
-      "600": "#705F5F",
-      "800": "#000000"
-    },
-    "primary": {
-      "25": "#FFF9F1",
-      "50": "#FFF0E8",
-      "100": "#FFE1D0",
-      "200": "#FFB48A",
-      "300": "#FE975B",
-      "400": "#FE6A15",
-      "500": "#CB5511",
-      "600": "#98400D",
-      "700": "#662A08"
-    },
-    "success": {
-      "100": "#F2FAF5",
-      "200": "#D8F1E2",
-      "300": "#B2E4C5",
-      "400": "#7ED29E",
-      "500": "#65A87E",
-      "600": "#4C7E5F",
-      "700": "#32543F"
-    },
-    "secondary": {
-      "25": "#F1F3F3",
-      "100": "#D3E0DD",
-      "200": "#90B1AB",
-      "300": "#649289",
-      "400": "#226357",
-      "500": "#1B4F46",
-      "600": "#143B34",
-      "700": "#0E2823"
-    }
+  "fontFamily": {
+    "primary": "Poppins",
+    "secondary": "Inter"
   },
-  "semantic": {
-    "text": {
-      "body": "#0E2823",
-      "heading": "#0E2823",
-      "primary": "#FFFFFF",
-      "secondary": "#FFFFFF",
-      "disabled": "#705F5F",
-      "success": "#32543F"
+  "fontWeight": {
+    "regular": 400,
+    "medium": 500,
+    "semibold": 600,
+    "bold": 700
+  },
+  "fontSize": {
+    "xs": 10,
+    "sm": 12,
+    "md": 16,
+    "mmd":18,
+    "lg": 20,
+    "xl": 24,
+    "xxl": 32
+  },
+  "styles": {
+    "h1": {
+      "fontFamily": "primary",
+      "fontSize": "xl",
+      "fontWeight": "bold",
+      "lineHeight": 28.8,
+      "letterSpacing": 0
     },
-    "surface": {
-      "page": "#FFF9F1",
-      "base": "#FFFFFF",
-      "button": {
-        "primary": "#FE6A15",
-        "primary-hover": "#CB5511",
-        "secondary": "#226357",
-        "secondary-hover": "#143B34"
+    "h2": {
+      "fontFamily": "primary",
+      "fontSize": "lg",
+      "fontWeight": "bold",
+      "lineHeight": 24,
+      "letterSpacing": 0
+    },
+    "body": {
+      "fontFamily": "primary",
+      "fontSize": "mmd",
+      "fontWeight": "semibold",
+      "lineHeight": 21.6,
+      "letterSpacing": 0
+    },
+    "button": {
+      "default": {
+        "fontFamily": "primary",
+        "fontSize": "md",
+        "fontWeight": "medium",
+        "lineHeight": 19.2,
+        "letterSpacing": 0
+      },
+      "small": {
+        "fontFamily": "primary",
+        "fontSize": "sm",
+        "fontWeight": "medium",
+        "lineHeight": 14.4,
+        "letterSpacing": 0
       }
-    },
-    "border": {
-      "base": "#FFE1D0",
-      "success": "#7ED29E",
-      "base-2": "#FFFFFF"
     }
   }
 }

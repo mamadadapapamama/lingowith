@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:mlw/models/note.dart' as note_model;
 import 'package:mlw/services/note_repository.dart';
 import 'package:mlw/widgets/note_card.dart';
-import 'package:mlw/styles/app_colors.dart';
 import 'package:mlw/screens/note_space_settings_screen.dart';
 import 'package:mlw/models/note_space.dart';
 import 'package:mlw/repositories/note_space_repository.dart';
 import 'package:mlw/theme/tokens/color_tokens.dart';
+import 'package:mlw/theme/tokens/typography_tokens.dart';
+import 'package:mlw/widgets/custom_button.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
-import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:googleapis/vision/v1.dart' as vision;
 import 'package:googleapis_auth/auth_io.dart';
@@ -134,7 +135,15 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Wrap(
           children: <Widget>[
             ListTile(
-              leading: const Icon(Icons.photo_library),
+              leading: SvgPicture.asset(
+                'assets/icon/addimage.svg',
+                width: 24,
+                height: 24,
+                colorFilter: ColorFilter.mode(
+                  ColorTokens.semantic['text']?['body'] ?? Colors.black,
+                  BlendMode.srcIn,
+                ),
+              ),
               title: const Text('갤러리에서 선택'),
               onTap: () {
                 Navigator.of(context).pop();
@@ -142,7 +151,15 @@ class _HomeScreenState extends State<HomeScreen> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.camera_alt),
+              leading: SvgPicture.asset(
+                'assets/icon/addnote.svg',
+                width: 24,
+                height: 24,
+                colorFilter: ColorFilter.mode(
+                  ColorTokens.semantic['text']?['body'] ?? Colors.black,
+                  BlendMode.srcIn,
+                ),
+              ),
               title: const Text('카메라로 촬영'),
               onTap: () {
                 Navigator.of(context).pop();
@@ -304,93 +321,140 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
 
-    return Scaffold(
-      backgroundColor: ColorTokens.semantic['surface']?['background'],
-      appBar: AppBar(
-        title: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SvgPicture.asset(
-                  'assets/icon/logo_small.svg',
-                  width: 71,
-                  height: 21,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  _currentNoteSpace?.name ?? "Loading...",
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w700,
-                    fontFamily: 'Poppins',
-                    color: ColorTokens.semantic['text']?['body'],
-                  ),
-                ),
-              ],
-            ),
-            IconButton(
-              icon: Icon(Icons.account_circle, color: AppColors.deepGreen.withOpacity(0.7)),
-              onPressed: _currentNoteSpace == null ? null : () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => NoteSpaceSettingsScreen(
-                      noteSpace: _currentNoteSpace!,
-                    ),
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+        statusBarBrightness: Brightness.light,
+        systemNavigationBarColor: ColorTokens.semantic['surface']?['background'],
+        systemNavigationBarIconBrightness: Brightness.dark,
+      ),
+      child: Scaffold(
         backgroundColor: ColorTokens.semantic['surface']?['background'],
-        elevation: 0,
-      ),
-      body: _isLoading
-          ? Center(
-              child: CircularProgressIndicator(
-                color: ColorTokens.primary[400],
-              ),
-            )
-          : _notes.isEmpty
-              ? Center(
-                  child: Text(
-                    '노트가 없습니다.\n새로운 노트를 추가해보세요.',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.poppins(
-                      fontSize: 16,
-                      color: ColorTokens.semantic['text']?['body'] as Color? ?? Colors.black,
-                    ),
-                  ),
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _notes.length,
-                  itemBuilder: (context, index) {
-                    final note = _notes[index];
-                    
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: NoteCard(
-                        note: note,
-                        onDuplicate: _duplicateNote,
-                        onDelete: _deleteNote,
-                        onTitleEdit: _updateNoteTitle,
-                      ),
-                    );
-                  },
+        appBar: PreferredSize(
+          preferredSize: const Size.fromHeight(84),
+          child: Container(
+            color: ColorTokens.semantic['surface']?['background'],
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.only(
+                  left: 24,
+                  right: 24,
+                  top: 12,
+                  bottom: 8,
                 ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          print('Add new note button pressed');
-          _showImageSourceActionSheet();
-        },
-        child: const Icon(Icons.add_photo_alternate),
-        backgroundColor: (ColorTokens.semantic['surface']?['button-primary'] as Color?) ?? Colors.orange,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SvgPicture.asset(
+                          'assets/icon/logo_small.svg',
+                          width: 71,
+                          height: 21,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _currentNoteSpace?.name ?? "Loading...",
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w700,
+                            fontFamily: 'Poppins',
+                            color: ColorTokens.semantic['text']?['body'],
+                          ),
+                        ),
+                      ],
+                    ),
+                    IconButton(
+                      icon: SvgPicture.asset(
+                        'assets/icon/profile.svg',
+                        width: 24,
+                        height: 24,
+                        colorFilter: ColorFilter.mode(
+                          ColorTokens.semantic['text']?['body'] ?? Colors.black,
+                          BlendMode.srcIn,
+                        ),
+                      ),
+                      onPressed: _currentNoteSpace == null ? null : () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => NoteSpaceSettingsScreen(
+                              noteSpace: _currentNoteSpace!,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        body: _isLoading
+            ? Center(
+                child: CircularProgressIndicator(
+                  color: ColorTokens.primary[400],
+                ),
+              )
+            : _notes.isEmpty
+                ? Center(
+                    child: Text(
+                      '노트가 없습니다.\n새로운 노트를 추가해보세요.',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.poppins(
+                        fontSize: 16,
+                        color: ColorTokens.semantic['text']?['body'] as Color? ?? Colors.black,
+                      ),
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.only(
+                      left: 16,
+                      right: 16,
+                      top: 8,
+                      bottom: 80,
+                    ),
+                    itemCount: _notes.length,
+                    itemBuilder: (context, index) {
+                      final note = _notes[index];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: NoteCard(
+                          note: note,
+                          onDuplicate: _duplicateNote,
+                          onDelete: _deleteNote,
+                          onTitleEdit: _updateNoteTitle,
+                        ),
+                      );
+                    },
+                  ),
+        floatingActionButton: FloatingActionButton(
+          onPressed: () {
+            print('Add new note button pressed');
+            _showImageSourceActionSheet();
+          },
+          child: SvgPicture.asset(
+            'assets/icon/addimage.svg',
+            width: 24,
+            height: 24,
+            colorFilter: ColorFilter.mode(
+              ColorTokens.semantic['text']?['primary'] ?? Colors.white,
+              BlendMode.srcIn,
+            ),
+          ),
+          backgroundColor: ColorTokens.secondary[400] ?? Colors.teal,
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+        floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
 
@@ -454,6 +518,10 @@ class _HomeScreenState extends State<HomeScreen> {
       print('Note created with ID: ${createdNote.id}');
 
       if (mounted) {
+        setState(() {
+          _notes = [..._notes, createdNote];
+        });
+        
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('노트가 생성되었습니다.')),
         );

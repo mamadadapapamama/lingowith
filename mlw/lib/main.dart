@@ -7,41 +7,33 @@ import 'package:mlw/theme/tokens/color_tokens.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'dart:io' show Platform;
-import 'package:flutter/rendering.dart';
+import 'package:mlw/theme/tokens/typography_tokens.dart';
 
 void main() async {
-  try {
-    WidgetsFlutterBinding.ensureInitialized();
-    
-    // Set system UI overlay style
-    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
-      statusBarColor: ColorTokens.semantic['surface']?['background'],
-      systemNavigationBarColor: ColorTokens.semantic['surface']?['background'],
-      statusBarIconBrightness: Brightness.dark,
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await _initializeFirebase();
+  
+  // Initialize Typography Tokens
+  await TypographyTokens.initialize();
+
+  runApp(const MyApp());
+
+  // 🔥 runApp 이후에 System UI 스타일 적용 (더 확실하게 반영)
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent, // ✅ 완전 투명하게 만들기
+      statusBarIconBrightness: Brightness.dark, // ✅ 상태바 아이콘 검정색으로 (light이면 흰색)
+      systemNavigationBarColor: Colors.white, // ✅ 네비게이션 바 색상 조정
       systemNavigationBarIconBrightness: Brightness.dark,
       statusBarBrightness: Brightness.light,
     ));
-    
-    await _initializeFirebase();
-    runApp(const MyApp());
-  } catch (e, stack) {
-    if (kDebugMode) {
-      print('App initialization error: $e');
-      print('Stack trace: $stack');
-    }
-  }
+  });
 }
 
 Future<void> _initializeFirebase() async {
-  if (kDebugMode) {
-    print('Starting Firebase initialization...');
-  }
-
   try {
     if (Firebase.apps.isNotEmpty) {
-      if (kDebugMode) {
-        print('Firebase already initialized');
-      }
       return;
     }
 
@@ -63,22 +55,14 @@ Future<void> _initializeFirebase() async {
           );
 
     await Firebase.initializeApp(options: options);
-    
-    // Configure Firestore settings
+
     FirebaseFirestore.instance.settings = const Settings(
       persistenceEnabled: true,
       cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
     );
-
-    if (kDebugMode) {
-      print('Firebase initialized successfully');
-    }
   } catch (e) {
     if (kDebugMode) {
       print('Firebase initialization error: $e');
-    }
-    if (!e.toString().contains('duplicate-app')) {
-      rethrow;
     }
   }
 }
@@ -86,7 +70,6 @@ Future<void> _initializeFirebase() async {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  // 임시 사용자 ID - 나중에 인증 시스템으로 대체
   static const String defaultUserId = 'test_user';
   static const String defaultSpaceId = 'default_space';
 
@@ -95,47 +78,28 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'MLW',
       theme: AppTheme.lightTheme.copyWith(
-        appBarTheme: AppTheme.lightTheme.appBarTheme.copyWith(
-          toolbarHeight: 80, // Increased height for top padding
-          titleSpacing: 4, // Side padding
-        ),
         scaffoldBackgroundColor: ColorTokens.semantic['surface']?['background'],
       ),
-      home: Container(
-        color: ColorTokens.semantic['surface']?['background'],
-        child: SafeArea(
-          bottom: false,
-          child: Container(
-            color: ColorTokens.semantic['surface']?['background'],
-            child: Padding(
-              padding: const EdgeInsets.only(
-                top: 10,
-                left: 4,
-                right: 4,
-              ),
-              child: const HomeScreen(
-                userId: defaultUserId,
-                spaceId: defaultSpaceId,
-              ),
-            ),
-          ),
+      debugShowCheckedModeBanner: false,
+      home: HomeScreenWrapper(),
+    );
+  }
+}
+
+class HomeScreenWrapper extends StatelessWidget {
+  const HomeScreenWrapper({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      extendBodyBehindAppBar: true, // ✅ 상태바 뒤까지 확장
+      body: Container(
+        color: ColorTokens.semantic['surface']?['background'] ?? Colors.white, // ✅ 배경색 확실히 적용
+        child: HomeScreen(
+          userId: MyApp.defaultUserId,
+          spaceId: MyApp.defaultSpaceId,
         ),
       ),
-      debugShowCheckedModeBanner: false,
-      builder: (context, child) {
-        // Apply global MediaQuery settings
-        final mediaQuery = MediaQuery.of(context);
-        
-        return MediaQuery(
-          data: mediaQuery.copyWith(
-            textScaleFactor: 1.0,
-            padding: mediaQuery.padding.copyWith(
-              top: mediaQuery.padding.top + 10, // Additional top padding
-            ),
-          ),
-          child: child!,
-        );
-      },
     );
   }
 }

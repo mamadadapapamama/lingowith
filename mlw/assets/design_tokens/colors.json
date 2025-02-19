@@ -36,14 +36,24 @@
       "500": "#1B4F46",
       "600": "#143B34",
       "700": "#0E2823"
-    }
+    },
+    "tertiary": {
+      "100": "#fff7d8",
+      "200": "#ffea9D",
+      "300": "#ffe277",
+      "400": "#ffd53c",
+      "500": "#ccaa30",
+      "600": "#998024",
+      "700": "#665518"
   },
+  
   "semantic": {
     "text": {
       "body": "#0E2823",
       "heading": "#0E2823",
       "primary": "#FFFFFF",
       "secondary": "#FFFFFF",
+      "translation":"#226357",
       "disabled": "#705F5F",
       "success": "#32543F"
     },
@@ -63,5 +73,6 @@
       "success": "#7ED29E",
       "base-2": "#FFFFFF"
     }
+  }
   }
 }
