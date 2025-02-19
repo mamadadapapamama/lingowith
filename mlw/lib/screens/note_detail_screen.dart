@@ -250,7 +250,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
           itemCount: widget.note.pages.length,
           itemBuilder: (context, index) {
             final page = widget.note.pages[index];
-            bool showTranslation = false; // Placeholder for actual condition
+            bool showTranslation = false; // Default to false to show only detected text
             final lines = page.extractedText.split('\n'); // Split text into lines
             final translatedLines = page.translatedText.split('\n');
             return Card(
@@ -299,7 +299,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                             Icon(Icons.text_fields),
                             Icon(Icons.highlight),
                           ],
-                          isSelected: [false, false, false],
+                          isSelected: [showTranslation, false, false],
                           onPressed: (int index) {
                             if (index == 0) {
                               // Toggle translation visibility
