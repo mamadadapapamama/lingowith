@@ -7,7 +7,6 @@ import 'package:mlw/screens/note_space_settings_screen.dart';
 import 'package:mlw/models/note_space.dart';
 import 'package:mlw/repositories/note_space_repository.dart';
 import 'package:mlw/theme/tokens/color_tokens.dart';
-import 'package:mlw/widgets/custom_button.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:flutter/services.dart';
@@ -231,7 +230,7 @@ class _HomeScreenState extends State<HomeScreen> {
       backgroundColor: ColorTokens.semantic['surface']?['page'] ?? Colors.white,
       appBar: AppBar(
         title: Row(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -253,7 +252,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ],
             ),
-            const SizedBox(width: 79),
             IconButton(
               icon: Icon(Icons.account_circle, color: AppColors.deepGreen.withOpacity(0.7)),
               onPressed: _currentNoteSpace == null ? null : () {
@@ -366,31 +364,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
-      floatingActionButton: Container(
-        margin: const EdgeInsets.only(bottom: 16),
-        decoration: BoxDecoration(
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.25),
-              offset: const Offset(0, 4),
-              blurRadius: 4,
-            ),
-          ],
-        ),
-        child: CustomButton(
-          text: 'Add new note',
-          icon: Icon(
-            Icons.add,
-            size: 24,
-            color: ColorTokens.semantic['text']?['primary'] ?? Colors.white,
-          ),
-          onPressed: () async {
-            print('Add new note button pressed');
-            _showImageSourceActionSheet();
-          },
-          isPrimary: true,
-        ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          print('Add new note button pressed');
+          _showImageSourceActionSheet();
+        },
+        child: const Icon(Icons.add_photo_alternate),
+        backgroundColor: ColorTokens.semantic['surface']?['button-primary'] ?? Colors.orange,
       ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
 

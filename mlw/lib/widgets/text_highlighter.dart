@@ -18,8 +18,6 @@ class TextHighlighter extends StatefulWidget {
 }
 
 class _TextHighlighterState extends State<TextHighlighter> {
-  String _selectedText = '';
-
   @override
   Widget build(BuildContext context) {
     return SelectableText(
@@ -29,14 +27,12 @@ class _TextHighlighterState extends State<TextHighlighter> {
         color: AppColors.deepGreen,
       ),
       onSelectionChanged: widget.isHighlightMode ? (selection, cause) {
-        if (selection != null) {
-          setState(() {
-            _selectedText = widget.text.substring(
-              selection.start,
-              selection.end,
-            );
-          });
-          widget.onHighlighted(_selectedText);
+        if (selection.baseOffset != selection.extentOffset) {
+          final selectedText = widget.text.substring(
+            selection.start,
+            selection.end,
+          );
+          widget.onHighlighted(selectedText);
         }
       } : null,
     );

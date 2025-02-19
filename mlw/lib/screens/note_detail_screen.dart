@@ -11,6 +11,7 @@ import 'package:googleapis/vision/v1.dart' as vision;
 import 'package:googleapis_auth/auth_io.dart';
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:mlw/screens/flashcard_screen.dart'; // Import FlashCardScreen
 
 class NoteDetailScreen extends StatefulWidget {
   final note_model.Note note;
@@ -24,10 +25,42 @@ class NoteDetailScreen extends StatefulWidget {
 class _NoteDetailScreenState extends State<NoteDetailScreen> {
   final FlutterTts _flutterTts = FlutterTts();
   final FirebaseFirestore firestore = FirebaseFirestore.instance;
+  bool showTranslation = false;
+  bool isHighlightMode = false;
+  String? selectedText; // Store temporarily selected text
 
   Future<void> _speak(String text) async {
-    await _flutterTts.setLanguage('zh-CN');
-    await _flutterTts.speak(text);
+    try {
+      await _flutterTts.setLanguage('zh-CN');
+      await _flutterTts.speak(text);
+    } catch (e) {
+      print('TTS error: $e');
+    }
+  }
+
+  void _toggleHighlightMode() {
+    setState(() {
+      isHighlightMode = !isHighlightMode;
+      selectedText = null; // Clear selection when toggling mode
+    });
+  }
+
+  void _onTextSelected(String text) {
+    setState(() {
+      selectedText = text;
+    });
+  }
+
+  void _addToFlashcards(String text) {
+    setState(() {
+      widget.note.flashCards.add(note_model.FlashCard(
+        id: '',
+        noteId: widget.note.id,
+        text: text,
+        createdAt: DateTime.now(),
+      ));
+      selectedText = null; // Clear selection after adding
+    });
   }
 
   Future<bool> _requestPermission(BuildContext context, Permission permission) async {
@@ -243,6 +276,32 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.note.title),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.style),
+            onPressed: () {
+              if (widget.note.flashCards.isNotEmpty) {
+                // Navigate to flashcard screen
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => FlashCardScreen(flashCards: widget.note.flashCards),
+                  ),
+                );
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('No flashcards available.')),
+                );
+              }
+            },
+          ),
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: CircleAvatar(
+              child: Text('${widget.note.flashCards.length}'),
+            ),
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -250,8 +309,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
           itemCount: widget.note.pages.length,
           itemBuilder: (context, index) {
             final page = widget.note.pages[index];
-            bool showTranslation = false; // Default to false to show only detected text
-            final lines = page.extractedText.split('\n'); // Split text into lines
+            final lines = page.extractedText.split('\n');
             final translatedLines = page.translatedText.split('\n');
             return Card(
               margin: const EdgeInsets.symmetric(vertical: 8.0),
@@ -275,9 +333,27 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                             onPressed: () => _speak(lines[i].trim()),
                           ),
                           Expanded(
-                            child: Text(
-                              lines[i].trim(),
-                              style: Theme.of(context).textTheme.bodyLarge,
+                            child: Stack(
+                              children: [
+                                TextHighlighter(
+                                  text: lines[i].trim(),
+                                  onHighlighted: _onTextSelected,
+                                  isHighlightMode: isHighlightMode,
+                                ),
+                                if (selectedText != null && isHighlightMode)
+                                  Positioned(
+                                    right: 0,
+                                    child: ElevatedButton.icon(
+                                      icon: const Icon(Icons.add),
+                                      label: const Text('추가'),
+                                      onPressed: () => _addToFlashcards(selectedText!),
+                                      style: ElevatedButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                                        minimumSize: const Size(0, 36),
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
                           ),
                         ],
@@ -299,7 +375,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                             Icon(Icons.text_fields),
                             Icon(Icons.highlight),
                           ],
-                          isSelected: [showTranslation, false, false],
+                          isSelected: [showTranslation, false, isHighlightMode],
                           onPressed: (int index) {
                             if (index == 0) {
                               // Toggle translation visibility
@@ -308,9 +384,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                               });
                             } else if (index == 2) {
                               // Enable highlight mode
-                              setState(() {
-                                // Logic to enable highlight mode
-                              });
+                              _toggleHighlightMode();
                             }
                           },
                         ),
