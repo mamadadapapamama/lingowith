@@ -1,125 +1,204 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/note_space.dart';
+import '../theme/tokens/color_tokens.dart';
+import '../theme/tokens/typography_tokens.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../repositories/note_space_repository.dart';
 
 class NoteSpaceSettingsScreen extends StatefulWidget {
   final NoteSpace noteSpace;
 
   const NoteSpaceSettingsScreen({
-    Key? key,
+    super.key,
     required this.noteSpace,
-  }) : super(key: key);
+  });
 
   @override
   State<NoteSpaceSettingsScreen> createState() => _NoteSpaceSettingsScreenState();
 }
 
 class _NoteSpaceSettingsScreenState extends State<NoteSpaceSettingsScreen> {
-  late NoteSpace _noteSpace;
-  final _repository = NoteSpaceRepository();
+  final _formKey = GlobalKey<FormState>();
+  final _nameController = TextEditingController();
+  final _spaceRepository = NoteSpaceRepository();
+  String _selectedLanguage = 'zh';
 
   @override
   void initState() {
     super.initState();
-    _noteSpace = widget.noteSpace;
+    _nameController.text = widget.noteSpace.name;
+    _selectedLanguage = widget.noteSpace.language;
   }
 
-  Future<void> _updateSettings(NoteSpace updatedSpace) async {
-    try {
-      await _repository.updateNoteSpace(updatedSpace);
-      setState(() {
-        _noteSpace = updatedSpace;
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('설정이 저장되었습니다')),
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _saveChanges() async {
+    if (_formKey.currentState!.validate()) {
+      try {
+        final updatedSpace = widget.noteSpace.copyWith(
+          name: _nameController.text,
+          language: _selectedLanguage,
+          updatedAt: DateTime.now(),
         );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('설정 저장 실패: $e')),
-        );
+        
+        await _spaceRepository.updateNoteSpace(updatedSpace);
+        
+        if (mounted) {
+          Navigator.pop(context);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('노트 스페이스가 업데이트되었습니다.')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('업데이트 실패: $e')),
+          );
+        }
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('${_noteSpace.name} 설정'),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+        statusBarBrightness: Brightness.light,
+        systemNavigationBarColor: ColorTokens.getColor('background'),
+        systemNavigationBarIconBrightness: Brightness.dark,
       ),
-      body: ListView(
-        children: [
-          SwitchListTile(
-            title: const Text('플래시카드'),
-            subtitle: const Text('텍스트를 선택하여 플래시카드를 만들 수 있습니다'),
-            value: _noteSpace.isFlashcardEnabled,
-            onChanged: (value) {
-              final updated = _noteSpace.copyWith(isFlashcardEnabled: value);
-              _updateSettings(updated);
-            },
+      child: Scaffold(
+        backgroundColor: ColorTokens.getColor('background'),
+        appBar: AppBar(
+          backgroundColor: ColorTokens.getColor('background'),
+          elevation: 0,
+          leading: IconButton(
+            icon: SvgPicture.asset(
+              'assets/icon/back.svg',
+              width: 24,
+              height: 24,
+              colorFilter: ColorFilter.mode(
+                ColorTokens.getColor('text'),
+                BlendMode.srcIn,
+              ),
+            ),
+            onPressed: () => Navigator.pop(context),
           ),
-          SwitchListTile(
-            title: const Text('음성 읽기 (TTS)'),
-            subtitle: const Text('텍스트를 음성으로 읽어줍니다'),
-            value: _noteSpace.isTTSEnabled,
-            onChanged: (value) {
-              final updated = _noteSpace.copyWith(isTTSEnabled: value);
-              _updateSettings(updated);
-            },
+          title: Text(
+            'Note Space Settings',
+            style: TypographyTokens.getStyle('heading.h2'),
           ),
-          SwitchListTile(
-            title: const Text('병음 (Pinyin)'),
-            subtitle: const Text('중국어 텍스트의 병음을 표시합니다'),
-            value: _noteSpace.isPinyinEnabled,
-            onChanged: (value) {
-              final updated = _noteSpace.copyWith(isPinyinEnabled: value);
-              _updateSettings(updated);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.delete_sweep),
-            title: const Text('모든 노트 삭제'),
-            onTap: () async {
-              final shouldDelete = await showDialog<bool>(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('노트 전체 삭제'),
-                  content: const Text('현재 스페이스의 모든 노트를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.'),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      child: const Text('취소'),
-                    ),
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, true),
-                      child: const Text('삭제'),
-                    ),
-                  ],
+          centerTitle: true,
+        ),
+        body: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.all(24),
+            children: [
+              Text(
+                'Name',
+                style: TypographyTokens.getStyle('body.medium').copyWith(
+                  color: ColorTokens.getColor('text'),
                 ),
-              );
-
-              if (shouldDelete == true) {
-                try {
-                  await _repository.deleteAllSpaceNotes(_noteSpace.id);
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('모든 노트가 삭제되었습니다.')),
-                    );
+              ),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _nameController,
+                decoration: InputDecoration(
+                  hintText: 'Enter note space name',
+                  hintStyle: TypographyTokens.getStyle('body.medium').copyWith(
+                    color: ColorTokens.getColor('disabled'),
+                  ),
+                  filled: true,
+                  fillColor: ColorTokens.getColor('surface'),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter a name';
                   }
-                } catch (e) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('노트 삭제 중 오류가 발생했습니다: $e')),
-                    );
-                  }
-                }
-              }
-            },
+                  return null;
+                },
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'Language',
+                style: TypographyTokens.getStyle('body.medium').copyWith(
+                  color: ColorTokens.getColor('text'),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                decoration: BoxDecoration(
+                  color: ColorTokens.getColor('surface'),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: _selectedLanguage,
+                    isExpanded: true,
+                    icon: Icon(
+                      Icons.arrow_drop_down,
+                      color: ColorTokens.getColor('text'),
+                    ),
+                    style: TypographyTokens.getStyle('body.medium').copyWith(
+                      color: ColorTokens.getColor('text'),
+                    ),
+                    dropdownColor: ColorTokens.getColor('surface'),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'zh',
+                        child: Text('Chinese'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'ja',
+                        child: Text('Japanese'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        setState(() {
+                          _selectedLanguage = value;
+                        });
+                      }
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(height: 32),
+              ElevatedButton(
+                onPressed: _saveChanges,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: ColorTokens.getColor('button-primary'),
+                  foregroundColor: ColorTokens.getColor('surface'),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: Text(
+                  'Save Changes',
+                  style: TypographyTokens.getStyle('button.medium'),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

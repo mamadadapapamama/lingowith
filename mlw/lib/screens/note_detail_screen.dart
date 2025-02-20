@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:mlw/models/note.dart' as note_model;
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:mlw/widgets/text_highlighter.dart';
@@ -6,22 +7,23 @@ import 'package:mlw/widgets/note_page.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:flutter/services.dart';
 import 'package:mlw/services/translator.dart';
 import 'package:googleapis/vision/v1.dart' as vision;
 import 'package:googleapis_auth/auth_io.dart';
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:mlw/screens/flashcard_screen.dart'; // Import FlashCardScreen
+import 'package:mlw/screens/flashcard_screen.dart';
 import 'package:mlw/theme/tokens/color_tokens.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:mlw/theme/tokens/typography_tokens.dart';
+import 'package:mlw/repositories/note_repository.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class NoteDetailScreen extends StatefulWidget {
   final note_model.Note note;
 
-  NoteDetailScreen({Key? key, required this.note}) : super(key: key);
+  const NoteDetailScreen({Key? key, required this.note}) : super(key: key);
 
   @override
   _NoteDetailScreenState createState() => _NoteDetailScreenState();
@@ -34,13 +36,12 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   bool isHighlightMode = false;
   String? selectedText;
   int? _currentPlayingIndex;
-  Set<String> highlightedTexts = {};  // 하이라이트된 텍스트들을 저장
+  Set<String> highlightedTexts = {};
 
   @override
   void initState() {
     super.initState();
-    // 플래시카드에 있는 텍스트들을 하이라이트된 텍스트 목록에 추가
-    highlightedTexts = widget.note.flashCards.map((card) => card.text).toSet();
+    highlightedTexts = widget.note.flashCards.map((card) => card.front).toSet();
   }
 
   Future<void> _speak(String text) async {
@@ -55,7 +56,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   void _toggleHighlightMode() {
     setState(() {
       isHighlightMode = !isHighlightMode;
-      selectedText = null; // Clear selection when toggling mode
+      selectedText = null;
     });
   }
 
@@ -65,61 +66,169 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     });
   }
 
-  void _addToFlashcards(String text) {
-    setState(() {
-      widget.note.flashCards.add(note_model.FlashCard(
-        id: '',
-        noteId: widget.note.id,
-        text: text,
-        createdAt: DateTime.now(),
-      ));
-      highlightedTexts.add(text);  // 하이라이트된 텍스트 목록에 추가
-      selectedText = null;
-    });
-  }
+  void _addToFlashcards(String text) async {
+    try {
+      final translation = await translatorService.translate(text, from: 'zh', to: 'ko');
+      
+      final newFlashCard = note_model.FlashCard(
+        front: text,
+        back: translation,
+      );
+      
+      final updatedNote = widget.note.copyWith(
+        flashCards: [...widget.note.flashCards, newFlashCard],
+        updatedAt: DateTime.now(),
+      );
+      
+      // Update Firestore
+      await firestore.collection('notes').doc(widget.note.id).update(updatedNote.toFirestore());
+      
+      // Update local state
+      setState(() {
+        widget.note.flashCards.add(newFlashCard);
+        highlightedTexts.add(text);
+        selectedText = null;
+      });
 
-  Future<bool> _requestPermission(BuildContext context, Permission permission) async {
-    if (Platform.isIOS && !await Permission.photos.isRestricted) {
-      return true;
-    }
-
-    if (await permission.isGranted) {
-      return true;
-    }
-    
-    final status = await permission.request();
-    
-    if (status.isPermanentlyDenied) {
-      if (context.mounted) {
-        final shouldOpenSettings = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('권한 필요'),
-            content: const Text('이 기능을 사용하기 위해서는 설정에서 권한을 허용해주세요.'),
-            actions: [
-              TextButton(
-                child: const Text('취소'),
-                onPressed: () => Navigator.pop(context, false),
-              ),
-              TextButton(
-                child: const Text('설정으로 이동'),
-                onPressed: () => Navigator.pop(context, true),
-              ),
-            ],
-          ),
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('플래시카드가 추가되었습니다')),
         );
-        
-        if (shouldOpenSettings == true) {
-          await openAppSettings();
-        }
       }
-      return false;
+    } catch (e) {
+      print('Error adding flashcard: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('플래시카드 추가 중 오류가 발생했습니다: $e')),
+        );
+      }
     }
-    
-    return status.isGranted;
   }
 
-  Future<void> _pickImage(BuildContext context) async {
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
+    return Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          widget.note.title,
+          style: theme.textTheme.headlineMedium,
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.style),
+            onPressed: () {
+              if (widget.note.flashCards.isNotEmpty) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => FlashCardScreen(
+                      flashCards: widget.note.flashCards,
+                      noteId: widget.note.id,
+                    ),
+                  ),
+                );
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('플래시카드가 없습니다')),
+                );
+              }
+            },
+          ),
+          Container(
+            margin: const EdgeInsets.only(right: 16),
+            child: CircleAvatar(
+              backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
+              child: Text(
+                '${widget.note.flashCards.length}',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+      body: widget.note.pages.isEmpty
+          ? Center(
+              child: Text(
+                '페이지가 없습니다',
+                style: theme.textTheme.bodyLarge,
+              ),
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.all(16.0),
+              itemCount: widget.note.pages.length,
+              itemBuilder: (context, index) {
+                final page = widget.note.pages[index];
+                return Column(
+                  children: [
+                    NotePage(
+                      page: page,
+                      showTranslation: showTranslation,
+                      isHighlightMode: isHighlightMode,
+                      highlightedTexts: highlightedTexts,
+                      onHighlighted: _onTextSelected,
+                      onSpeak: (text) {
+                        setState(() {
+                          _currentPlayingIndex = index;
+                        });
+                        _speak(text);
+                      },
+                      currentPlayingIndex: _currentPlayingIndex,
+                      onDeletePage: () {
+                        // TODO: Implement page deletion
+                      },
+                      onEditText: (text) {
+                        // TODO: Implement text editing
+                      },
+                      onToggleTranslation: () {
+                        setState(() {
+                          showTranslation = !showTranslation;
+                        });
+                      },
+                      onToggleHighlight: () {
+                        _toggleHighlightMode();
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                );
+              },
+            ),
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          if (isHighlightMode && selectedText != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: FloatingActionButton.extended(
+                onPressed: () => _addToFlashcards(selectedText!),
+                label: const Text('플래시카드 추가'),
+                icon: const Icon(Icons.add),
+                backgroundColor: theme.colorScheme.secondary,
+              ),
+            ),
+          FloatingActionButton(
+            onPressed: () => _showImageSourceActionSheet(context),
+            backgroundColor: theme.colorScheme.secondary,
+            child: const Icon(Icons.add_photo_alternate),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showImageSourceActionSheet(BuildContext context) async {
     showModalBottomSheet(
       context: context,
       builder: (context) => SafeArea(
@@ -130,7 +239,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
               title: const Text('갤러리에서 선택'),
               onTap: () {
                 Navigator.of(context).pop();
-                _selectImage(context, ImageSource.gallery);
+                _addNewPage(ImageSource.gallery);
               },
             ),
             ListTile(
@@ -138,7 +247,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
               title: const Text('카메라로 촬영'),
               onTap: () {
                 Navigator.of(context).pop();
-                _selectImage(context, ImageSource.camera);
+                _addNewPage(ImageSource.camera);
               },
             ),
           ],
@@ -147,37 +256,19 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     );
   }
 
-  Future<void> _selectImage(BuildContext context, ImageSource source) async {
+  Future<void> _addNewPage(ImageSource source) async {
     try {
-      bool hasPermission;
-      if (source == ImageSource.camera) {
-        hasPermission = await _requestPermission(context, Permission.camera);
-      } else {
-        hasPermission = Platform.isIOS 
-            ? await _requestPermission(context, Permission.photos)
-            : await _requestPermission(context, Permission.storage);
-      }
-
-      if (!hasPermission) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('이미지를 선택하려면 권한을 허용해주세요.')),
-          );
-        }
-        return;
-      }
-
       final XFile? pickedFile = await ImagePicker().pickImage(
         source: source,
         maxWidth: 1200,
         maxHeight: 1200,
         imageQuality: 85,
       );
-      
+
       if (pickedFile == null) {
-        if (context.mounted) {
+        if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('이미지가 선택되지 않았습니다.')),
+            const SnackBar(content: Text('이미지가 선택되지 않았습니다')),
           );
         }
         return;
@@ -185,70 +276,65 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
 
       final imageFile = File(pickedFile.path);
       if (!await imageFile.exists()) {
-        throw Exception('선택된 이미지 파일이 존재하지 않습니다.');
+        throw Exception('선택된 이미지 파일이 존재하지 않습니다');
       }
 
-      // Process the image
-      await _processImage(context, imageFile);
+      // Save the image locally
+      final imagePath = await _saveImageLocally(imageFile);
       
-    } catch (e) {
-      print('Image picking error: $e');
-      if (context.mounted) {
+      // Extract text from the image
+      final extractedText = await _extractTextFromImage(await imageFile.readAsBytes());
+      
+      // Translate the extracted text
+      String translatedText = '';
+      if (extractedText.isNotEmpty) {
+        translatedText = await translatorService.translate(extractedText, from: 'zh', to: 'ko');
+      }
+
+      // Create a new page
+      final newPage = note_model.Page(
+        imageUrl: imagePath,
+        extractedText: extractedText,
+        translatedText: translatedText,
+      );
+
+      // Update the note with the new page
+      final updatedNote = widget.note.copyWith(
+        pages: [...widget.note.pages, newPage],
+        updatedAt: DateTime.now(),
+      );
+
+      // Update in Firestore
+      await firestore.collection('notes').doc(widget.note.id).update(updatedNote.toFirestore());
+
+      if (mounted) {
+        setState(() {
+          widget.note.pages.add(newPage);
+        });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('이미지 선택 중 오류가 발생했습니다: $e')),
+          const SnackBar(content: Text('새로운 페이지가 추가되었습니다')),
+        );
+      }
+
+    } catch (e) {
+      print('Error adding new page: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('페이지 추가 중 오류가 발생했습니다: $e')),
         );
       }
     }
   }
 
-  Future<void> _processImage(BuildContext context, File imageFile) async {
+  Future<String> _saveImageLocally(File image) async {
     try {
-      final imageBytes = await imageFile.readAsBytes();
-      final text = await _extractTextFromImage(imageBytes);
-      
-      // Create a new page with the image and extracted text
-      final newPage = note_model.Page(
-        imageUrl: imageFile.path,
-        extractedText: text,
-        translatedText: await translatorService.translate(text, from: 'zh', to: 'ko'),
-      );
-
-      // Get the count of existing notes for this user
-      final notesSnapshot = await firestore
-          .collection('notes')
-          .where('userId', isEqualTo: widget.note.userId)
-          .get();
-      final noteCount = notesSnapshot.docs.length + 1;
-
-      // Update the note with the new page
-      final updatedPages = [...widget.note.pages, newPage];
-      final updatedNote = widget.note.copyWith(
-        pages: updatedPages,
-        title: '${noteCount}번째 노트',
-        updatedAt: DateTime.now(),
-      );
-
-      // Update Firestore with the updated note
-      await firestore.collection('notes').doc(widget.note.id).update(updatedNote.toFirestore());
-
-      // Log Firestore update
-      print('Firestore updated with new page');
-
-      // Refresh the UI
-      setState(() {
-        widget.note.pages.add(newPage);
-      });
-
-      // Log UI refresh
-      print('UI refreshed with new page');
-
+      final directory = await getApplicationDocumentsDirectory();
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final savedImage = await image.copy('${directory.path}/$fileName');
+      return savedImage.path;
     } catch (e) {
-      print('Image processing error: $e');
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('이미지 처리 중 오류가 발생했습니다: $e')),
-        );
-      }
+      print('Error saving image: $e');
+      rethrow;
     }
   }
 
@@ -292,283 +378,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     } catch (e) {
       print('Vision API error: $e');
       rethrow;
-    }
-  }
-
-  Future<String> _saveImageLocally(File image) async {
-    try {
-      final directory = await getApplicationDocumentsDirectory();
-      final fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final savedImage = await image.copy('${directory.path}/$fileName');
-      return savedImage.path;
-    } catch (e) {
-      print('Error saving image: $e');
-      rethrow;
-    }
-  }
-
-  final translatorService = TranslatorService();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: ColorTokens.semantic['surface']?['background'],
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(
-            Icons.arrow_back,
-            color: ColorTokens.semantic['text']?['body'],
-          ),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          widget.note.title,
-          style: TypographyTokens.getStyle('h1').copyWith(
-            color: ColorTokens.semantic['text']?['heading'],
-          ),
-        ),
-        actions: [
-          IconButton(
-            icon: Icon(
-              Icons.style,
-              color: ColorTokens.semantic['text']?['body'],
-            ),
-            onPressed: () {
-              if (widget.note.flashCards.isNotEmpty) {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => FlashCardScreen(flashCards: widget.note.flashCards),
-                  ),
-                );
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('No flashcards available.')),
-                );
-              }
-            },
-          ),
-          Container(
-            margin: const EdgeInsets.only(right: 16),
-            child: CircleAvatar(
-              backgroundColor: ColorTokens.primary[100],
-              child: Text(
-                '${widget.note.flashCards.length}',
-                style: GoogleFonts.poppins(
-                  color: ColorTokens.primary[400],
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-      body: widget.note.pages.isEmpty
-          ? Center(
-              child: Text(
-                '페이지가 없습니다.',
-                style: TypographyTokens.getStyle('body').copyWith(
-                  color: ColorTokens.semantic['text']?['body'],
-                ),
-              ),
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.all(16.0),
-              itemCount: widget.note.pages.length,
-              itemBuilder: (context, index) {
-                final page = widget.note.pages[index];
-                return Column(
-                  children: [
-                    NotePage(
-                      page: page,
-                      showTranslation: showTranslation,
-                      isHighlightMode: isHighlightMode,
-                      highlightedTexts: highlightedTexts.toList(),
-                      onHighlighted: _onTextSelected,
-                      onSpeak: (text) {
-                        setState(() {
-                          _currentPlayingIndex = index;
-                        });
-                        _speak(text);
-                      },
-                      currentPlayingIndex: _currentPlayingIndex,
-                      onDeletePage: () {
-                        // TODO: Implement page deletion
-                      },
-                      onEditText: (text) {
-                        // TODO: Implement text editing
-                      },
-                      onToggleTranslation: () {
-                        setState(() {
-                          showTranslation = !showTranslation;
-                        });
-                      },
-                      onToggleHighlight: () {
-                        _toggleHighlightMode();
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-                );
-              },
-            ),
-      floatingActionButton: Column(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          if (isHighlightMode && selectedText != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: FloatingActionButton.extended(
-                onPressed: () {
-                  _addToFlashcards(selectedText!);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('플래시카드가 추가되었습니다')),
-                  );
-                },
-                label: const Text('플래시카드 추가'),
-                icon: const Icon(Icons.add),
-                backgroundColor: ColorTokens.secondary[400],
-                foregroundColor: ColorTokens.base[0],
-              ),
-            ),
-          FloatingActionButton(
-            onPressed: () => _showImageSourceActionSheet(context),
-            backgroundColor: ColorTokens.secondary[400],
-            child: Icon(
-              Icons.add_photo_alternate,
-              color: ColorTokens.base[0],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _showImageSourceActionSheet(BuildContext context) async {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Wrap(
-          children: <Widget>[
-            ListTile(
-              leading: const Icon(Icons.photo_library),
-              title: Text(
-                '갤러리에서 선택',
-                style: GoogleFonts.poppins(),
-              ),
-              onTap: () {
-                Navigator.of(context).pop();
-                _addNewPage(ImageSource.gallery);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.camera_alt),
-              title: Text(
-                '카메라로 촬영',
-                style: GoogleFonts.poppins(),
-              ),
-              onTap: () {
-                Navigator.of(context).pop();
-                _addNewPage(ImageSource.camera);
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _addNewPage(ImageSource source) async {
-    try {
-      final XFile? pickedFile = await ImagePicker().pickImage(
-        source: source,
-        maxWidth: 1200,
-        maxHeight: 1200,
-        imageQuality: 85,
-      );
-
-      if (pickedFile == null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(
-              '이미지가 선택되지 않았습니다.',
-              style: GoogleFonts.poppins(),
-            )),
-          );
-        }
-        return;
-      }
-
-      final imageFile = File(pickedFile.path);
-      if (!await imageFile.exists()) {
-        throw Exception('선택된 이미지 파일이 존재하지 않습니다.');
-      }
-
-      // Save the image locally
-      final imagePath = await _saveImageLocally(imageFile);
-      
-      // Extract text from the image
-      final extractedText = await _extractTextFromImage(await imageFile.readAsBytes());
-      
-      // Translate the extracted text
-      String translatedText = '';
-      if (extractedText.isNotEmpty) {
-        final lines = extractedText.split('\n').where((s) => s.trim().isNotEmpty).toList();
-        final translatedLines = await Future.wait(
-          lines.map((line) => translatorService.translate(line, from: 'zh', to: 'ko'))
-        );
-        translatedText = translatedLines.join('\n');
-      }
-
-      // Create a new page
-      final newPage = note_model.Page(
-        imageUrl: imagePath,
-        extractedText: extractedText,
-        translatedText: translatedText,
-      );
-
-      // Get the count of existing notes for this user
-      final notesSnapshot = await firestore
-          .collection('notes')
-          .where('userId', isEqualTo: widget.note.userId)
-          .get();
-      final noteCount = notesSnapshot.docs.length + 1;
-
-      // Update the note with the new page
-      final updatedPages = [...widget.note.pages, newPage];
-      final updatedNote = widget.note.copyWith(
-        pages: updatedPages,
-        title: '${noteCount}번째 노트',
-        updatedAt: DateTime.now(),
-      );
-
-      // Update in Firestore
-      await firestore.collection('notes').doc(widget.note.id).update(updatedNote.toFirestore());
-
-      if (mounted) {
-        setState(() {
-          widget.note.pages.add(newPage);
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(
-            '새로운 페이지가 추가되었습니다.',
-            style: GoogleFonts.poppins(),
-          )),
-        );
-      }
-
-    } catch (e) {
-      print('Error adding new page: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(
-            '페이지 추가 중 오류가 발생했습니다: $e',
-            style: GoogleFonts.poppins(),
-          )),
-        );
-      }
     }
   }
 }

@@ -11,7 +11,7 @@ class NoteSpace {
   final DateTime createdAt;
   final DateTime updatedAt;
 
-  NoteSpace({
+  const NoteSpace({
     required this.id,
     required this.userId,
     required this.name,
@@ -22,6 +22,28 @@ class NoteSpace {
     required this.createdAt,
     required this.updatedAt,
   });
+
+  factory NoteSpace.fromJson(Map<String, dynamic> json) {
+    return NoteSpace(
+      id: json['id'] as String,
+      userId: json['userId'] as String,
+      name: json['name'] as String,
+      language: json['language'] as String,
+      createdAt: (json['createdAt'] as Timestamp).toDate(),
+      updatedAt: (json['updatedAt'] as Timestamp).toDate(),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'userId': userId,
+      'name': name,
+      'language': language,
+      'createdAt': createdAt,
+      'updatedAt': updatedAt,
+    };
+  }
 
   // Firestore 변환 메서드
   Map<String, dynamic> toFirestore() {
@@ -73,7 +95,12 @@ class NoteSpace {
       isTTSEnabled: isTTSEnabled ?? this.isTTSEnabled,
       isPinyinEnabled: isPinyinEnabled ?? this.isPinyinEnabled,
       createdAt: createdAt ?? this.createdAt,
-      updatedAt: updatedAt ?? DateTime.now(),
+      updatedAt: updatedAt ?? this.updatedAt,
     );
+  }
+
+  @override
+  String toString() {
+    return 'NoteSpace(id: $id, userId: $userId, name: $name, language: $language)';
   }
 } 

@@ -13,6 +13,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:mlw/services/translator.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:mlw/theme/tokens/color_tokens.dart';
+import 'package:mlw/theme/tokens/typography_tokens.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class NoteScreen extends StatefulWidget {
@@ -82,23 +83,22 @@ class _NoteScreenState extends State<NoteScreen> {
           builder: (context) => AlertDialog(
             title: Text(
               '권한 필요',
-              style: GoogleFonts.poppins(
-                color: ColorTokens.semantic['text']?['body'],
-                fontWeight: FontWeight.w600,
+              style: TypographyTokens.getStyle('heading.h2').copyWith(
+                color: ColorTokens.getColor('text.body'),
               ),
             ),
             content: Text(
               '이 기능을 사용하기 위해서는 설정에서 권한을 허용해주세요.',
-              style: GoogleFonts.poppins(
-                color: ColorTokens.semantic['text']?['body'],
+              style: TypographyTokens.getStyle('body.medium').copyWith(
+                color: ColorTokens.getColor('text.body'),
               ),
             ),
             actions: [
               TextButton(
                 child: Text(
                   '취소',
-                  style: GoogleFonts.poppins(
-                    color: ColorTokens.semantic['text']?['body'],
+                  style: TypographyTokens.getStyle('button.medium').copyWith(
+                    color: ColorTokens.getColor('text.body'),
                   ),
                 ),
                 onPressed: () => Navigator.pop(context, false),
@@ -106,8 +106,8 @@ class _NoteScreenState extends State<NoteScreen> {
               TextButton(
                 child: Text(
                   '설정으로 이동',
-                  style: GoogleFonts.poppins(
-                    color: ColorTokens.primary[400],
+                  style: TypographyTokens.getStyle('button.medium').copyWith(
+                    color: ColorTokens.getColor('primary.400'),
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -136,12 +136,12 @@ class _NoteScreenState extends State<NoteScreen> {
             ListTile(
               leading: Icon(
                 Icons.photo_library,
-                color: ColorTokens.semantic['text']?['body'],
+                color: ColorTokens.getColor('text.body'),
               ),
               title: Text(
                 '갤러리에서 선택',
-                style: GoogleFonts.poppins(
-                  color: ColorTokens.semantic['text']?['body'],
+                style: TypographyTokens.getStyle('body.medium').copyWith(
+                  color: ColorTokens.getColor('text.body'),
                 ),
               ),
               onTap: () {
@@ -152,12 +152,12 @@ class _NoteScreenState extends State<NoteScreen> {
             ListTile(
               leading: Icon(
                 Icons.camera_alt,
-                color: ColorTokens.semantic['text']?['body'],
+                color: ColorTokens.getColor('text.body'),
               ),
               title: Text(
                 '카메라로 촬영',
-                style: GoogleFonts.poppins(
-                  color: ColorTokens.semantic['text']?['body'],
+                style: TypographyTokens.getStyle('body.medium').copyWith(
+                  color: ColorTokens.getColor('text.body'),
                 ),
               ),
               onTap: () {
@@ -403,119 +403,171 @@ class _NoteScreenState extends State<NoteScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
     return Scaffold(
-      backgroundColor: ColorTokens.semantic['surface']?['page'],
+      backgroundColor: ColorTokens.getColor('surface.background'),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: Text(
-          '새로운 노트',
-          style: GoogleFonts.poppins(
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
-            color: ColorTokens.semantic['text']?['body'],
+          '새 노트',
+          style: TypographyTokens.getStyle('heading.h2').copyWith(
+            color: ColorTokens.getColor('text.body'),
           ),
         ),
         leading: IconButton(
           icon: Icon(
             Icons.arrow_back,
-            color: ColorTokens.semantic['text']?['body'],
+            color: ColorTokens.getColor('text.body'),
           ),
           onPressed: () => Navigator.pop(context),
         ),
-        actions: [
-          IconButton(
-            icon: Icon(
-              Icons.camera_alt,
-              color: ColorTokens.semantic['text']?['body'],
-            ),
-            onPressed: () => _pickImage(ImageSource.camera),
-          ),
-        ],
       ),
-      body: Column(
-        children: [
-          if (_image != null)
-            Expanded(
-              child: Stack(
+      body: _isProcessing
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Image.file(
-                    _image!,
-                    fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) {
-                      print('Image error: $error');
-                      return Center(
-                        child: Text(
-                          '이미지를 불러올 수 없습니다.',
-                          style: GoogleFonts.poppins(
-                            color: ColorTokens.semantic['text']?['body'],
-                          ),
-                        ),
-                      );
-                    },
+                  CircularProgressIndicator(
+                    color: ColorTokens.getColor('primary.400'),
                   ),
-                  if (_isProcessing)
-                    Container(
-                      color: Colors.black.withOpacity(0.5),
-                      child: const Center(
-                        child: CircularProgressIndicator(),
-                      ),
+                  const SizedBox(height: 16),
+                  Text(
+                    '이미지 처리 중...',
+                    style: TypographyTokens.getStyle('body.medium').copyWith(
+                      color: ColorTokens.getColor('text.body'),
                     ),
+                  ),
                 ],
               ),
-            ),
-          if (_extractedText != null)
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Text(
-                _extractedText!,
-                style: GoogleFonts.poppins(
-                  color: ColorTokens.semantic['text']?['body'],
+            )
+          : _image == null
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.add_photo_alternate,
+                        size: 48,
+                        color: ColorTokens.getColor('text.disabled'),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        '이미지를 선택하세요',
+                        style: TypographyTokens.getStyle('body.large').copyWith(
+                          color: ColorTokens.getColor('text.body'),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      if (_image != null)
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.file(
+                            _image!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                width: double.infinity,
+                                height: 200,
+                                color: ColorTokens.getColor('surface.base'),
+                                child: Center(
+                                  child: Text(
+                                    '이미지를 불러올 수 없습니다.',
+                                    style: TypographyTokens.getStyle('body.medium').copyWith(
+                                      color: ColorTokens.getColor('text.body'),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      if (_extractedText != null) ...[
+                        const SizedBox(height: 16),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: ColorTokens.getColor('surface.base'),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: ColorTokens.getColor('border.base'),
+                            ),
+                          ),
+                          child: Text(
+                            _extractedText!,
+                            style: TypographyTokens.getStyle('body.medium').copyWith(
+                              color: ColorTokens.getColor('text.body'),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+      bottomNavigationBar: _image != null && !_isProcessing
+          ? SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        icon: Icon(
+                          Icons.photo_library,
+                          color: ColorTokens.getColor('text.primary'),
+                        ),
+                        label: Text(
+                          '갤러리',
+                          style: TypographyTokens.getStyle('button.medium').copyWith(
+                            color: ColorTokens.getColor('text.primary'),
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: ColorTokens.getColor('surface.button-primary'),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        onPressed: () => _pickImage(ImageSource.gallery),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        icon: Icon(
+                          Icons.camera_alt,
+                          color: ColorTokens.getColor('text.primary'),
+                        ),
+                        label: Text(
+                          '카메라',
+                          style: TypographyTokens.getStyle('button.medium').copyWith(
+                            color: ColorTokens.getColor('text.primary'),
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: ColorTokens.getColor('surface.button-primary'),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        onPressed: () => _pickImage(ImageSource.camera),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                ElevatedButton.icon(
-                  icon: Icon(
-                    Icons.photo_library,
-                    color: ColorTokens.semantic['text']?['primary'],
-                  ),
-                  label: Text(
-                    '갤러리',
-                    style: GoogleFonts.poppins(
-                      color: ColorTokens.semantic['text']?['primary'],
-                    ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: ColorTokens.semantic['surface']?['button-primary'],
-                  ),
-                  onPressed: () => _pickImage(ImageSource.gallery),
-                ),
-                ElevatedButton.icon(
-                  icon: Icon(
-                    Icons.camera_alt,
-                    color: ColorTokens.semantic['text']?['primary'],
-                  ),
-                  label: Text(
-                    '카메라',
-                    style: GoogleFonts.poppins(
-                      color: ColorTokens.semantic['text']?['primary'],
-                    ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: ColorTokens.semantic['surface']?['button-primary'],
-                  ),
-                  onPressed: () => _pickImage(ImageSource.camera),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+            )
+          : null,
     );
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:mlw/theme/tokens/color_tokens.dart';
 import 'package:mlw/theme/tokens/typography_tokens.dart';
 
@@ -6,94 +7,92 @@ class TextHighlighter extends StatefulWidget {
   final String text;
   final Function(String) onHighlighted;
   final bool isHighlightMode;
+  final Set<String> highlightedTexts;
   final TextStyle? style;
-  final List<String> highlightedTexts;
 
   const TextHighlighter({
-    Key? key,
+    super.key,
     required this.text,
     required this.onHighlighted,
     required this.isHighlightMode,
     required this.highlightedTexts,
     this.style,
-  }) : super(key: key);
+  });
 
   @override
   State<TextHighlighter> createState() => _TextHighlighterState();
 }
 
 class _TextHighlighterState extends State<TextHighlighter> {
-  TextSpan _buildTextSpan(String text, TextStyle baseStyle) {
-    List<TextSpan> children = [];
-    int currentIndex = 0;
+  String _selectedText = '';
+  final List<TapGestureRecognizer> _recognizers = [];
 
-    // Sort highlighted texts by length (longest first) to handle overlapping matches
-    final sortedHighlights = List<String>.from(widget.highlightedTexts)
-      ..sort((a, b) => b.length.compareTo(a.length));
-
-    while (currentIndex < text.length) {
-      bool foundMatch = false;
-      for (String highlight in sortedHighlights) {
-        int matchIndex = text.indexOf(highlight, currentIndex);
-        if (matchIndex == currentIndex) {
-          children.add(TextSpan(
-            text: highlight,
-            style: baseStyle.copyWith(
-              backgroundColor: ColorTokens.semantic['surface']?['highlight'],
-            ),
-          ));
-          currentIndex += highlight.length;
-          foundMatch = true;
-          break;
-        }
-      }
-      if (!foundMatch) {
-        // Find next highlight position
-        int nextHighlight = text.length;
-        for (String highlight in sortedHighlights) {
-          int index = text.indexOf(highlight, currentIndex);
-          if (index != -1 && index < nextHighlight) {
-            nextHighlight = index;
-          }
-        }
-        // Add non-highlighted text
-        children.add(TextSpan(
-          text: text.substring(currentIndex, nextHighlight),
-          style: baseStyle,
-        ));
-        currentIndex = nextHighlight;
-      }
-    }
-
-    return TextSpan(children: children);
+  void _onSelectionChanged(String text) {
+    setState(() {
+      _selectedText = text;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final baseStyle = widget.style ?? TypographyTokens.getStyle('body').copyWith(
-      color: ColorTokens.semantic['text']?['body'],
-    );
+    final spans = <TextSpan>[];
+    final words = widget.text.split(' ');
+    
+    for (var i = 0; i < words.length; i++) {
+      final word = words[i];
+      final isHighlighted = widget.highlightedTexts.contains(word);
+      final isSelected = _selectedText == word;
+      
+      TapGestureRecognizer? recognizer;
+      if (widget.isHighlightMode) {
+        recognizer = TapGestureRecognizer();
+        recognizer.onTapDown = (details) {
+          _onSelectionChanged(word);
+        };
+        recognizer.onTapUp = (details) {
+          if (_selectedText.isNotEmpty) {
+            widget.onHighlighted(_selectedText);
+            _onSelectionChanged('');
+          }
+        };
+        recognizer.onTapCancel = () {
+          _onSelectionChanged('');
+        };
+        _recognizers.add(recognizer);
+      }
+      
+      spans.add(
+        TextSpan(
+          text: word,
+          style: (widget.style ?? TypographyTokens.getStyle('body.medium')).copyWith(
+            backgroundColor: isHighlighted
+                ? ColorTokens.getColor('highlight')
+                : isSelected && widget.isHighlightMode
+                    ? ColorTokens.getColor('highlight').withOpacity(0.5)
+                    : Colors.transparent,
+          ),
+          recognizer: recognizer,
+        ),
+      );
+      
+      if (i < words.length - 1) {
+        spans.add(const TextSpan(text: ' '));
+      }
+    }
 
-    return SelectableText.rich(
-      _buildTextSpan(widget.text, baseStyle),
-      onSelectionChanged: widget.isHighlightMode ? (selection, cause) {
-        if (selection.baseOffset != selection.extentOffset) {
-          final selectedText = widget.text.substring(
-            selection.start,
-            selection.end,
-          );
-          widget.onHighlighted(selectedText);
-        }
-      } : null,
-      enableInteractiveSelection: widget.isHighlightMode,
-      toolbarOptions: const ToolbarOptions(
-        copy: false,
-        selectAll: false,
-        cut: false,
-        paste: false,
+    return RichText(
+      text: TextSpan(
+        children: spans,
       ),
-      selectionControls: MaterialTextSelectionControls(),
-      showCursor: widget.isHighlightMode,
     );
+  }
+
+  @override
+  void dispose() {
+    for (final recognizer in _recognizers) {
+      recognizer.dispose();
+    }
+    _recognizers.clear();
+    super.dispose();
   }
 }

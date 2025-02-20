@@ -62,4 +62,33 @@ class ColorTokens {
       'base-2': Color(0xFFFFFFFF),
     },
   };
+
+  static Color getColor(String path) {
+    final parts = path.split('.');
+    
+    if (parts.length == 1) {
+      // semantic color (e.g., 'text')
+      return semantic['surface']?['base'] ?? Colors.white;
+    } else if (parts.length == 2) {
+      // semantic color with variant (e.g., 'text.body')
+      final category = parts[0];
+      final variant = parts[1];
+      return semantic[category]?[variant] ?? Colors.black;
+    } else if (parts.length == 3) {
+      // palette color (e.g., 'primary.400')
+      final palette = parts[0];
+      final shade = int.tryParse(parts[1]) ?? 400;
+      
+      switch (palette) {
+        case 'primary':
+          return primary[shade] ?? primary[400]!;
+        case 'secondary':
+          return secondary[shade] ?? secondary[400]!;
+        default:
+          return Colors.black;
+      }
+    }
+    
+    return Colors.black;
+  }
 } 

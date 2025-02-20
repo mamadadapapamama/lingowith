@@ -1,48 +1,41 @@
 import 'package:flutter/material.dart';
 import 'package:mlw/models/note.dart';
 import 'package:mlw/repositories/note_repository.dart';
+import 'package:mlw/theme/color_tokens.dart';
+import 'package:mlw/theme/typography_tokens.dart';
 
 class FlashCardScreen extends StatefulWidget {
   final List<FlashCard> flashCards;
+  final String noteId;
 
   const FlashCardScreen({
-    Key? key,
+    super.key,
     required this.flashCards,
-  }) : super(key: key);
+    required this.noteId,
+  });
 
   @override
   State<FlashCardScreen> createState() => _FlashCardScreenState();
 }
 
 class _FlashCardScreenState extends State<FlashCardScreen> {
-  int _currentIndex = 0;
-  bool _showFront = true;
-  final NoteRepository _repository = NoteRepository();
+  late int _currentIndex;
+  late bool _showFront;
+  late NoteRepository _noteRepository;
 
-  Future<void> _nextCard() async {
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = 0;
+    _showFront = true;
+    _noteRepository = NoteRepository();
+  }
+
+  void _nextCard() async {
     if (_currentIndex < widget.flashCards.length - 1) {
-      // 현재 카드의 리뷰 카운트 증가
-      final currentCard = widget.flashCards[_currentIndex];
-      final updatedCard = currentCard.incrementReviewCount();
-      
-      // Firestore 업데이트
-      try {
-        final note = await _repository.getNote(currentCard.noteId);
-        if (note != null) {
-          final updatedFlashCards = List<FlashCard>.from(note.flashCards);
-          updatedFlashCards[_currentIndex] = updatedCard;
-          
-          final updatedNote = note.copyWith(
-            id: note.id,
-            flashCards: updatedFlashCards,
-            updatedAt: DateTime.now(),
-          );
-          
-          await _repository.updateNote(updatedNote);
-        }
-      } catch (e) {
-        print('Error updating review count: $e');
-      }
+      // Increment review count for current card
+      final updatedCard = widget.flashCards[_currentIndex].incrementReviewCount();
+      await _noteRepository.updateFlashCard(widget.noteId, _currentIndex, updatedCard);
 
       setState(() {
         _currentIndex++;
@@ -52,66 +45,70 @@ class _FlashCardScreenState extends State<FlashCardScreen> {
   }
 
   void _previousCard() {
-    setState(() {
-      if (_currentIndex > 0) {
+    if (_currentIndex > 0) {
+      setState(() {
         _currentIndex--;
         _showFront = true;
-      }
+      });
+    }
+  }
+
+  void _toggleCard() {
+    setState(() {
+      _showFront = !_showFront;
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final flashCard = widget.flashCards[_currentIndex];
+    
     return Scaffold(
+      backgroundColor: ColorTokens.getColor('surface.background'),
       appBar: AppBar(
-        title: Text('플래시카드 ${_currentIndex + 1}/${widget.flashCards.length}'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          '${_currentIndex + 1} / ${widget.flashCards.length}',
+          style: TypographyTokens.getStyle('titleMedium'),
+        ),
       ),
       body: GestureDetector(
-        onTap: () => setState(() => _showFront = !_showFront),
+        onTap: _toggleCard,
         child: Center(
-          child: Container(
-            width: MediaQuery.of(context).size.width * 0.8,
-            height: MediaQuery.of(context).size.width * 0.8,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 10,
-                  offset: const Offset(0, 5),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  _showFront ? flashCard.front : flashCard.back,
+                  style: TypographyTokens.getStyle('bodyLarge'),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 32),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back_ios),
+                      onPressed: _currentIndex > 0 ? _previousCard : null,
+                    ),
+                    const SizedBox(width: 32),
+                    IconButton(
+                      icon: const Icon(Icons.arrow_forward_ios),
+                      onPressed: _currentIndex < widget.flashCards.length - 1 ? _nextCard : null,
+                    ),
+                  ],
                 ),
               ],
             ),
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Text(
-                  _showFront
-                      ? widget.flashCards[_currentIndex].text
-                      : widget.flashCards[_currentIndex].translation ?? '',
-                  style: const TextStyle(fontSize: 24),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            ),
           ),
-        ),
-      ),
-      bottomNavigationBar: BottomAppBar(
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.arrow_back),
-              onPressed: _previousCard,
-            ),
-            Text('${_currentIndex + 1}/${widget.flashCards.length}'),
-            IconButton(
-              icon: const Icon(Icons.arrow_forward),
-              onPressed: _nextCard,
-            ),
-          ],
         ),
       ),
     );

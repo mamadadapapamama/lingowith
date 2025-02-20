@@ -34,7 +34,7 @@ class NoteCard extends StatelessWidget {
         title: Text(
           'Edit Note',
           style: GoogleFonts.poppins(
-            color: ColorTokens.semantic['text']?['body'],
+            color: ColorTokens.getColor('text'),
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -46,7 +46,7 @@ class NoteCard extends StatelessWidget {
               decoration: InputDecoration(
                 labelText: 'Title',
                 labelStyle: GoogleFonts.poppins(
-                  color: ColorTokens.semantic['text']?['body'],
+                  color: ColorTokens.getColor('text'),
                 ),
               ),
             ),
@@ -58,7 +58,7 @@ class NoteCard extends StatelessWidget {
             child: Text(
               'Cancel',
               style: GoogleFonts.poppins(
-                color: ColorTokens.semantic['text']?['body'],
+                color: ColorTokens.getColor('text'),
               ),
             ),
           ),
@@ -70,7 +70,7 @@ class NoteCard extends StatelessWidget {
             child: Text(
               'Save',
               style: GoogleFonts.poppins(
-                color: ColorTokens.primary[400],
+                color: ColorTokens.getColor('primary.400'),
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -87,14 +87,14 @@ class NoteCard extends StatelessWidget {
         title: Text(
           'Delete Note',
           style: GoogleFonts.poppins(
-            color: ColorTokens.semantic['text']?['body'],
+            color: ColorTokens.getColor('text'),
             fontWeight: FontWeight.w600,
           ),
         ),
         content: Text(
           'Do you want to delete this note?',
           style: GoogleFonts.poppins(
-            color: ColorTokens.semantic['text']?['body'],
+            color: ColorTokens.getColor('text'),
           ),
         ),
         actions: [
@@ -103,7 +103,7 @@ class NoteCard extends StatelessWidget {
             child: Text(
               'No',
               style: GoogleFonts.poppins(
-                color: ColorTokens.semantic['text']?['body'],
+                color: ColorTokens.getColor('text'),
               ),
             ),
           ),
@@ -115,7 +115,7 @@ class NoteCard extends StatelessWidget {
             child: Text(
               'Yes',
               style: GoogleFonts.poppins(
-                color: ColorTokens.primary[400],
+                color: ColorTokens.getColor('primary.400'),
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -141,11 +141,11 @@ class NoteCard extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
         decoration: BoxDecoration(
-          color: ColorTokens.semantic['surface']?['base'] ?? Colors.white,
+          color: ColorTokens.getColor('surface'),
           borderRadius: BorderRadius.circular(8),
           boxShadow: [
             BoxShadow(
-              color: (ColorTokens.base[800] ?? Colors.black).withOpacity(0.05),
+              color: ColorTokens.getColor('text').withOpacity(0.05),
               blurRadius: 4,
               offset: const Offset(0, 2),
             ),
@@ -159,7 +159,7 @@ class NoteCard extends StatelessWidget {
                 Text(
                   _formatDate(note.createdAt),
                   style: GoogleFonts.poppins(
-                    color: ColorTokens.base[400],
+                    color: ColorTokens.getColor('disabled'),
                     fontSize: 12,
                     fontWeight: FontWeight.w400,
                   ),
@@ -168,7 +168,7 @@ class NoteCard extends StatelessWidget {
                 Text(
                   '| ${note.pages.length} pages',
                   style: GoogleFonts.poppins(
-                    color: ColorTokens.base[400],
+                    color: ColorTokens.getColor('disabled'),
                     fontSize: 12,
                     fontWeight: FontWeight.w400,
                   ),
@@ -177,7 +177,7 @@ class NoteCard extends StatelessWidget {
                 IconButton(
                   icon: Icon(
                     Icons.more_vert,
-                    color: ColorTokens.semantic['text']?['body'],
+                    color: ColorTokens.getColor('text'),
                   ),
                   onPressed: () {
                     showMenu(
@@ -188,7 +188,7 @@ class NoteCard extends StatelessWidget {
                           child: Text(
                             'Edit',
                             style: GoogleFonts.poppins(
-                              color: ColorTokens.semantic['text']?['body'],
+                              color: ColorTokens.getColor('text'),
                             ),
                           ),
                           value: 'edit',
@@ -197,7 +197,7 @@ class NoteCard extends StatelessWidget {
                           child: Text(
                             'Delete',
                             style: GoogleFonts.poppins(
-                              color: ColorTokens.semantic['text']?['body'],
+                              color: ColorTokens.getColor('text'),
                             ),
                           ),
                           value: 'delete',
@@ -238,7 +238,7 @@ class NoteCard extends StatelessWidget {
                         style: GoogleFonts.poppins(
                           fontSize: 20,
                           fontWeight: FontWeight.w600,
-                          color: ColorTokens.semantic['text']?['body'],
+                          color: ColorTokens.getColor('text'),
                         ),
                       ),
                       if (note.pages.isNotEmpty && note.pages.first.translatedText.isNotEmpty) ...[
@@ -247,7 +247,7 @@ class NoteCard extends StatelessWidget {
                           note.pages.first.translatedText.split('\n').first,
                           style: GoogleFonts.poppins(
                             fontSize: 14,
-                            color: ColorTokens.base[600],
+                            color: ColorTokens.getColor('description'),
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -263,7 +263,7 @@ class NoteCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                 decoration: BoxDecoration(
-                  color: ColorTokens.primary[50],
+                  color: ColorTokens.getColor('primary.50'),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Row(
@@ -272,13 +272,13 @@ class NoteCard extends StatelessWidget {
                     Icon(
                       Icons.style,
                       size: 16,
-                      color: ColorTokens.primary[400],
+                      color: ColorTokens.getColor('primary.400'),
                     ),
                     const SizedBox(width: 4),
                     Text(
                       note.flashCards.length.toString(),
                       style: GoogleFonts.poppins(
-                        color: ColorTokens.primary[400],
+                        color: ColorTokens.getColor('primary.400'),
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),

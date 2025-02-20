@@ -18,12 +18,14 @@ void main() {
       userId: 'test_user',
       title: 'Test Note',
       content: 'Test Content',
-      imageUrl: 'test_image.jpg',
-      extractedText: '测试文本',
-      translatedText: '테스트 텍스트',
-      pinyin: 'ceshi wenben',
+      pages: [
+        Page(
+          imageUrl: 'test_image.jpg',
+          extractedText: '测试文本',
+          translatedText: '테스트 텍스트',
+        ),
+      ],
       flashCards: [],
-      highlightedTexts: [],
       createdAt: now,
       updatedAt: now,
     );
@@ -47,9 +49,7 @@ void main() {
       expect(note.updatedAt, now);
       expect(note.content, '');
       expect(note.flashCards, isEmpty);
-      expect(note.extractedText, null);
-      expect(note.translatedText, null);
-      expect(note.pinyin, null);
+      expect(note.pages, isEmpty);
     });
 
     test('should create copy with updated fields', () {
@@ -65,20 +65,21 @@ void main() {
       );
 
       final flashCard = FlashCard(
-        id: '1',
-        text: '你好',
-        translation: '안녕하세요',
-        noteId: '1',
-        createdAt: now,
+        front: '你好',
+        back: '안녕하세요',
+      );
+
+      final page = Page(
+        imageUrl: 'test_image.jpg',
+        extractedText: 'Extracted text',
+        translatedText: 'Translated text',
       );
 
       final updated = note.copyWith(
         title: 'Updated Note',
         content: 'New content',
         flashCards: [flashCard],
-        extractedText: 'Extracted text',
-        translatedText: 'Translated text',
-        pinyin: 'Pin yin',
+        pages: [page],
       );
 
       expect(updated.id, '1');  // unchanged
@@ -88,9 +89,8 @@ void main() {
       expect(updated.createdAt, now);  // unchanged
       expect(updated.updatedAt, isNot(now));  // should be updated
       expect(updated.flashCards, [flashCard]);
-      expect(updated.extractedText, 'Extracted text');
-      expect(updated.translatedText, 'Translated text');
-      expect(updated.pinyin, 'Pin yin');
+      expect(updated.pages.first.extractedText, 'Extracted text');
+      expect(updated.pages.first.translatedText, 'Translated text');
     });
 
     test('should create Note from Firestore document', () async {
@@ -102,11 +102,14 @@ void main() {
         'userId': 'user1',
         'createdAt': now,
         'updatedAt': now,
+        'pages': [
+          {
+            'imageUrl': 'test_image.jpg',
+            'extractedText': 'Extracted Text',
+            'translatedText': 'Translated Text',
+          }
+        ],
         'flashCards': [],
-        'highlightedTexts': [],
-        'extractedText': 'Extracted Text',
-        'translatedText': 'Translated Text',
-        'pinyin': 'Pin Yin',
       };
 
       // fake_cloud_firestore를 사용하여 실제 문서 생성
@@ -121,20 +124,21 @@ void main() {
       expect(note.createdAt, now.toDate());
       expect(note.updatedAt, now.toDate());
       expect(note.flashCards.length, 0);
-      expect(note.extractedText, 'Extracted Text');
-      expect(note.translatedText, 'Translated Text');
-      expect(note.pinyin, 'Pin Yin');
+      expect(note.pages.first.extractedText, 'Extracted Text');
+      expect(note.pages.first.translatedText, 'Translated Text');
     });
 
     test('should convert Note to Firestore data', () {
       final now = DateTime.now();
       final flashCard = FlashCard(
-        id: '1',
-        text: '你好',
-        translation: '안녕하세요',
-        pinyin: 'nǐ hǎo',
-        noteId: 'note1',
-        createdAt: now,
+        front: '你好',
+        back: '안녕하세요',
+      );
+
+      final page = Page(
+        imageUrl: 'test_image.jpg',
+        extractedText: 'Extracted Text',
+        translatedText: 'Translated Text',
       );
 
       final note = Note(
@@ -146,9 +150,7 @@ void main() {
         createdAt: now,
         updatedAt: now,
         flashCards: [flashCard],
-        extractedText: 'Extracted Text',
-        translatedText: 'Translated Text',
-        pinyin: 'Pin Yin',
+        pages: [page],
       );
 
       final data = note.toFirestore();
@@ -159,17 +161,15 @@ void main() {
       expect(data['createdAt'], isA<Timestamp>());
       expect(data['updatedAt'], isA<Timestamp>());
       expect(data['flashCards'].length, 1);
-      expect(data['flashCards'].first['text'], '你好');
-      expect(data['extractedText'], 'Extracted Text');
-      expect(data['translatedText'], 'Translated Text');
-      expect(data['pinyin'], 'Pin Yin');
+      expect(data['flashCards'].first['front'], '你好');
+      expect(data['pages'].first['extractedText'], 'Extracted Text');
+      expect(data['pages'].first['translatedText'], 'Translated Text');
     });
 
     test('toFirestore converts Note to Map correctly', () {
       final map = testNote.toFirestore();
       expect(map['spaceId'], 'test_space');
       expect(map['userId'], 'test_user');
-      // ... 다른 필드들도 테스트
     });
   });
 }

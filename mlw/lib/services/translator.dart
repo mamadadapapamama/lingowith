@@ -2,7 +2,7 @@ import 'package:googleapis/translate/v3.dart';
 import 'package:googleapis_auth/auth_io.dart';
 import 'package:flutter/services.dart';
 import 'dart:convert';
-import 'package:shared_preferences.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class TranslationCache {
   static final Map<String, _CacheEntry> _memoryCache = {};
@@ -133,52 +133,37 @@ class TranslatorService {
   
   Future<String> translate(String text, {String from = 'zh', String to = 'ko'}) async {
     try {
-      // Check cache first
-      final cachedTranslation = TranslationCache.get(text, from, to);
-      if (cachedTranslation != null) {
-        print('Using cached translation for: $text');
-        return cachedTranslation;
-      }
-
       final keyJson = await rootBundle.loadString('assets/service-account-key.json');
-      print('Service account loaded'); // 디버깅
-
       final jsonMap = json.decode(keyJson);
       final projectId = jsonMap['project_id'] as String;
-      print('Project ID: $projectId'); // 디버깅
-
       final credentials = ServiceAccountCredentials.fromJson(keyJson);
       final client = await clientViaServiceAccount(
-        credentials, 
-        ['https://www.googleapis.com/auth/cloud-translation'],  // 스코프 변경
+        credentials,
+        ['https://www.googleapis.com/auth/cloud-translation'],
       );
-      print('Client authenticated'); // 디버깅
-
       final api = TranslateApi(client);
-      final parent = 'projects/$projectId/locations/global';  // location 추가
-      
-      final request = TranslateTextRequest(
-        contents: [text],
-        sourceLanguageCode: from,
-        targetLanguageCode: to,
-      );
-      
-      print('Sending translation request...'); // 디버깅
-      final response = await api.projects.locations.translateText(request, parent);
-      print('Translation response: $response'); // 디버깅
 
-      final translation = response.translations?.first.translatedText ?? '';
-      
-      // Cache the translation
-      if (translation.isNotEmpty) {
-        TranslationCache.set(text, from, to, translation);
+      try {
+        final parent = 'projects/$projectId/locations/global';
+        final request = TranslateTextRequest(
+          contents: [text],
+          sourceLanguageCode: from,
+          targetLanguageCode: to,
+        );
+
+        final response = await api.projects.locations.translateText(request, parent);
+
+        if (response.translations == null || response.translations!.isEmpty) {
+          throw Exception('No translation result');
+        }
+
+        return response.translations!.first.translatedText ?? text;
+      } finally {
+        client.close();
       }
-
-      return translation;
-    } catch (e, stackTrace) {
+    } catch (e) {
       print('Translation error: $e');
-      print('Stack trace: $stackTrace');
-      rethrow;
+      return text;
     }
   }
 

@@ -140,7 +140,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 width: 24,
                 height: 24,
                 colorFilter: ColorFilter.mode(
-                  ColorTokens.semantic['text']?['body'] ?? Colors.black,
+                  ColorTokens.getColor('text'),
                   BlendMode.srcIn,
                 ),
               ),
@@ -156,7 +156,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 width: 24,
                 height: 24,
                 colorFilter: ColorFilter.mode(
-                  ColorTokens.semantic['text']?['body'] ?? Colors.black,
+                  ColorTokens.getColor('text'),
                   BlendMode.srcIn,
                 ),
               ),
@@ -326,15 +326,15 @@ class _HomeScreenState extends State<HomeScreen> {
         statusBarColor: Colors.transparent,
         statusBarIconBrightness: Brightness.dark,
         statusBarBrightness: Brightness.light,
-        systemNavigationBarColor: ColorTokens.semantic['surface']?['background'],
+        systemNavigationBarColor: ColorTokens.getColor('background'),
         systemNavigationBarIconBrightness: Brightness.dark,
       ),
       child: Scaffold(
-        backgroundColor: ColorTokens.semantic['surface']?['background'],
+        backgroundColor: ColorTokens.getColor('background'),
         appBar: PreferredSize(
           preferredSize: const Size.fromHeight(84),
           child: Container(
-            color: ColorTokens.semantic['surface']?['background'],
+            color: ColorTokens.getColor('background'),
             child: SafeArea(
               bottom: false,
               child: Padding(
@@ -363,7 +363,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             fontSize: 24,
                             fontWeight: FontWeight.w700,
                             fontFamily: 'Poppins',
-                            color: ColorTokens.semantic['text']?['body'],
+                            color: ColorTokens.getColor('text'),
                           ),
                         ),
                       ],
@@ -374,7 +374,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         width: 24,
                         height: 24,
                         colorFilter: ColorFilter.mode(
-                          ColorTokens.semantic['text']?['body'] ?? Colors.black,
+                          ColorTokens.getColor('text'),
                           BlendMode.srcIn,
                         ),
                       ),
@@ -398,19 +398,15 @@ class _HomeScreenState extends State<HomeScreen> {
         body: _isLoading
             ? Center(
                 child: CircularProgressIndicator(
-                  color: ColorTokens.primary[400],
+                  color: ColorTokens.getColor('primary.400'),
                 ),
               )
             : _notes.isEmpty
-                ? Center(
-                    child: Text(
-                      '노트가 없습니다.\n새로운 노트를 추가해보세요.',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.poppins(
-                        fontSize: 16,
-                        color: ColorTokens.semantic['text']?['body'] as Color? ?? Colors.black,
-                      ),
+                ? Padding(
+                    padding: EdgeInsets.only(
+                      bottom: MediaQuery.of(context).padding.bottom + 84,
                     ),
+                    child: _buildEmptyState(),
                   )
                 : ListView.builder(
                     padding: const EdgeInsets.only(
@@ -433,7 +429,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       );
                     },
                   ),
-        floatingActionButton: FloatingActionButton(
+        floatingActionButton: !_isLoading && _notes.isNotEmpty ? FloatingActionButton(
           onPressed: () {
             print('Add new note button pressed');
             _showImageSourceActionSheet();
@@ -443,17 +439,58 @@ class _HomeScreenState extends State<HomeScreen> {
             width: 24,
             height: 24,
             colorFilter: ColorFilter.mode(
-              ColorTokens.semantic['text']?['primary'] ?? Colors.white,
+              ColorTokens.getColor('text'),
               BlendMode.srcIn,
             ),
           ),
-          backgroundColor: ColorTokens.secondary[400] ?? Colors.teal,
+          backgroundColor: ColorTokens.getColor('button-primary'),
           elevation: 2,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(8),
           ),
-        ),
+        ) : null,
         floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          SvgPicture.asset(
+            'assets/images/zero_addnote.svg',
+            width: 48,
+            height: 48,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Create your first note!',
+            style: TypographyTokens.getStyle('heading.h2'),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Add image to create a new note',
+            style: TypographyTokens.getStyle('body.small').copyWith(
+              color: ColorTokens.getColor('description'),
+            ),
+          ),
+          const SizedBox(height: 24),
+          CustomButton(
+            onPressed: _showImageSourceActionSheet,
+            text: 'Add image',
+            icon: SvgPicture.asset(
+              'assets/images/zero_addnote.svg',
+              width: 16,
+              height: 16,
+              colorFilter: ColorFilter.mode(
+                ColorTokens.getColor('primary.400'),
+                BlendMode.srcIn,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -506,7 +543,7 @@ class _HomeScreenState extends State<HomeScreen> {
         id: '',
         spaceId: _currentNoteSpace?.id ?? '',
         userId: userId,
-        title: extractedText?.split('\n').first ?? 'New Note',
+        title: 'Note #${_notes.length + 1}',  // Auto-generate title
         content: '',
         pages: [newPage], // Add the new page to the note
         createdAt: DateTime.now(),

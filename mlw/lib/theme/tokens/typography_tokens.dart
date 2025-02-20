@@ -14,52 +14,48 @@ class TypographyTokens {
   static double _getFontSize(dynamic fontSize) {
     if (fontSize is num) return fontSize.toDouble();
     if (fontSize is String) {
-      // fontSize가 문자열인 경우 fontSizes 맵에서 해당하는 값을 찾음
       final fontSizes = _tokens!['fontSize'];
       return (fontSizes[fontSize] as num).toDouble();
     }
     return 16.0; // 기본값
   }
 
-  static TextStyle getStyle(String styleName) {
+  static TextStyle getStyle(String path) {
     if (_tokens == null) {
       throw Exception('TypographyTokens not initialized. Call initialize() first.');
     }
 
-    final style = _tokens!['styles'][styleName];
+    // path format: 'display.large', 'heading.h1', 'body.medium' 등
+    final parts = path.split('.');
+    if (parts.length != 2) {
+      throw Exception('Invalid style path: $path. Format should be "category.variant"');
+    }
+
+    final category = parts[0];
+    final variant = parts[1];
+
+    final style = _tokens!['styles'][category]?[variant];
     if (style == null) {
-      throw Exception('Style $styleName not found in typography tokens.');
+      throw Exception('Style $path not found in typography tokens.');
     }
 
     final fontSize = _getFontSize(style['fontSize']);
     final fontFamily = _tokens!['fontFamily'][style['fontFamily']];
     final fontWeight = _tokens!['fontWeight'][style['fontWeight']];
+    final lineHeight = style['lineHeight'];
+    final letterSpacing = style['letterSpacing'].toDouble();
 
     return GoogleFonts.getFont(
       fontFamily,
       fontSize: fontSize,
       fontWeight: FontWeight.values[fontWeight ~/ 100],
-      height: style['lineHeight'] / fontSize,
-      letterSpacing: style['letterSpacing'].toDouble(),
+      height: lineHeight / fontSize,
+      letterSpacing: letterSpacing,
     );
   }
 
   static TextStyle getButtonStyle({bool isSmall = false}) {
-    if (_tokens == null) {
-      throw Exception('TypographyTokens not initialized. Call initialize() first.');
-    }
-
-    final style = _tokens!['styles']['button'][isSmall ? 'small' : 'default'];
-    final fontSize = _getFontSize(style['fontSize']);
-    final fontFamily = _tokens!['fontFamily'][style['fontFamily']];
-    final fontWeight = _tokens!['fontWeight'][style['fontWeight']];
-    
-    return GoogleFonts.getFont(
-      fontFamily,
-      fontSize: fontSize,
-      fontWeight: FontWeight.values[fontWeight ~/ 100],
-      height: style['lineHeight'] / fontSize,
-      letterSpacing: style['letterSpacing'].toDouble(),
-    );
+    final variant = isSmall ? 'small' : 'medium';
+    return getStyle('button.$variant');
   }
 } 
