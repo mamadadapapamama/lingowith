@@ -39,7 +39,7 @@ class _TextHighlighterState extends State<TextHighlighter> {
           children.add(TextSpan(
             text: highlight,
             style: baseStyle.copyWith(
-              backgroundColor: ColorTokens.secondary[200],
+              backgroundColor: ColorTokens.semantic['surface']?['highlight'],
             ),
           ));
           currentIndex += highlight.length;
@@ -85,6 +85,15 @@ class _TextHighlighterState extends State<TextHighlighter> {
           widget.onHighlighted(selectedText);
         }
       } : null,
+      enableInteractiveSelection: widget.isHighlightMode,
+      toolbarOptions: const ToolbarOptions(
+        copy: false,
+        selectAll: false,
+        cut: false,
+        paste: false,
+      ),
+      selectionControls: MaterialTextSelectionControls(),
+      showCursor: widget.isHighlightMode,
     );
   }
 }

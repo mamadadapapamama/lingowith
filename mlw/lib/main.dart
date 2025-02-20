@@ -14,7 +14,7 @@ void main() async {
 
   await _initializeFirebase();
   
-  // Initialize Typography Tokens
+  // Initialize Design Tokens
   await TypographyTokens.initialize();
 
   runApp(const MyApp());
@@ -34,6 +34,7 @@ void main() async {
 Future<void> _initializeFirebase() async {
   try {
     if (Firebase.apps.isNotEmpty) {
+      await FirebaseFirestore.instance.enablePersistence();
       return;
     }
 
@@ -55,7 +56,8 @@ Future<void> _initializeFirebase() async {
           );
 
     await Firebase.initializeApp(options: options);
-
+    await FirebaseFirestore.instance.enablePersistence();
+    
     FirebaseFirestore.instance.settings = const Settings(
       persistenceEnabled: true,
       cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,

@@ -213,11 +213,20 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
         translatedText: await translatorService.translate(text, from: 'zh', to: 'ko'),
       );
 
-      // Update the note with the new page
-      final updatedNote = widget.note.addPage(newPage);
+      // Get the count of existing notes for this user
+      final notesSnapshot = await firestore
+          .collection('notes')
+          .where('userId', isEqualTo: widget.note.userId)
+          .get();
+      final noteCount = notesSnapshot.docs.length + 1;
 
-      // Log the new page creation
-      print('New page created: ${newPage.imageUrl}');
+      // Update the note with the new page
+      final updatedPages = [...widget.note.pages, newPage];
+      final updatedNote = widget.note.copyWith(
+        pages: updatedPages,
+        title: '${noteCount}번째 노트',
+        updatedAt: DateTime.now(),
+      );
 
       // Update Firestore with the updated note
       await firestore.collection('notes').doc(widget.note.id).update(updatedNote.toFirestore());
@@ -356,95 +365,88 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: ListView.builder(
-          itemCount: widget.note.pages.length,
-          itemBuilder: (context, index) {
-            final page = widget.note.pages[index];
-            return Column(
-              children: [
-                NotePage(
-                  page: page,
-                  showTranslation: showTranslation,
-                  isHighlightMode: isHighlightMode,
-                  highlightedTexts: highlightedTexts.toList(),
-                  onHighlighted: _onTextSelected,
-                  onSpeak: (text) {
-                    setState(() {
-                      _currentPlayingIndex = index;
-                    });
-                    _speak(text);
-                  },
-                  currentPlayingIndex: _currentPlayingIndex,
+      body: widget.note.pages.isEmpty
+          ? Center(
+              child: Text(
+                '페이지가 없습니다.',
+                style: TypographyTokens.getStyle('body').copyWith(
+                  color: ColorTokens.semantic['text']?['body'],
                 ),
-                const SizedBox(height: 16),
-                Row(
+              ),
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.all(16.0),
+              itemCount: widget.note.pages.length,
+              itemBuilder: (context, index) {
+                final page = widget.note.pages[index];
+                return Column(
                   children: [
-                    ToggleButtons(
-                      borderRadius: BorderRadius.circular(8),
-                      selectedColor: ColorTokens.primary[400],
-                      fillColor: ColorTokens.primary[50],
-                      color: ColorTokens.semantic['text']?['body'],
-                      constraints: const BoxConstraints(
-                        minHeight: 36,
-                        minWidth: 36,
-                      ),
-                      isSelected: [showTranslation, false, isHighlightMode],
-                      onPressed: (int index) {
+                    NotePage(
+                      page: page,
+                      showTranslation: showTranslation,
+                      isHighlightMode: isHighlightMode,
+                      highlightedTexts: highlightedTexts.toList(),
+                      onHighlighted: _onTextSelected,
+                      onSpeak: (text) {
                         setState(() {
-                          if (index == 0) {
-                            showTranslation = !showTranslation;
-                          } else if (index == 2) {
-                            _toggleHighlightMode();
-                          }
+                          _currentPlayingIndex = index;
+                        });
+                        _speak(text);
+                      },
+                      currentPlayingIndex: _currentPlayingIndex,
+                      onDeletePage: () {
+                        // TODO: Implement page deletion
+                      },
+                      onEditText: (text) {
+                        // TODO: Implement text editing
+                      },
+                      onToggleTranslation: () {
+                        setState(() {
+                          showTranslation = !showTranslation;
                         });
                       },
-                      children: const [
-                        Icon(Icons.translate),
-                        Icon(Icons.text_fields),
-                        Icon(Icons.highlight),
-                      ],
+                      onToggleHighlight: () {
+                        _toggleHighlightMode();
+                      },
                     ),
+                    const SizedBox(height: 16),
                   ],
-                ),
-              ],
-            );
-          },
-        ),
-      ),
+                );
+              },
+            ),
       floatingActionButton: Column(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          if (isHighlightMode)
-            FloatingActionButton.extended(
-              onPressed: selectedText != null 
-                  ? () {
-                      _addToFlashcards(selectedText!);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('플래시카드가 추가되었습니다')),
-                      );
-                    } 
-                  : null,
-              label: const Text('플래시카드 추가'),
-              icon: const Icon(Icons.add),
-              backgroundColor: selectedText != null 
-                  ? ColorTokens.secondary[400]
-                  : Colors.grey,
+          if (isHighlightMode && selectedText != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: FloatingActionButton.extended(
+                onPressed: () {
+                  _addToFlashcards(selectedText!);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('플래시카드가 추가되었습니다')),
+                  );
+                },
+                label: const Text('플래시카드 추가'),
+                icon: const Icon(Icons.add),
+                backgroundColor: ColorTokens.secondary[400],
+                foregroundColor: ColorTokens.base[0],
+              ),
             ),
-          const SizedBox(height: 16),
           FloatingActionButton(
-            onPressed: _showImageSourceActionSheet,
-            child: const Icon(Icons.add_photo_alternate),
+            onPressed: () => _showImageSourceActionSheet(context),
             backgroundColor: ColorTokens.secondary[400],
+            child: Icon(
+              Icons.add_photo_alternate,
+              color: ColorTokens.base[0],
+            ),
           ),
         ],
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
 
-  Future<void> _showImageSourceActionSheet() async {
+  Future<void> _showImageSourceActionSheet(BuildContext context) async {
     showModalBottomSheet(
       context: context,
       builder: (context) => SafeArea(
@@ -527,10 +529,18 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
         translatedText: translatedText,
       );
 
+      // Get the count of existing notes for this user
+      final notesSnapshot = await firestore
+          .collection('notes')
+          .where('userId', isEqualTo: widget.note.userId)
+          .get();
+      final noteCount = notesSnapshot.docs.length + 1;
+
       // Update the note with the new page
       final updatedPages = [...widget.note.pages, newPage];
       final updatedNote = widget.note.copyWith(
         pages: updatedPages,
+        title: '${noteCount}번째 노트',
         updatedAt: DateTime.now(),
       );
 

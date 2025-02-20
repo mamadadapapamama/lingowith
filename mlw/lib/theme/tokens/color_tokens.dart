@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 class ColorTokens {
-  // Base colors
+  // Base Colors
   static const Map<int, Color> base = {
     0: Color(0xFFFFFFFF),
     200: Color(0xFFE5E5E5),
@@ -10,7 +10,7 @@ class ColorTokens {
     800: Color(0xFF000000),
   };
 
-  // Primary colors
+  // Primary Colors
   static const Map<int, Color> primary = {
     25: Color(0xFFFFF9F1),
     50: Color(0xFFFFF0E8),
@@ -23,7 +23,7 @@ class ColorTokens {
     700: Color(0xFF662A08),
   };
 
-  // Secondary colors
+  // Secondary Colors
   static const Map<int, Color> secondary = {
     25: Color(0xFFF1F3F3),
     100: Color(0xFFD3E0DD),
@@ -35,35 +35,31 @@ class ColorTokens {
     700: Color(0xFF0E2823),
   };
 
-  // Semantic colors
+  // Semantic Colors
   static const Map<String, Map<String, Color>> semantic = {
     'text': {
       'body': Color(0xFF0E2823),
       'heading': Color(0xFF0E2823),
       'primary': Color(0xFFFFFFFF),
       'secondary': Color(0xFFFFFFFF),
+      'translation': Color(0xFF226357),
       'disabled': Color(0xFF705F5F),
       'success': Color(0xFF32543F),
     },
     'surface': {
-      'page': Color(0xFFFFF9F1),
+      'background': Color(0xFFFFF9F1),
       'base': Color(0xFFFFFFFF),
+      'highlight': Color(0xFFFFEA9D),
       'button-primary': Color(0xFFFE6A15),
-      'button-primary-hover': Color(0xFFFE975B),
-      'button-primary-on': Color(0xFFCB5511),
-      'disabled': Color(0xFFE5E5E5),
+      'button-primary-hover': Color(0xFFCB5511),
+      'button-secondary': Color(0xFF226357),
+      'button-secondary-hover': Color(0xFF143B34),
+      'button-disabled': Color(0xFFB2B2B2),
     },
     'border': {
       'base': Color(0xFFFFE1D0),
       'success': Color(0xFF7ED29E),
+      'base-2': Color(0xFFFFFFFF),
     },
-  };
-
-  // Common colors
-  static const Map<String, Color> colors = {
-    'background': Color(0xFFF9FFFB),
-    'surface': Color(0xFFFFFFFF),
-    'text': Color(0xFF0E2823),
-    'textSecondary': Color(0xFF705F5F),
   };
 } 
