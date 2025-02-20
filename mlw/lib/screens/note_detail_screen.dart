@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mlw/models/note.dart' as note_model;
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:mlw/widgets/text_highlighter.dart';
+import 'package:mlw/widgets/note_page.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -361,115 +362,53 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
           itemCount: widget.note.pages.length,
           itemBuilder: (context, index) {
             final page = widget.note.pages[index];
-            final lines = page.extractedText.split('\n');
-            final translatedLines = page.translatedText.split('\n');
-            return Card(
-              elevation: 0,
-              color: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: BorderSide(
-                  color: ColorTokens.semantic['border']?['base'] ?? Colors.grey.shade200,
-                  width: 1,
+            return Column(
+              children: [
+                NotePage(
+                  page: page,
+                  showTranslation: showTranslation,
+                  isHighlightMode: isHighlightMode,
+                  highlightedTexts: highlightedTexts.toList(),
+                  onHighlighted: _onTextSelected,
+                  onSpeak: (text) {
+                    setState(() {
+                      _currentPlayingIndex = index;
+                    });
+                    _speak(text);
+                  },
+                  currentPlayingIndex: _currentPlayingIndex,
                 ),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                const SizedBox(height: 16),
+                Row(
                   children: [
-                    ClipRRect(
+                    ToggleButtons(
                       borderRadius: BorderRadius.circular(8),
-                      child: Image.file(
-                        File(page.imageUrl),
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                        height: 200,
+                      selectedColor: ColorTokens.primary[400],
+                      fillColor: ColorTokens.primary[50],
+                      color: ColorTokens.semantic['text']?['body'],
+                      constraints: const BoxConstraints(
+                        minHeight: 36,
+                        minWidth: 36,
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    for (int i = 0; i < lines.length; i++) ...[
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              IconButton(
-                                icon: Icon(
-                                  Icons.volume_up,
-                                  color: _currentPlayingIndex == i 
-                                    ? ColorTokens.secondary[200]
-                                    : ColorTokens.secondary[100],
-                                ),
-                                onPressed: () {
-                                  setState(() {
-                                    _currentPlayingIndex = i;
-                                  });
-                                  _speak(lines[i].trim());
-                                },
-                              ),
-                              Expanded(
-                                child: TextHighlighter(
-                                  text: lines[i].trim(),
-                                  onHighlighted: _onTextSelected,
-                                  isHighlightMode: isHighlightMode,
-                                  highlightedTexts: highlightedTexts.toList(),
-                                  style: TypographyTokens.getStyle('body').copyWith(
-                                    color: ColorTokens.semantic['text']?['body'],
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          if (showTranslation && i < translatedLines.length && translatedLines[i].trim().isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(left: 56, top: 4, bottom: 8),
-                              child: Text(
-                                translatedLines[i].trim(),
-                                style: TypographyTokens.getButtonStyle(isSmall: true).copyWith(
-                                  color: ColorTokens.semantic['text']?['translation'],
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                      if (i < lines.length - 1)
-                        const SizedBox(height: 8),
-                    ],
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        ToggleButtons(
-                          borderRadius: BorderRadius.circular(8),
-                          selectedColor: ColorTokens.primary[400],
-                          fillColor: ColorTokens.primary[50],
-                          color: ColorTokens.semantic['text']?['body'],
-                          constraints: const BoxConstraints(
-                            minHeight: 36,
-                            minWidth: 36,
-                          ),
-                          isSelected: [showTranslation, false, isHighlightMode],
-                          onPressed: (int index) {
-                            setState(() {
-                              if (index == 0) {
-                                showTranslation = !showTranslation;
-                              } else if (index == 2) {
-                                _toggleHighlightMode();
-                              }
-                            });
-                          },
-                          children: const [
-                            Icon(Icons.translate),
-                            Icon(Icons.text_fields),
-                            Icon(Icons.highlight),
-                          ],
-                        ),
+                      isSelected: [showTranslation, false, isHighlightMode],
+                      onPressed: (int index) {
+                        setState(() {
+                          if (index == 0) {
+                            showTranslation = !showTranslation;
+                          } else if (index == 2) {
+                            _toggleHighlightMode();
+                          }
+                        });
+                      },
+                      children: const [
+                        Icon(Icons.translate),
+                        Icon(Icons.text_fields),
+                        Icon(Icons.highlight),
                       ],
                     ),
                   ],
                 ),
-              ),
+              ],
             );
           },
         ),
@@ -490,14 +429,14 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
               label: const Text('플래시카드 추가'),
               icon: const Icon(Icons.add),
               backgroundColor: selectedText != null 
-                  ? (ColorTokens.semantic['surface']?['button-primary'] as Color?) ?? Colors.orange
+                  ? ColorTokens.secondary[400]
                   : Colors.grey,
             ),
           const SizedBox(height: 16),
           FloatingActionButton(
             onPressed: _showImageSourceActionSheet,
             child: const Icon(Icons.add_photo_alternate),
-            backgroundColor: (ColorTokens.semantic['surface']?['button-primary'] as Color?) ?? Colors.orange,
+            backgroundColor: ColorTokens.secondary[400],
           ),
         ],
       ),
