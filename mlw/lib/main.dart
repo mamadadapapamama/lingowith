@@ -8,13 +8,15 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'dart:io' show Platform;
 import 'package:mlw/theme/tokens/typography_tokens.dart';
+import 'package:mlw/services/translator.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await _initializeFirebase();
   
-  // Initialize Design Tokens
+  // Initialize Services
+  await TranslatorService.initialize();
   await TypographyTokens.initialize();
 
   runApp(const MyApp());
