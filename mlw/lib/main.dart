@@ -17,7 +17,6 @@ void main() async {
   
   // Initialize Services
   await TranslatorService.initialize();
-  await TypographyTokens.initialize();
 
   runApp(const MyApp());
 

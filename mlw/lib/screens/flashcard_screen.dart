@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:mlw/models/note.dart';
 import 'package:mlw/repositories/note_repository.dart';
-import 'package:mlw/theme/color_tokens.dart';
-import 'package:mlw/theme/typography_tokens.dart';
+import 'package:mlw/theme/tokens/color_tokens.dart';
+import 'package:mlw/theme/tokens/typography_tokens.dart';
 
 class FlashCardScreen extends StatefulWidget {
   final List<FlashCard> flashCards;

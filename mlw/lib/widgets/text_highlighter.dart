@@ -27,72 +27,70 @@ class _TextHighlighterState extends State<TextHighlighter> {
   String _selectedText = '';
   final List<TapGestureRecognizer> _recognizers = [];
 
-  void _onSelectionChanged(String text) {
-    setState(() {
-      _selectedText = text;
-    });
+  @override
+  void dispose() {
+    for (var recognizer in _recognizers) {
+      recognizer.dispose();
+    }
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final spans = <TextSpan>[];
-    final words = widget.text.split(' ');
-    
-    for (var i = 0; i < words.length; i++) {
-      final word = words[i];
-      final isHighlighted = widget.highlightedTexts.contains(word);
-      final isSelected = _selectedText == word;
-      
-      TapGestureRecognizer? recognizer;
-      if (widget.isHighlightMode) {
-        recognizer = TapGestureRecognizer();
-        recognizer.onTapDown = (details) {
-          _onSelectionChanged(word);
-        };
-        recognizer.onTapUp = (details) {
-          if (_selectedText.isNotEmpty) {
-            widget.onHighlighted(_selectedText);
-            _onSelectionChanged('');
-          }
-        };
-        recognizer.onTapCancel = () {
-          _onSelectionChanged('');
-        };
-        _recognizers.add(recognizer);
+    final List<TextSpan> spans = [];
+    final RegExp pattern = RegExp(r'[\u4e00-\u9fa5]+'); // Chinese characters pattern
+    final matches = pattern.allMatches(widget.text);
+    int lastEnd = 0;
+
+    for (var match in matches) {
+      // Add non-Chinese text before the match
+      if (match.start > lastEnd) {
+        spans.add(TextSpan(
+          text: widget.text.substring(lastEnd, match.start),
+          style: widget.style,
+        ));
       }
-      
-      spans.add(
-        TextSpan(
-          text: word,
-          style: (widget.style ?? TypographyTokens.getStyle('body.medium')).copyWith(
-            backgroundColor: isHighlighted
-                ? ColorTokens.getColor('highlight')
-                : isSelected && widget.isHighlightMode
-                    ? ColorTokens.getColor('highlight').withOpacity(0.5)
-                    : Colors.transparent,
-          ),
-          recognizer: recognizer,
+
+      // Add Chinese text with gesture recognizer
+      final chineseText = match.group(0)!;
+      final isHighlighted = widget.highlightedTexts.contains(chineseText);
+      final isSelected = _selectedText == chineseText;
+
+      final recognizer = TapGestureRecognizer()
+        ..onTapDown = widget.isHighlightMode ? (details) {
+          setState(() {
+            _selectedText = chineseText;
+          });
+          widget.onHighlighted(chineseText);
+        } : null;
+
+      _recognizers.add(recognizer);
+
+      spans.add(TextSpan(
+        text: chineseText,
+        style: (widget.style ?? TypographyTokens.getStyle('body.medium')).copyWith(
+          backgroundColor: isHighlighted
+              ? ColorTokens.secondary[200]?.withOpacity(0.2)
+              : isSelected && widget.isHighlightMode
+                  ? ColorTokens.secondary[200]?.withOpacity(0.1)
+                  : Colors.transparent,
         ),
-      );
-      
-      if (i < words.length - 1) {
-        spans.add(const TextSpan(text: ' '));
-      }
+        recognizer: widget.isHighlightMode ? recognizer : null,
+      ));
+
+      lastEnd = match.end;
+    }
+
+    // Add any remaining text
+    if (lastEnd < widget.text.length) {
+      spans.add(TextSpan(
+        text: widget.text.substring(lastEnd),
+        style: widget.style,
+      ));
     }
 
     return RichText(
-      text: TextSpan(
-        children: spans,
-      ),
+      text: TextSpan(children: spans),
     );
-  }
-
-  @override
-  void dispose() {
-    for (final recognizer in _recognizers) {
-      recognizer.dispose();
-    }
-    _recognizers.clear();
-    super.dispose();
   }
 }

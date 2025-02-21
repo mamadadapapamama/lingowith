@@ -36,9 +36,10 @@ class ColorTokens {
   };
 
   // Semantic Colors
-  static const Map<String, Map<String, Color>> semantic = {
+  static const Map<String, dynamic> semantic = {
     'text': {
       'body': Color(0xFF0E2823),
+      'description':Color(0xFF0E2823),
       'heading': Color(0xFF0E2823),
       'primary': Color(0xFFFFFFFF),
       'secondary': Color(0xFFFFFFFF),
@@ -49,12 +50,13 @@ class ColorTokens {
     'surface': {
       'background': Color(0xFFFFF9F1),
       'base': Color(0xFFFFFFFF),
-      'highlight': Color(0xFFFFEA9D),
-      'button-primary': Color(0xFFFE6A15),
-      'button-primary-hover': Color(0xFFCB5511),
-      'button-secondary': Color(0xFF226357),
-      'button-secondary-hover': Color(0xFF143B34),
-      'button-disabled': Color(0xFFB2B2B2),
+      'button': {
+        'primary': Color(0xFFFE6A15),
+        'primary-hover': Color(0xFFCB5511),
+        'secondary': Color(0xFF226357),
+        'secondary-hover': Color(0xFF143B34),
+        'disabled': Color(0xFFB2B2B2),
+      }
     },
     'border': {
       'base': Color(0xFFFFE1D0),
@@ -65,7 +67,6 @@ class ColorTokens {
 
   static Color getColor(String path) {
     final parts = path.split('.');
-    
     if (parts.length == 1) {
       // semantic color (e.g., 'text')
       return semantic['surface']?['base'] ?? Colors.white;

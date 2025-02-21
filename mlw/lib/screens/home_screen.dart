@@ -140,7 +140,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 width: 24,
                 height: 24,
                 colorFilter: ColorFilter.mode(
-                  ColorTokens.getColor('text'),
+                  ColorTokens.semantic['text']?['body'],
                   BlendMode.srcIn,
                 ),
               ),
@@ -152,11 +152,11 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             ListTile(
               leading: SvgPicture.asset(
-                'assets/icon/addnote.svg',
+                'assets/icon/camera.svg',
                 width: 24,
                 height: 24,
                 colorFilter: ColorFilter.mode(
-                  ColorTokens.getColor('text'),
+                  ColorTokens.semantic['text']?['body'],
                   BlendMode.srcIn,
                 ),
               ),
@@ -326,15 +326,15 @@ class _HomeScreenState extends State<HomeScreen> {
         statusBarColor: Colors.transparent,
         statusBarIconBrightness: Brightness.dark,
         statusBarBrightness: Brightness.light,
-        systemNavigationBarColor: ColorTokens.getColor('background'),
+        systemNavigationBarColor: ColorTokens.semantic['surface']?['background'],
         systemNavigationBarIconBrightness: Brightness.dark,
       ),
       child: Scaffold(
-        backgroundColor: ColorTokens.getColor('background'),
+        backgroundColor: ColorTokens.semantic['surface']?['background'],
         appBar: PreferredSize(
           preferredSize: const Size.fromHeight(84),
           child: Container(
-            color: ColorTokens.getColor('background'),
+            color: ColorTokens.semantic['surface']?['background'],
             child: SafeArea(
               bottom: false,
               child: Padding(
@@ -363,7 +363,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             fontSize: 24,
                             fontWeight: FontWeight.w700,
                             fontFamily: 'Poppins',
-                            color: ColorTokens.getColor('text'),
+                            color: ColorTokens.semantic['text']?['body'],
                           ),
                         ),
                       ],
@@ -374,7 +374,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         width: 24,
                         height: 24,
                         colorFilter: ColorFilter.mode(
-                          ColorTokens.getColor('text'),
+                          ColorTokens.semantic['text']?['body'],
                           BlendMode.srcIn,
                         ),
                       ),
@@ -429,25 +429,15 @@ class _HomeScreenState extends State<HomeScreen> {
                       );
                     },
                   ),
-        floatingActionButton: !_isLoading && _notes.isNotEmpty ? FloatingActionButton(
-          onPressed: () {
-            print('Add new note button pressed');
-            _showImageSourceActionSheet();
-          },
-          child: SvgPicture.asset(
-            'assets/icon/addimage.svg',
-            width: 24,
-            height: 24,
-            colorFilter: ColorFilter.mode(
-              ColorTokens.getColor('text'),
-              BlendMode.srcIn,
+        floatingActionButton: !_isLoading && _notes.isNotEmpty ? FloatingActionButton.extended(
+          onPressed: _showImageSourceActionSheet,
+          label: Text(
+            'Add Note',
+            style: TextStyle(
+              color: ColorTokens.semantic['text']['primary'],
             ),
           ),
-          backgroundColor: ColorTokens.getColor('button-primary'),
-          elevation: 2,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
+          backgroundColor: ColorTokens.semantic['surface']['button']['secondary'],
         ) : null,
         floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       ),
@@ -460,7 +450,7 @@ class _HomeScreenState extends State<HomeScreen> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           SvgPicture.asset(
-            'assets/images/zero_addnote.svg',
+            'assets/icon/zero_addnote.svg',
             width: 48,
             height: 48,
           ),
@@ -473,22 +463,13 @@ class _HomeScreenState extends State<HomeScreen> {
           Text(
             'Add image to create a new note',
             style: TypographyTokens.getStyle('body.small').copyWith(
-              color: ColorTokens.getColor('description'),
+              color: ColorTokens.semantic['text']?['description'],
             ),
           ),
           const SizedBox(height: 24),
           CustomButton(
             onPressed: _showImageSourceActionSheet,
-            text: 'Add image',
-            icon: SvgPicture.asset(
-              'assets/images/zero_addnote.svg',
-              width: 16,
-              height: 16,
-              colorFilter: ColorFilter.mode(
-                ColorTokens.getColor('primary.400'),
-                BlendMode.srcIn,
-              ),
-            ),
+            text: 'Create new note',
           ),
         ],
       ),

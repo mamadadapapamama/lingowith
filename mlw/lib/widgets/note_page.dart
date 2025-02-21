@@ -5,14 +5,16 @@ import 'package:mlw/theme/tokens/color_tokens.dart';
 import 'package:mlw/theme/tokens/typography_tokens.dart';
 import 'dart:io';
 import 'dart:math';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:mlw/screens/image_viewer_screen.dart';
 
 class NotePage extends StatefulWidget {
   final note_model.Page page;
   final bool showTranslation;
   final bool isHighlightMode;
   final Set<String> highlightedTexts;
-  final Function(String) onHighlighted;
-  final Function(String) onSpeak;
+  final Function(String)? onHighlighted;
+  final Function(String)? onSpeak;
   final int? currentPlayingIndex;
   final VoidCallback? onDeletePage;
   final Function(String)? onEditText;
@@ -25,8 +27,8 @@ class NotePage extends StatefulWidget {
     required this.showTranslation,
     required this.isHighlightMode,
     required this.highlightedTexts,
-    required this.onHighlighted,
-    required this.onSpeak,
+    this.onHighlighted,
+    this.onSpeak,
     this.currentPlayingIndex,
     this.onDeletePage,
     this.onEditText,
@@ -39,199 +41,216 @@ class NotePage extends StatefulWidget {
 }
 
 class _NotePageState extends State<NotePage> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _animation;
-  bool _showImage = false;
+  late AnimationController _animation;
+  bool _isFlipped = false;
+  List<String> _sentences = [];
+  List<String> _translations = [];
+  int? _playingSentenceIndex;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      duration: const Duration(milliseconds: 800),
+    _animation = AnimationController(
       vsync: this,
+      duration: const Duration(milliseconds: 300),
     );
-    _animation = CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeInOutBack,
-      reverseCurve: Curves.easeInOutBack,
-    );
+    _initializeSentences();
+  }
 
-    _animation.addListener(() {
-      if (_animation.value >= 0.5 && !_showImage) {
-        setState(() => _showImage = true);
-      } else if (_animation.value < 0.5 && _showImage) {
-        setState(() => _showImage = false);
-      }
-    });
+  void _initializeSentences() {
+    _sentences = widget.page.extractedText.split('\n')
+        .where((s) => s.trim().isNotEmpty)
+        .toList();
+    _translations = widget.page.translatedText.split('\n')
+        .where((s) => s.trim().isNotEmpty)
+        .toList();
+  }
+
+  @override
+  void didUpdateWidget(NotePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.page.extractedText != widget.page.extractedText ||
+        oldWidget.page.translatedText != widget.page.translatedText) {
+      _initializeSentences();
+    }
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _animation.dispose();
     super.dispose();
   }
 
-  void _toggleView() {
-    if (_controller.isAnimating) return;
-    if (_showImage) {
-      _controller.reverse();
-    } else {
-      _controller.forward();
-    }
+  void _flip() {
+    setState(() {
+      if (_isFlipped) {
+        _animation.reverse();
+      } else {
+        _animation.forward();
+      }
+      _isFlipped = !_isFlipped;
+    });
   }
 
   void _showMoreOptions(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.edit),
-              title: const Text('텍스트 수정'),
-              onTap: () {
-                Navigator.pop(context);
-                if (widget.onEditText != null) {
-                  widget.onEditText!(widget.page.extractedText);
-                }
-              },
+      builder: (context) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: Icon(Icons.edit, color: ColorTokens.semantic['text']['body']),
+            title: Text(
+              'Edit Text',
+              style: TypographyTokens.getStyle('body.medium').copyWith(
+                color: ColorTokens.semantic['text']['body'],
+              ),
             ),
-            ListTile(
-              leading: const Icon(Icons.delete),
-              title: const Text('페이지 삭제'),
-              onTap: () {
-                Navigator.pop(context);
-                if (widget.onDeletePage != null) {
-                  widget.onDeletePage!();
-                }
-              },
+            onTap: () {
+              Navigator.pop(context);
+              widget.onEditText?.call(widget.page.extractedText);
+            },
+          ),
+          ListTile(
+            leading: Icon(Icons.delete, color: ColorTokens.semantic['text']['body']),
+            title: Text(
+              'Delete Page',
+              style: TypographyTokens.getStyle('body.medium').copyWith(
+                color: ColorTokens.semantic['text']['body'],
+              ),
             ),
-          ],
-        ),
+            onTap: () {
+              Navigator.pop(context);
+              widget.onDeletePage?.call();
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSentence(String text, String? translation, int index) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                widget.isHighlightMode
+                    ? TextHighlighter(
+                        text: text,
+                        style: TypographyTokens.getStyle('heading.h2').copyWith(
+                          color: ColorTokens.semantic['text']['body'],
+                        ),
+                        highlightedTexts: widget.highlightedTexts,
+                        onHighlighted: widget.onHighlighted ?? (_) {},
+                        isHighlightMode: widget.isHighlightMode,
+                      )
+                    : Text(
+                        text,
+                        style: TypographyTokens.getStyle('heading.h2').copyWith(
+                          color: ColorTokens.semantic['text']['body'],
+                        ),
+                      ),
+                if (widget.showTranslation && translation != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    translation,
+                    style: TypographyTokens.getStyle('body.small').copyWith(
+                      color: ColorTokens.semantic['text']['translation'],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          IconButton(
+            icon: SvgPicture.asset(
+              'assets/icon/sound.svg',
+              width: 24,
+              height: 24,
+              colorFilter: ColorFilter.mode(
+                _playingSentenceIndex == index
+                    ? ColorTokens.secondary[400]!
+                    : ColorTokens.secondary[200]!,
+                BlendMode.srcIn,
+              ),
+            ),
+            onPressed: () {
+              setState(() {
+                _playingSentenceIndex = index;
+              });
+              widget.onSpeak?.call(text);
+            },
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildTextContent() {
-    final lines = widget.page.extractedText.split('\n');
-    final translatedLines = widget.page.translatedText.split('\n');
-
     return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-      ),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          for (int i = 0; i < lines.length; i++) ...[
-            if (lines[i].trim().isNotEmpty)
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  IconButton(
-                    icon: Icon(
-                      Icons.volume_up,
-                      color: ColorTokens.getColor('secondary.100'),
-                    ),
-                    onPressed: () => widget.onSpeak(lines[i].trim()),
-                    style: IconButton.styleFrom(
-                      foregroundColor: ColorTokens.getColor('secondary.100'),
-                      highlightColor: ColorTokens.getColor('secondary.300').withOpacity(0.2),
-                    ),
-                  ),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        TextHighlighter(
-                          text: lines[i].trim(),
-                          onHighlighted: widget.onHighlighted,
-                          isHighlightMode: widget.isHighlightMode,
-                          highlightedTexts: widget.highlightedTexts,
-                          style: TypographyTokens.getStyle('body').copyWith(
-                            color: ColorTokens.getColor('text'),
-                            fontSize: 18,
-                          ),
-                        ),
-                        if (widget.showTranslation && i < translatedLines.length && translatedLines[i].trim().isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 4),
-                            child: Text(
-                              translatedLines[i].trim(),
-                              style: TypographyTokens.getStyle('body').copyWith(
-                                color: ColorTokens.getColor('translation'),
-                                fontSize: 14,
-                                fontWeight: FontWeight.w400,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            if (i < lines.length - 1 && lines[i].trim().isNotEmpty)
-              SizedBox(height: widget.showTranslation ? 12 : 4),
-          ],
+          for (var i = 0; i < _sentences.length; i++)
+            _buildSentence(
+              _sentences[i],
+              i < _translations.length ? _translations[i] : null,
+              i,
+            ),
         ],
       ),
     );
   }
 
   Widget _buildImageContent() {
-    final lines = widget.page.extractedText.split('\n');
-    final translatedLines = widget.page.translatedText.split('\n');
-
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        image: DecorationImage(
-          image: FileImage(File(widget.page.imageUrl)),
-          fit: BoxFit.cover,
-        ),
-      ),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          color: Colors.black.withOpacity(0.7),
-        ),
-        padding: const EdgeInsets.all(16),
-        child: widget.showTranslation
-          ? ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: lines.length,
-              itemBuilder: (context, i) {
-                if (lines[i].trim().isEmpty) return const SizedBox();
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        lines[i].trim(),
-                        style: TypographyTokens.getStyle('body').copyWith(
-                          color: Colors.white,
-                          fontSize: 18,
-                        ),
-                      ),
-                      if (i < translatedLines.length && translatedLines[i].trim().isNotEmpty)
-                        Text(
-                          translatedLines[i].trim(),
-                          style: TypographyTokens.getStyle('body').copyWith(
-                            color: Colors.white.withOpacity(0.8),
-                            fontSize: 14,
-                            fontWeight: FontWeight.w400,
-                          ),
-                        ),
-                    ],
+    return Transform(
+      transform: Matrix4.identity()..rotateY(_animation.value >= 0.5 ? pi : 0),
+      alignment: Alignment.center,
+      child: Stack(
+        children: [
+          GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ImageViewerScreen(
+                    imageUrl: widget.page.imageUrl,
+                    extractedText: widget.page.extractedText,
+                    translatedText: widget.page.translatedText,
                   ),
-                );
-              },
-            )
-          : const SizedBox(),
+                ),
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.file(
+                  File(widget.page.imageUrl),
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 16,
+            right: 16,
+            child: IconButton(
+              icon: const Icon(Icons.flip_camera_android),
+              onPressed: _flip,
+              style: IconButton.styleFrom(
+                backgroundColor: ColorTokens.semantic['surface']['base'],
+                foregroundColor: ColorTokens.semantic['text']['primary'],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -239,10 +258,10 @@ class _NotePageState extends State<NotePage> with SingleTickerProviderStateMixin
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: _toggleView,
+      onTap: _flip,
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: ColorTokens.semantic['surface']['base'],
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
@@ -252,82 +271,103 @@ class _NotePageState extends State<NotePage> with SingleTickerProviderStateMixin
             ),
           ],
         ),
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: ColorTokens.secondary[25],
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(12),
-                  topRight: Radius.circular(12),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Hero(
-                    tag: widget.page.imageUrl,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.file(
-                        File(widget.page.imageUrl),
-                        fit: BoxFit.cover,
-                        width: 80,
-                        height: 80,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        ToggleButtons(
-                          borderRadius: BorderRadius.circular(8),
-                          selectedColor: ColorTokens.getColor('primary.400'),
-                          fillColor: ColorTokens.getColor('primary.50'),
-                          color: ColorTokens.getColor('text'),
-                          constraints: const BoxConstraints(
-                            minHeight: 36,
-                            minWidth: 36,
+        child: AnimatedBuilder(
+          animation: _animation,
+          builder: (context, child) {
+            final transform = Matrix4.identity()
+              ..setEntry(3, 2, 0.001)
+              ..rotateY(_animation.value * pi);
+            return Transform(
+              transform: transform,
+              alignment: Alignment.center,
+              child: _animation.value >= 0.5
+                ? Stack(
+                    children: [
+                      _buildImageContent(),
+                      Positioned(
+                        top: 16,
+                        right: 16,
+                        child: IconButton(
+                          icon: const Icon(Icons.flip_camera_android),
+                          onPressed: _flip,
+                          style: IconButton.styleFrom(
+                            backgroundColor: ColorTokens.semantic['surface']['base'],
+                            foregroundColor: ColorTokens.semantic['text']['primary'],
                           ),
-                          isSelected: [widget.showTranslation, widget.isHighlightMode],
-                          onPressed: (int index) {
-                            if (index == 0) {
-                              widget.onToggleTranslation?.call();
-                            } else if (index == 1) {
-                              widget.onToggleHighlight?.call();
-                            }
-                          },
-                          children: const [
-                            Icon(Icons.translate),
-                            Icon(Icons.highlight),
+                        ),
+                      ),
+                    ],
+                  )
+                : Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: ColorTokens.secondary[25],
+                          borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(12),
+                            topRight: Radius.circular(12),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Hero(
+                              tag: widget.page.imageUrl,
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.file(
+                                  File(widget.page.imageUrl),
+                                  fit: BoxFit.cover,
+                                  width: 80,
+                                  height: 80,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  ToggleButtons(
+                                    borderRadius: BorderRadius.circular(8),
+                                    selectedColor: ColorTokens.semantic['text']['primary'],
+                                    fillColor: ColorTokens.secondary[400],
+                                    color: ColorTokens.secondary[300],
+                                    constraints: const BoxConstraints(
+                                      minHeight: 36,
+                                      minWidth: 36,
+                                    ),
+                                    isSelected: [widget.showTranslation, widget.isHighlightMode],
+                                    onPressed: (int index) {
+                                      if (index == 0) {
+                                        widget.onToggleTranslation?.call();
+                                      } else if (index == 1) {
+                                        widget.onToggleHighlight?.call();
+                                      }
+                                    },
+                                    children: const [
+                                      Icon(Icons.translate),
+                                      Icon(Icons.highlight),
+                                    ],
+                                    borderColor: ColorTokens.base[300],
+                                    selectedBorderColor: ColorTokens.base[300],
+                                    renderBorder: true,
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.more_vert),
+                                    onPressed: () => _showMoreOptions(context),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ],
                         ),
-                        IconButton(
-                          icon: const Icon(Icons.more_vert),
-                          onPressed: () => _showMoreOptions(context),
-                        ),
-                      ],
-                    ),
+                      ),
+                      _buildTextContent(),
+                    ],
                   ),
-                ],
-              ),
-            ),
-            AnimatedBuilder(
-              animation: _animation,
-              builder: (context, child) {
-                final transform = Matrix4.identity()
-                  ..setEntry(3, 2, 0.001)
-                  ..rotateY(_animation.value * pi);
-                return Transform(
-                  transform: transform,
-                  alignment: Alignment.center,
-                  child: _animation.value >= 0.5 ? _buildImageContent() : _buildTextContent(),
-                );
-              },
-            ),
-          ],
+            );
+          },
         ),
       ),
     );

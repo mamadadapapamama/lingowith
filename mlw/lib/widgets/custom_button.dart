@@ -26,13 +26,13 @@ class CustomButton extends StatelessWidget {
       onPressed: isDisabled ? null : onPressed,
       style: ElevatedButton.styleFrom(
         backgroundColor: isDisabled
-            ? ColorTokens.getColor('button-disabled')
+            ? ColorTokens.semantic['surface']['button']['disabled']
             : isSecondary
-                ? ColorTokens.getColor('button-secondary')
-                : ColorTokens.getColor('button-primary'),
+                ? ColorTokens.semantic['surface']['button']['secondary']
+                : ColorTokens.semantic['surface']['button']['primary'],
         foregroundColor: isDisabled
-            ? ColorTokens.getColor('disabled')
-            : ColorTokens.getColor('surface'),
+            ? ColorTokens.semantic['text']['disabled']
+            : ColorTokens.semantic['text']['primary'],
         padding: EdgeInsets.symmetric(
           horizontal: isSmall ? 16 : 24,
           vertical: isSmall ? 8 : 16,

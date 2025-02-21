@@ -42,14 +42,43 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   void initState() {
     super.initState();
     highlightedTexts = widget.note.flashCards.map((card) => card.front).toSet();
+    _initTTS();
+  }
+
+  Future<void> _initTTS() async {
+    try {
+      await _flutterTts.setLanguage('zh-CN');
+      await _flutterTts.setSpeechRate(0.5);
+      await _flutterTts.setVolume(1.0);
+      await _flutterTts.setPitch(1.0);
+      
+      if (Platform.isIOS) {
+        await _flutterTts.setSharedInstance(true);
+        await _flutterTts.setIosAudioCategory(
+          IosTextToSpeechAudioCategory.ambient,
+          [
+            IosTextToSpeechAudioCategoryOptions.allowBluetooth,
+            IosTextToSpeechAudioCategoryOptions.allowBluetoothA2DP,
+            IosTextToSpeechAudioCategoryOptions.mixWithOthers,
+          ],
+        );
+      }
+    } catch (e) {
+      print('TTS initialization error: $e');
+    }
   }
 
   Future<void> _speak(String text) async {
     try {
-      await _flutterTts.setLanguage('zh-CN');
+      await _flutterTts.stop();
       await _flutterTts.speak(text);
     } catch (e) {
       print('TTS error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('음성 재생 중 오류가 발생했습니다: $e')),
+        );
+      }
     }
   }
 
@@ -213,15 +242,31 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
               padding: const EdgeInsets.only(bottom: 8),
               child: FloatingActionButton.extended(
                 onPressed: () => _addToFlashcards(selectedText!),
-                label: const Text('플래시카드 추가'),
-                icon: const Icon(Icons.add),
-                backgroundColor: theme.colorScheme.secondary,
+                label: Text(
+                  'Add Page',
+                  style: TextStyle(
+                    color: ColorTokens.semantic['text']['primary'],
+                  ),
+                ),
+                icon: Icon(
+                  Icons.add,
+                  color: ColorTokens.semantic['text']['primary'],
+                ),
+                backgroundColor: ColorTokens.semantic['surface']['button']['secondary'],
               ),
             ),
           FloatingActionButton(
             onPressed: () => _showImageSourceActionSheet(context),
-            backgroundColor: theme.colorScheme.secondary,
-            child: const Icon(Icons.add_photo_alternate),
+            backgroundColor: ColorTokens.semantic['surface']['button']['secondary'],
+            child: SvgPicture.asset(
+              'assets/icon/addimage.svg',
+              width: 24,
+              height: 24,
+              colorFilter: ColorFilter.mode(
+                ColorTokens.semantic['text']['primary'],
+                BlendMode.srcIn,
+              ),
+            ),
           ),
         ],
       ),
@@ -379,6 +424,12 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       print('Vision API error: $e');
       rethrow;
     }
+  }
+
+  @override
+  void dispose() {
+    _flutterTts.stop();
+    super.dispose();
   }
 }
 
