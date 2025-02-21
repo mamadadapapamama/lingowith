@@ -5,14 +5,10 @@ import 'package:mlw/theme/tokens/color_tokens.dart';
 
 class ImageViewerScreen extends StatefulWidget {
   final String imageUrl;
-  final String extractedText;
-  final String translatedText;
 
   const ImageViewerScreen({
     super.key,
     required this.imageUrl,
-    required this.extractedText,
-    required this.translatedText,
   });
 
   @override
@@ -23,16 +19,11 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
   final _transformationController = TransformationController();
   late Size _imageSize;
   bool _isImageLoaded = false;
-  List<String> _translations = [];
 
   @override
   void initState() {
     super.initState();
     _loadImage();
-    _translations = widget.translatedText
-        .split('\n')
-        .where((line) => line.trim().isNotEmpty)
-        .toList();
   }
 
   Future<void> _loadImage() async {
@@ -72,62 +63,26 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
           color: ColorTokens.semantic['text']?['body'],
         ),
       ),
-      body: Stack(
-        children: [
-          Center(
-            child: InteractiveViewer(
-              transformationController: _transformationController,
-              minScale: 0.5,
-              maxScale: 4.0,
-              child: Stack(
-                children: [
-                  Image.file(
-                    File(widget.imageUrl),
-                    fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Center(
-                        child: Text(
-                          '이미지를 불러올 수 없습니다.',
-                          style: TextStyle(
-                            color: ColorTokens.semantic['text']?['body'],
-                          ),
-                        ),
-                      );
-                    },
+      body: Center(
+        child: InteractiveViewer(
+          transformationController: _transformationController,
+          minScale: 0.5,
+          maxScale: 4.0,
+          child: Image.file(
+            File(widget.imageUrl),
+            fit: BoxFit.contain,
+            errorBuilder: (context, error, stackTrace) {
+              return Center(
+                child: Text(
+                  '이미지를 불러올 수 없습니다.',
+                  style: TextStyle(
+                    color: ColorTokens.semantic['text']?['body'],
                   ),
-                  if (_isImageLoaded)
-                    Positioned(
-                      left: 16,
-                      right: 16,
-                      bottom: MediaQuery.of(context).padding.bottom + 16,
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.8),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: _translations.map((translation) => 
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: Text(
-                                translation,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: ColorTokens.semantic['text']?['translation'],
-                                ),
-                              ),
-                            )
-                          ).toList(),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
+                ),
+              );
+            },
           ),
-        ],
+        ),
       ),
     );
   }

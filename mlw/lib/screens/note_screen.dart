@@ -3,7 +3,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'dart:async';
 import 'package:mlw/models/note.dart' as note_model;
-import 'package:mlw/services/note_repository.dart';
+import 'package:mlw/repositories/note_repository.dart';
 import 'package:mlw/screens/note_detail_screen.dart';
 import 'package:googleapis/vision/v1.dart' as vision;
 import 'package:googleapis_auth/auth_io.dart';
@@ -15,16 +15,17 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:mlw/theme/tokens/color_tokens.dart';
 import 'package:mlw/theme/tokens/typography_tokens.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class NoteScreen extends StatefulWidget {
-  final String spaceId;
   final String userId;
+  final String spaceId;
 
   const NoteScreen({
-    super.key,
-    required this.spaceId,
+    Key? key,
     required this.userId,
-  });
+    required this.spaceId,
+  }) : super(key: key);
 
   @override
   State<NoteScreen> createState() => _NoteScreenState();
@@ -32,7 +33,8 @@ class NoteScreen extends StatefulWidget {
 
 class _NoteScreenState extends State<NoteScreen> {
   final ImagePicker _picker = ImagePicker();
-  final NoteRepository _noteRepository = NoteRepository();
+  final _noteRepository = NoteRepository();
+  final translatorService = TranslatorService();
   File? _image;
   String? _extractedText;
   bool _isProcessing = false;
@@ -173,45 +175,17 @@ class _NoteScreenState extends State<NoteScreen> {
 
   Future<void> _pickImage(ImageSource source) async {
     try {
-      bool hasPermission;
-      if (source == ImageSource.camera) {
-        hasPermission = await _requestPermission(Permission.camera);
-      } else {
-        hasPermission = Platform.isIOS 
-            ? await _requestPermission(Permission.photos)
-            : await _requestPermission(Permission.storage);
-      }
-
-      if (!hasPermission) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                '이미지를 선택하려면 권한을 허용해주세요.',
-                style: GoogleFonts.poppins(),
-              ),
-            ),
-          );
-        }
-        return;
-      }
-
-      final XFile? pickedFile = await _picker.pickImage(
+      final XFile? pickedFile = await ImagePicker().pickImage(
         source: source,
         maxWidth: 1200,
         maxHeight: 1200,
         imageQuality: 85,
       );
-      
+
       if (pickedFile == null) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                '이미지가 선택되지 않았습니다.',
-                style: GoogleFonts.poppins(),
-              ),
-            ),
+            const SnackBar(content: Text('이미지가 선택되지 않았습니다')),
           );
         }
         return;
@@ -219,67 +193,53 @@ class _NoteScreenState extends State<NoteScreen> {
 
       final imageFile = File(pickedFile.path);
       if (!await imageFile.exists()) {
-        throw Exception('선택된 이미지 파일이 존재하지 않습니다.');
+        throw Exception('선택된 이미지 파일이 존재하지 않습니다');
       }
 
-      setState(() {
-        _image = imageFile;
-        _isProcessing = true;
-      });
-
-      await _processImage(pickedFile);
+      // Save the image locally
+      final imagePath = await _saveImageLocally(imageFile);
       
-    } catch (e) {
-      print('Image picking error: $e');
+      // Extract text and get translations
+      final textBlocks = await _extractTextFromImage(await imageFile.readAsBytes());
+
+      // Create a new page
+      final newPage = note_model.Page(
+        imageUrl: imagePath,
+        textBlocks: textBlocks,
+      );
+
+      // Create a new note
+      final newNote = note_model.Note(
+        id: '',
+        spaceId: widget.spaceId,
+        userId: widget.userId,
+        title: textBlocks.isNotEmpty ? textBlocks.first.text : '',
+        content: '',
+        pages: [newPage],
+        flashCards: [],
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      // Save to Firestore
+      await _noteRepository.createNote(newNote);
+
       if (mounted) {
-        setState(() {
-          _isProcessing = false;
-          _image = null;
-        });
-        
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '이미지 선택 중 오류가 발생했습니다: $e',
-              style: GoogleFonts.poppins(),
-            ),
-          ),
+          const SnackBar(content: Text('새로운 노트가 추가되었습니다')),
+        );
+      }
+    } catch (e) {
+      print('Error picking image: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('이미지 선택 중 오류가 발생했습니다: $e')),
         );
       }
     }
   }
 
-  Future<void> _processImage(XFile pickedFile) async {
-    try {
-      final imageBytes = await _image!.readAsBytes();
-      final text = await _extractTextFromImage(imageBytes);
-      
-      if (mounted) {
-        setState(() {
-          _extractedText = text;
-          _isProcessing = false;
-        });
-        await _createNote();
-      }
-    } catch (e) {
-      print('Image processing error: $e');
-      if (mounted) {
-        setState(() {
-          _isProcessing = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '이미지 처리 중 오류가 발생했습니다: $e',
-              style: GoogleFonts.poppins(),
-            ),
-          ),
-        );
-      }
-    }
-  }
-
-  Future<String> _extractTextFromImage(List<int> imageBytes) async {
+  Future<List<note_model.TextBlock>> _extractTextFromImage(List<int> imageBytes) async {
     try {
       final keyJson = await rootBundle.loadString('assets/service-account-key.json');
       final credentials = ServiceAccountCredentials.fromJson(keyJson);
@@ -299,20 +259,47 @@ class _NoteScreenState extends State<NoteScreen> {
           .timeout(const Duration(seconds: 30));
 
         if (response.responses == null || response.responses!.isEmpty) {
-          return '';
+          return [];
         }
 
         final texts = response.responses!.first.textAnnotations;
-        if (texts == null || texts.isEmpty) return '';
+        if (texts == null || texts.isEmpty) return [];
 
-        final lines = texts.first.description?.split('\n') ?? [];
-        final chineseLines = lines.where((line) {
-          final hasChineseChar = RegExp(r'[\u4e00-\u9fa5]').hasMatch(line);
-          final isOnlyNumbers = RegExp(r'^[0-9\s]*$').hasMatch(line);
-          return hasChineseChar && !isOnlyNumbers;
+        // Skip the first annotation which contains the entire text
+        final blocks = texts.skip(1).where((block) {
+          final text = block.description ?? '';
+          // Only include blocks with Chinese characters
+          return RegExp(r'[\u4e00-\u9fa5]').hasMatch(text);
         }).toList();
 
-        return chineseLines.join('\n');
+        // Translate all blocks at once
+        final textsToTranslate = blocks.map((block) => block.description ?? '').toList();
+        final translations = await translatorService.translateBatch(textsToTranslate, from: 'zh', to: 'ko');
+
+        // Create TextBlocks with translations
+        return List.generate(blocks.length, (index) {
+          final block = blocks[index];
+          final boundingBox = block.boundingPoly?.vertices;
+          
+          // Calculate position and size from bounding box
+          double x = 0, y = 0, width = 0, height = 0;
+          if (boundingBox != null && boundingBox.length == 4) {
+            x = boundingBox[0].x?.toDouble() ?? 0;
+            y = boundingBox[0].y?.toDouble() ?? 0;
+            width = ((boundingBox[1].x ?? 0) - (boundingBox[0].x ?? 0)).toDouble();
+            height = ((boundingBox[2].y ?? 0) - (boundingBox[0].y ?? 0)).toDouble();
+          }
+
+          return note_model.TextBlock(
+            text: block.description ?? '',
+            translation: translations[index],
+            x: x,
+            y: y,
+            width: width,
+            height: height,
+          );
+        });
+
       } finally {
         client.close();
       }
@@ -331,73 +318,6 @@ class _NoteScreenState extends State<NoteScreen> {
     } catch (e) {
       print('Error saving image: $e');
       rethrow;
-    }
-  }
-
-  Future<void> _createNote() async {
-    if (_image == null) return;
-
-    setState(() {
-      _isProcessing = true;
-    });
-
-    try {
-      final imagePath = await _saveImageLocally(_image!);
-      
-      String? translatedText;
-      if (_extractedText != null) {
-        try {
-          final lines = _extractedText!.split('\n').where((s) => s.trim().isNotEmpty).toList();
-          final translatedLines = await Future.wait(
-            lines.map((line) => translatorService.translate(line, from: 'zh', to: 'ko'))
-          );
-          translatedText = translatedLines.join('\n');
-        } catch (e) {
-          print('Translation error: $e');
-        }
-      }
-      
-      final newPage = note_model.Page(
-        imageUrl: imagePath,
-        extractedText: _extractedText ?? '',
-        translatedText: translatedText ?? '',
-      );
-
-      final newNote = note_model.Note(
-        id: '',
-        spaceId: widget.spaceId,
-        userId: widget.userId,
-        title: _extractedText?.split('\n').first ?? '새로운 노트',
-        content: '',
-        pages: [newPage],
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
-
-      final createdNote = await _noteRepository.createNote(newNote);
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => NoteDetailScreen(note: createdNote),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '노트 생성 실패: $e',
-              style: GoogleFonts.poppins(),
-            ),
-          ),
-        );
-      }
-    } finally {
-      setState(() {
-        _isProcessing = false;
-      });
     }
   }
 

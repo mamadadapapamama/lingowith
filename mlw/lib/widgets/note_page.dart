@@ -10,119 +10,198 @@ import 'package:mlw/screens/image_viewer_screen.dart';
 
 class NotePage extends StatefulWidget {
   final note_model.Page page;
-  final bool showTranslation;
-  final bool isHighlightMode;
-  final Set<String> highlightedTexts;
-  final Function(String)? onHighlighted;
-  final Function(String)? onSpeak;
-  final int? currentPlayingIndex;
-  final VoidCallback? onDeletePage;
-  final Function(String)? onEditText;
-  final VoidCallback? onToggleTranslation;
-  final VoidCallback? onToggleHighlight;
+  final Function(String) onEditText;
+  final VoidCallback onDeletePage;
 
   const NotePage({
     Key? key,
     required this.page,
-    required this.showTranslation,
-    required this.isHighlightMode,
-    required this.highlightedTexts,
-    this.onHighlighted,
-    this.onSpeak,
-    this.currentPlayingIndex,
-    this.onDeletePage,
-    this.onEditText,
-    this.onToggleTranslation,
-    this.onToggleHighlight,
+    required this.onEditText,
+    required this.onDeletePage,
   }) : super(key: key);
 
   @override
   State<NotePage> createState() => _NotePageState();
 }
 
-class _NotePageState extends State<NotePage> with SingleTickerProviderStateMixin {
-  late AnimationController _animation;
-  bool _isFlipped = false;
-  List<String> _sentences = [];
-  List<String> _translations = [];
-  int? _playingSentenceIndex;
+class _NotePageState extends State<NotePage> {
   bool _showOriginalText = true;
+  bool _showTranslation = true;
+  bool _showHighlight = false;
 
   @override
-  void initState() {
-    super.initState();
-    _animation = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 300),
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.all(8.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Stack(
+            children: [
+              _buildImageContent(),
+              Positioned(
+                top: 8,
+                right: 8,
+                child: _buildToggleButtons(),
+              ),
+              Positioned(
+                top: 8,
+                left: 8,
+                child: _buildMoreOptionsButton(),
+              ),
+            ],
+          ),
+          if (widget.page.textBlocks.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: _buildTextBlocks(),
+            ),
+        ],
+      ),
     );
-    _initializeSentences();
   }
 
-  void _initializeSentences() {
-    _sentences = widget.page.extractedText.split('\n')
-        .where((s) => s.trim().isNotEmpty)
-        .toList();
-    _translations = widget.page.translatedText.split('\n')
-        .where((s) => s.trim().isNotEmpty)
-        .toList();
+  Widget _buildTextBlocks() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: widget.page.textBlocks.map((block) {
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (_showOriginalText)
+                Text(
+                  block.text,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    height: 1.5,
+                  ),
+                ),
+              if (_showTranslation)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4.0),
+                  child: Text(
+                    block.translation,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.secondary,
+                      height: 1.5,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
   }
 
-  @override
-  void didUpdateWidget(NotePage oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.page.extractedText != widget.page.extractedText ||
-        oldWidget.page.translatedText != widget.page.translatedText) {
-      _initializeSentences();
-    }
+  Widget _buildImageContent() {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ImageViewerScreen(
+              imageUrl: widget.page.imageUrl,
+            ),
+          ),
+        );
+      },
+      child: AspectRatio(
+        aspectRatio: 4/3,
+        child: Hero(
+          tag: widget.page.imageUrl,
+          child: Image.file(
+            File(widget.page.imageUrl),
+            fit: BoxFit.cover,
+          ),
+        ),
+      ),
+    );
   }
 
-  @override
-  void dispose() {
-    _animation.dispose();
-    super.dispose();
+  Widget _buildToggleButtons() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface.withOpacity(0.8),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: ToggleButtons(
+        borderRadius: BorderRadius.circular(8),
+        selectedColor: Theme.of(context).colorScheme.primary,
+        fillColor: Theme.of(context).colorScheme.secondary,
+        color: Theme.of(context).colorScheme.onSurface,
+        constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+        isSelected: [_showOriginalText, _showTranslation, _showHighlight],
+        onPressed: (index) {
+          setState(() {
+            if (index == 0) _showOriginalText = !_showOriginalText;
+            if (index == 1) _showTranslation = !_showTranslation;
+            if (index == 2) _showHighlight = !_showHighlight;
+          });
+        },
+        children: [
+          SvgPicture.asset(
+            'assets/icon/original.svg',
+            width: 24,
+            height: 24,
+            colorFilter: ColorFilter.mode(
+              _showOriginalText
+                ? Theme.of(context).colorScheme.primary
+                : Theme.of(context).colorScheme.onSurface,
+              BlendMode.srcIn,
+            ),
+          ),
+          SvgPicture.asset(
+            'assets/icon/translate.svg',
+            width: 24,
+            height: 24,
+            colorFilter: ColorFilter.mode(
+              _showTranslation
+                ? Theme.of(context).colorScheme.primary
+                : Theme.of(context).colorScheme.onSurface,
+              BlendMode.srcIn,
+            ),
+          ),
+          Icon(Icons.highlight_alt),
+        ],
+      ),
+    );
   }
 
-  void _flip() {
-    setState(() {
-      if (_isFlipped) {
-        _animation.reverse();
-      } else {
-        _animation.forward();
-      }
-      _isFlipped = !_isFlipped;
-    });
+  Widget _buildMoreOptionsButton() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface.withOpacity(0.8),
+        shape: BoxShape.circle,
+      ),
+      child: IconButton(
+        icon: const Icon(Icons.more_vert),
+        onPressed: _showMoreOptions,
+      ),
+    );
   }
 
-  void _showMoreOptions(BuildContext context) {
+  void _showMoreOptions() {
     showModalBottomSheet(
       context: context,
       builder: (context) => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           ListTile(
-            leading: Icon(Icons.edit, color: ColorTokens.semantic['text']['body']),
-            title: Text(
-              'Edit Text',
-              style: TypographyTokens.getStyle('body.medium').copyWith(
-                color: ColorTokens.semantic['text']['body'],
-              ),
-            ),
+            leading: const Icon(Icons.edit),
+            title: const Text('텍스트 수정'),
             onTap: () {
               Navigator.pop(context);
-              widget.onEditText?.call(widget.page.extractedText);
+              _showEditDialog();
             },
           ),
           ListTile(
-            leading: Icon(Icons.delete, color: ColorTokens.semantic['text']['body']),
-            title: Text(
-              'Delete Page',
-              style: TypographyTokens.getStyle('body.medium').copyWith(
-                color: ColorTokens.semantic['text']['body'],
-              ),
-            ),
+            leading: const Icon(Icons.delete),
+            title: const Text('페이지 삭제'),
             onTap: () {
               Navigator.pop(context);
-              widget.onDeletePage?.call();
+              _showDeleteConfirmation();
             },
           ),
         ],
@@ -130,252 +209,58 @@ class _NotePageState extends State<NotePage> with SingleTickerProviderStateMixin
     );
   }
 
-  Widget _buildSentence(String text, String? translation, int index) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (_showOriginalText)
-                  widget.isHighlightMode
-                      ? TextHighlighter(
-                          text: text,
-                          style: TypographyTokens.getStyle('heading.h2').copyWith(
-                            color: ColorTokens.semantic['text']['body'],
-                          ),
-                          highlightedTexts: widget.highlightedTexts,
-                          onHighlighted: widget.onHighlighted ?? (_) {},
-                          isHighlightMode: widget.isHighlightMode,
-                        )
-                      : Text(
-                          text,
-                          style: TypographyTokens.getStyle('heading.h2').copyWith(
-                            color: ColorTokens.semantic['text']['body'],
-                          ),
-                        ),
-                if (widget.showTranslation && translation != null) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    translation,
-                    style: TypographyTokens.getStyle('body.small').copyWith(
-                      color: ColorTokens.semantic['text']['translation'],
-                    ),
-                  ),
-                ],
-              ],
-            ),
+  void _showEditDialog() {
+    final textController = TextEditingController(
+      text: widget.page.textBlocks.map((block) => block.text).join('\n'),
+    );
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('텍스트 수정'),
+        content: TextField(
+          controller: textController,
+          maxLines: null,
+          decoration: const InputDecoration(
+            hintText: '텍스트를 수정하세요',
           ),
-          IconButton(
-            icon: SvgPicture.asset(
-              'assets/icon/sound.svg',
-              width: 24,
-              height: 24,
-              colorFilter: ColorFilter.mode(
-                _playingSentenceIndex == index
-                    ? ColorTokens.secondary[400]!
-                    : ColorTokens.secondary[200]!,
-                BlendMode.srcIn,
-              ),
-            ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('취소'),
+          ),
+          TextButton(
             onPressed: () {
-              setState(() {
-                _playingSentenceIndex = index;
-              });
-              widget.onSpeak?.call(text);
+              widget.onEditText(textController.text);
+              Navigator.pop(context);
             },
+            child: const Text('저장'),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildTextContent() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          for (var i = 0; i < _sentences.length; i++)
-            _buildSentence(
-              _sentences[i],
-              i < _translations.length ? _translations[i] : null,
-              i,
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildImageContent() {
-    return Transform(
-      transform: Matrix4.identity()..rotateY(_animation.value >= 0.5 ? pi : 0),
-      alignment: Alignment.center,
-      child: Stack(
-        children: [
-          GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => ImageViewerScreen(
-                    imageUrl: widget.page.imageUrl,
-                    extractedText: widget.page.extractedText,
-                    translatedText: widget.page.translatedText,
-                  ),
-                ),
-              );
+  void _showDeleteConfirmation() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('페이지 삭제'),
+        content: const Text('이 페이지를 삭제하시겠습니까?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () {
+              widget.onDeletePage();
+              Navigator.pop(context);
             },
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.file(
-                  File(widget.page.imageUrl),
-                  fit: BoxFit.cover,
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            top: 16,
-            right: 16,
-            child: IconButton(
-              icon: const Icon(Icons.flip_camera_android),
-              onPressed: _flip,
-              style: IconButton.styleFrom(
-                backgroundColor: ColorTokens.semantic['surface']['base'],
-                foregroundColor: ColorTokens.semantic['text']['primary'],
-              ),
-            ),
+            child: const Text('삭제'),
           ),
         ],
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: _flip,
-      child: Container(
-        decoration: BoxDecoration(
-          color: ColorTokens.semantic['surface']['base'],
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: AnimatedBuilder(
-          animation: _animation,
-          builder: (context, child) {
-            final transform = Matrix4.identity()
-              ..setEntry(3, 2, 0.001)
-              ..rotateY(_animation.value * pi);
-            return Transform(
-              transform: transform,
-              alignment: Alignment.center,
-              child: _animation.value >= 0.5
-                ? Stack(
-                    children: [
-                      _buildImageContent(),
-                      Positioned(
-                        top: 16,
-                        right: 16,
-                        child: IconButton(
-                          icon: const Icon(Icons.flip_camera_android),
-                          onPressed: _flip,
-                          style: IconButton.styleFrom(
-                            backgroundColor: ColorTokens.semantic['surface']['base'],
-                            foregroundColor: ColorTokens.semantic['text']['primary'],
-                          ),
-                        ),
-                      ),
-                    ],
-                  )
-                : Column(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: ColorTokens.secondary[25],
-                          borderRadius: const BorderRadius.only(
-                            topLeft: Radius.circular(12),
-                            topRight: Radius.circular(12),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Hero(
-                              tag: widget.page.imageUrl,
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: Image.file(
-                                  File(widget.page.imageUrl),
-                                  fit: BoxFit.cover,
-                                  width: 80,
-                                  height: 80,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  ToggleButtons(
-                                    borderRadius: BorderRadius.circular(8),
-                                    selectedColor: ColorTokens.semantic['text']['primary'],
-                                    fillColor: ColorTokens.secondary[400],
-                                    color: ColorTokens.secondary[300],
-                                    constraints: const BoxConstraints(
-                                      minHeight: 36,
-                                      minWidth: 36,
-                                    ),
-                                    isSelected: [_showOriginalText, widget.showTranslation, widget.isHighlightMode],
-                                    onPressed: (int index) {
-                                      if (index == 0) {
-                                        setState(() {
-                                          _showOriginalText = !_showOriginalText;
-                                        });
-                                      } else if (index == 1) {
-                                        widget.onToggleTranslation?.call();
-                                      } else if (index == 2) {
-                                        widget.onToggleHighlight?.call();
-                                      }
-                                    },
-                                    children: const [
-                                      Icon(Icons.text_fields),
-                                      Icon(Icons.translate),
-                                      Icon(Icons.highlight),
-                                    ],
-                                    borderColor: ColorTokens.base[300],
-                                    selectedBorderColor: ColorTokens.base[300],
-                                    renderBorder: true,
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.more_vert),
-                                    onPressed: () => _showMoreOptions(context),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      _buildTextContent(),
-                    ],
-                  ),
-            );
-          },
-        ),
       ),
     );
   }

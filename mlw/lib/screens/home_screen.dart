@@ -103,12 +103,14 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _loadNotes(String spaceId) async {
     try {
       final notesStream = _noteRepository.getNotes(spaceId, userId);
-      final loadedNotes = await notesStream.first;
-      if (mounted) {
-        setState(() {
-          _notes = loadedNotes;
-          _isLoading = false;
-        });
+      await for (final notes in notesStream) {
+        if (mounted) {
+          setState(() {
+            _notes = notes;
+            _isLoading = false;
+          });
+          break;  // 첫 번째 결과만 받고 스트림 종료
+        }
       }
     } catch (e) {
       print('Error loading notes: $e');
@@ -144,7 +146,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   BlendMode.srcIn,
                 ),
               ),
-              title: const Text('갤러리에서 선택'),
+              title: const Text('Photo library'),
               onTap: () {
                 Navigator.of(context).pop();
                 _pickImage(ImageSource.gallery);
@@ -160,7 +162,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   BlendMode.srcIn,
                 ),
               ),
-              title: const Text('카메라로 촬영'),
+              title: const Text('Take photo'),
               onTap: () {
                 Navigator.of(context).pop();
                 _pickImage(ImageSource.camera);
@@ -173,10 +175,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _pickImage(ImageSource source) async {
-    final ImagePicker _picker = ImagePicker();
     try {
-      print('Attempting to pick image from: $source');
-      final XFile? pickedFile = await _picker.pickImage(
+      final XFile? pickedFile = await ImagePicker().pickImage(
         source: source,
         maxWidth: 1200,
         maxHeight: 1200,
@@ -184,10 +184,9 @@ class _HomeScreenState extends State<HomeScreen> {
       );
 
       if (pickedFile == null) {
-        print('No image selected.');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('이미지가 선택되지 않았습니다.')),
+            const SnackBar(content: Text('이미지가 선택되지 않았습니다')),
           );
         }
         return;
@@ -195,19 +194,45 @@ class _HomeScreenState extends State<HomeScreen> {
 
       final imageFile = File(pickedFile.path);
       if (!await imageFile.exists()) {
-        throw Exception('선택된 이미지 파일이 존재하지 않습니다.');
+        throw Exception('선택된 이미지 파일이 존재하지 않습니다');
       }
 
-      _image = imageFile;  // Set the _image variable
-      print('Image selected: ${imageFile.path}');
+      // Save the image locally
+      final imagePath = await _saveImageLocally(imageFile);
+      
+      // Extract text and get translations
+      final textBlocks = await _extractTextFromImage(await imageFile.readAsBytes());
 
-      await _createNote();
+      // Create a new page
+      final newPage = note_model.Page(
+        imageUrl: imagePath,
+        textBlocks: textBlocks,
+      );
 
-    } catch (e) {
-      print('Image picking error: $e');
+      // Create a new note with the extracted and translated text
+      final newNote = note_model.Note(
+        id: '',
+        spaceId: widget.spaceId,
+        userId: widget.userId,
+        title: textBlocks.isNotEmpty ? textBlocks.first.text : '',
+        pages: [newPage],
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      // Save to Firestore
+      await _noteRepository.createNote(newNote);
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('이미지 선택 중 오류가 발생했습니다: $e')),
+          const SnackBar(content: Text('새로운 노트가 생성되었습니다')),
+        );
+      }
+    } catch (e) {
+      print('Error picking image: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('이미지 처리 중 오류가 발생했습니다: $e')),
         );
       }
     }
@@ -446,98 +471,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<void> _createNote() async {
-    if (_image == null) {
-      print('No image to create note with.');
-      return;
-    }
-
-    print('Starting note creation process...');
-
-    setState(() {
-      _isProcessing = true;
-    });
-
-    try {
-      // Save the image locally and get the path
-      final imagePath = await _saveImageLocally(_image!);
-      print('Image saved at: $imagePath');
-
-      // Extract text from the image
-      final extractedText = await _extractTextFromImage(await _image!.readAsBytes());
-      print('Extracted text: $extractedText');
-
-      // Translate the extracted text
-      String? translatedText;
-      if (extractedText != null) {
-        try {
-          final lines = extractedText.split('\n').where((s) => s.trim().isNotEmpty).toList();
-          final translatedLines = await Future.wait(
-            lines.map((line) => translatorService.translate(line, from: 'zh', to: 'ko'))
-          );
-          translatedText = translatedLines.join('\n');
-          print('Translated text: $translatedText');
-        } catch (e) {
-          print('Translation error: $e');
-        }
-      }
-
-      // Create a new page with the image and extracted text
-      final newPage = note_model.Page(
-        imageUrl: imagePath,
-        extractedText: extractedText ?? '',
-        translatedText: translatedText ?? '',
-      );
-
-      // Create a new note with the extracted and translated text
-      final newNote = note_model.Note(
-        id: '',
-        spaceId: _currentNoteSpace?.id ?? '',
-        userId: userId,
-        title: 'Note #${_notes.length + 1}',  // Auto-generate title
-        content: '',
-        pages: [newPage], // Add the new page to the note
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
-
-      print('Creating note in Firestore...');
-      final createdNote = await _noteRepository.createNote(newNote);
-      print('Note created with ID: ${createdNote.id}');
-
-      if (mounted) {
-        setState(() {
-          _notes = [..._notes, createdNote];
-        });
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('노트가 생성되었습니다.')),
-        );
-      }
-
-      // Navigate to NoteDetailScreen after creating the note
-      if (mounted) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => NoteDetailScreen(note: createdNote),
-          ),
-        );
-      }
-    } catch (e) {
-      print('Note creation error: ${e.toString()}');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('노트 생성 실패: ${e.toString()}')),
-        );
-      }
-    } finally {
-      setState(() {
-        _isProcessing = false;
-      });
-    }
-  }
-
   Future<String> _saveImageLocally(File image) async {
     try {
       final directory = await getApplicationDocumentsDirectory();
@@ -550,7 +483,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<String> _extractTextFromImage(List<int> imageBytes) async {
+  Future<List<note_model.TextBlock>> _extractTextFromImage(List<int> imageBytes) async {
     try {
       final keyJson = await rootBundle.loadString('assets/service-account-key.json');
       final credentials = ServiceAccountCredentials.fromJson(keyJson);
@@ -565,38 +498,52 @@ class _HomeScreenState extends State<HomeScreen> {
             imageContext: vision.ImageContext(languageHints: ['zh']),
           ),
         ]);
-
+        
         final response = await api.images.annotate(request)
           .timeout(const Duration(seconds: 30));
 
         if (response.responses == null || response.responses!.isEmpty) {
-          return '';
+          return [];
         }
 
         final texts = response.responses!.first.textAnnotations;
-        if (texts == null || texts.isEmpty) return '';
+        if (texts == null || texts.isEmpty) return [];
 
-        final blocks = texts.where((text) {
-          if (text.boundingPoly?.vertices == null) return false;
-          final hasChineseChar = RegExp(r'[\u4e00-\u9fa5]').hasMatch(text.description ?? '');
-          final isOnlyNumbers = RegExp(r'^[0-9\s]*$').hasMatch(text.description ?? '');
-          return hasChineseChar && !isOnlyNumbers;
-        }).map((text) {
-          final vertices = text.boundingPoly!.vertices!;
-          final x = vertices[0].x?.toDouble() ?? 0;
-          final y = vertices[0].y?.toDouble() ?? 0;
-          final width = (vertices[1].x?.toDouble() ?? 0) - x;
-          final height = (vertices[2].y?.toDouble() ?? 0) - y;
-          return {
-            'text': text.description ?? '',
-            'x': x,
-            'y': y,
-            'width': width,
-            'height': height,
-          };
+        // Skip the first annotation which contains the entire text
+        final blocks = texts.skip(1).where((block) {
+          final text = block.description ?? '';
+          // Only include blocks with Chinese characters
+          return RegExp(r'[\u4e00-\u9fa5]').hasMatch(text);
         }).toList();
 
-        return blocks.map((block) => block['text']).join('\n');
+        // Translate all blocks at once
+        final textsToTranslate = blocks.map((block) => block.description ?? '').toList();
+        final translations = await translatorService.translateBatch(textsToTranslate, from: 'zh', to: 'ko');
+
+        // Create TextBlocks with translations
+        return List.generate(blocks.length, (index) {
+          final block = blocks[index];
+          final boundingBox = block.boundingPoly?.vertices;
+          
+          // Calculate position and size from bounding box
+          double x = 0, y = 0, width = 0, height = 0;
+          if (boundingBox != null && boundingBox.length == 4) {
+            x = boundingBox[0].x?.toDouble() ?? 0;
+            y = boundingBox[0].y?.toDouble() ?? 0;
+            width = ((boundingBox[1].x ?? 0) - (boundingBox[0].x ?? 0)).toDouble();
+            height = ((boundingBox[2].y ?? 0) - (boundingBox[0].y ?? 0)).toDouble();
+          }
+
+          return note_model.TextBlock(
+            text: block.description ?? '',
+            translation: translations[index],
+            x: x,
+            y: y,
+            width: width,
+            height: height,
+          );
+        });
+
       } finally {
         client.close();
       }

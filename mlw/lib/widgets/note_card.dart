@@ -233,17 +233,19 @@ class NoteCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        note.title.isNotEmpty ? note.title : note.pages.first.extractedText.split('\n').first,
+                        note.title.isNotEmpty ? note.title : 
+                          (note.pages.isNotEmpty && note.pages.first.textBlocks.isNotEmpty ? 
+                            note.pages.first.textBlocks.first.text : ''),
                         style: GoogleFonts.poppins(
                           fontSize: 20,
                           fontWeight: FontWeight.w600,
                           color: ColorTokens.semantic['text']['heading'],
                         ),
                       ),
-                      if (note.pages.isNotEmpty && note.pages.first.translatedText.isNotEmpty) ...[
+                      if (note.pages.isNotEmpty && note.pages.first.textBlocks.isNotEmpty) ...[
                         const SizedBox(height: 4),
                         Text(
-                          note.pages.first.translatedText.split('\n').first,
+                          note.pages.first.textBlocks.first.translation,
                           style: GoogleFonts.poppins(
                             fontSize: 14,
                             color: ColorTokens.semantic['text']['translation'],

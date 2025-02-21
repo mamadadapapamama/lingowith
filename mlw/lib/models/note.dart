@@ -38,22 +38,16 @@ class TextBlock {
 
 class Page {
   final String imageUrl;
-  final String extractedText;
-  final String translatedText;
   final List<TextBlock> textBlocks;
 
   const Page({
     required this.imageUrl,
-    required this.extractedText,
-    required this.translatedText,
     this.textBlocks = const [],
   });
 
   factory Page.fromJson(Map<String, dynamic> json) {
     return Page(
       imageUrl: json['imageUrl'] as String,
-      extractedText: json['extractedText'] as String,
-      translatedText: json['translatedText'] as String,
       textBlocks: (json['textBlocks'] as List<dynamic>?)
           ?.map((e) => TextBlock.fromJson(e as Map<String, dynamic>))
           .toList() ?? [],
@@ -63,11 +57,12 @@ class Page {
   Map<String, dynamic> toJson() {
     return {
       'imageUrl': imageUrl,
-      'extractedText': extractedText,
-      'translatedText': translatedText,
       'textBlocks': textBlocks.map((e) => e.toJson()).toList(),
     };
   }
+
+  String get extractedText => textBlocks.map((block) => block.text).join('\n');
+  String get translatedText => textBlocks.map((block) => block.translation).join('\n');
 }
 
 class FlashCard {
