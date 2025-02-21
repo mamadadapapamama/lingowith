@@ -46,6 +46,7 @@ class _NotePageState extends State<NotePage> with SingleTickerProviderStateMixin
   List<String> _sentences = [];
   List<String> _translations = [];
   int? _playingSentenceIndex;
+  bool _showOriginalText = true;
 
   @override
   void initState() {
@@ -131,7 +132,7 @@ class _NotePageState extends State<NotePage> with SingleTickerProviderStateMixin
 
   Widget _buildSentence(String text, String? translation, int index) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -139,24 +140,25 @@ class _NotePageState extends State<NotePage> with SingleTickerProviderStateMixin
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                widget.isHighlightMode
-                    ? TextHighlighter(
-                        text: text,
-                        style: TypographyTokens.getStyle('heading.h2').copyWith(
-                          color: ColorTokens.semantic['text']['body'],
+                if (_showOriginalText)
+                  widget.isHighlightMode
+                      ? TextHighlighter(
+                          text: text,
+                          style: TypographyTokens.getStyle('heading.h2').copyWith(
+                            color: ColorTokens.semantic['text']['body'],
+                          ),
+                          highlightedTexts: widget.highlightedTexts,
+                          onHighlighted: widget.onHighlighted ?? (_) {},
+                          isHighlightMode: widget.isHighlightMode,
+                        )
+                      : Text(
+                          text,
+                          style: TypographyTokens.getStyle('heading.h2').copyWith(
+                            color: ColorTokens.semantic['text']['body'],
+                          ),
                         ),
-                        highlightedTexts: widget.highlightedTexts,
-                        onHighlighted: widget.onHighlighted ?? (_) {},
-                        isHighlightMode: widget.isHighlightMode,
-                      )
-                    : Text(
-                        text,
-                        style: TypographyTokens.getStyle('heading.h2').copyWith(
-                          color: ColorTokens.semantic['text']['body'],
-                        ),
-                      ),
                 if (widget.showTranslation && translation != null) ...[
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 4),
                   Text(
                     translation,
                     style: TypographyTokens.getStyle('body.small').copyWith(
@@ -337,15 +339,20 @@ class _NotePageState extends State<NotePage> with SingleTickerProviderStateMixin
                                       minHeight: 36,
                                       minWidth: 36,
                                     ),
-                                    isSelected: [widget.showTranslation, widget.isHighlightMode],
+                                    isSelected: [_showOriginalText, widget.showTranslation, widget.isHighlightMode],
                                     onPressed: (int index) {
                                       if (index == 0) {
-                                        widget.onToggleTranslation?.call();
+                                        setState(() {
+                                          _showOriginalText = !_showOriginalText;
+                                        });
                                       } else if (index == 1) {
+                                        widget.onToggleTranslation?.call();
+                                      } else if (index == 2) {
                                         widget.onToggleHighlight?.call();
                                       }
                                     },
                                     children: const [
+                                      Icon(Icons.text_fields),
                                       Icon(Icons.translate),
                                       Icon(Icons.highlight),
                                     ],

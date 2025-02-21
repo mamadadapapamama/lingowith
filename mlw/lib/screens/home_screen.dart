@@ -331,69 +331,39 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       child: Scaffold(
         backgroundColor: ColorTokens.semantic['surface']?['background'],
-        appBar: PreferredSize(
-          preferredSize: const Size.fromHeight(84),
-          child: Container(
-            color: ColorTokens.semantic['surface']?['background'],
-            child: SafeArea(
-              bottom: false,
-              child: Padding(
-                padding: const EdgeInsets.only(
-                  left: 24,
-                  right: 24,
-                  top: 12,
-                  bottom: 8,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        SvgPicture.asset(
-                          'assets/icon/logo_small.svg',
-                          width: 71,
-                          height: 21,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _currentNoteSpace?.name ?? "Loading...",
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w700,
-                            fontFamily: 'Poppins',
-                            color: ColorTokens.semantic['text']?['body'],
-                          ),
-                        ),
-                      ],
-                    ),
-                    IconButton(
-                      icon: SvgPicture.asset(
-                        'assets/icon/profile.svg',
-                        width: 24,
-                        height: 24,
-                        colorFilter: ColorFilter.mode(
-                          ColorTokens.semantic['text']?['body'],
-                          BlendMode.srcIn,
-                        ),
-                      ),
-                      onPressed: _currentNoteSpace == null ? null : () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => NoteSpaceSettingsScreen(
-                              noteSpace: _currentNoteSpace!,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SvgPicture.asset(
+                'assets/icon/logo_small.svg',
+                width: 71,
+                height: 21,
               ),
-            ),
+              const SizedBox(height: 4),
+              Text(
+                _currentNoteSpace?.name ?? "Loading...",
+                style: TypographyTokens.getStyle('heading.h2'),
+              ),
+            ],
           ),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.settings),
+              onPressed: _currentNoteSpace == null ? null : () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => NoteSpaceSettingsScreen(
+                      noteSpace: _currentNoteSpace!,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
         ),
         body: _isLoading
             ? Center(
@@ -606,14 +576,27 @@ class _HomeScreenState extends State<HomeScreen> {
         final texts = response.responses!.first.textAnnotations;
         if (texts == null || texts.isEmpty) return '';
 
-        final lines = texts.first.description?.split('\n') ?? [];
-        final chineseLines = lines.where((line) {
-          final hasChineseChar = RegExp(r'[\u4e00-\u9fa5]').hasMatch(line);
-          final isOnlyNumbers = RegExp(r'^[0-9\s]*$').hasMatch(line);
+        final blocks = texts.where((text) {
+          if (text.boundingPoly?.vertices == null) return false;
+          final hasChineseChar = RegExp(r'[\u4e00-\u9fa5]').hasMatch(text.description ?? '');
+          final isOnlyNumbers = RegExp(r'^[0-9\s]*$').hasMatch(text.description ?? '');
           return hasChineseChar && !isOnlyNumbers;
+        }).map((text) {
+          final vertices = text.boundingPoly!.vertices!;
+          final x = vertices[0].x?.toDouble() ?? 0;
+          final y = vertices[0].y?.toDouble() ?? 0;
+          final width = (vertices[1].x?.toDouble() ?? 0) - x;
+          final height = (vertices[2].y?.toDouble() ?? 0) - y;
+          return {
+            'text': text.description ?? '',
+            'x': x,
+            'y': y,
+            'width': width,
+            'height': height,
+          };
         }).toList();
 
-        return chineseLines.join('\n');
+        return blocks.map((block) => block['text']).join('\n');
       } finally {
         client.close();
       }

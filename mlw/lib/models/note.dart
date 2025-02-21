@@ -1,14 +1,52 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+class TextBlock {
+  final String text;
+  final String translation;
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+
+  const TextBlock({
+    required this.text,
+    required this.translation,
+    required this.x,
+    required this.y,
+    required this.width,
+    required this.height,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'text': text,
+    'translation': translation,
+    'x': x,
+    'y': y,
+    'width': width,
+    'height': height,
+  };
+
+  factory TextBlock.fromJson(Map<String, dynamic> json) => TextBlock(
+    text: json['text'] as String,
+    translation: json['translation'] as String,
+    x: (json['x'] as num).toDouble(),
+    y: (json['y'] as num).toDouble(),
+    width: (json['width'] as num).toDouble(),
+    height: (json['height'] as num).toDouble(),
+  );
+}
+
 class Page {
   final String imageUrl;
   final String extractedText;
   final String translatedText;
+  final List<TextBlock> textBlocks;
 
   const Page({
     required this.imageUrl,
     required this.extractedText,
     required this.translatedText,
+    this.textBlocks = const [],
   });
 
   factory Page.fromJson(Map<String, dynamic> json) {
@@ -16,6 +54,9 @@ class Page {
       imageUrl: json['imageUrl'] as String,
       extractedText: json['extractedText'] as String,
       translatedText: json['translatedText'] as String,
+      textBlocks: (json['textBlocks'] as List<dynamic>?)
+          ?.map((e) => TextBlock.fromJson(e as Map<String, dynamic>))
+          .toList() ?? [],
     );
   }
 
@@ -24,6 +65,7 @@ class Page {
       'imageUrl': imageUrl,
       'extractedText': extractedText,
       'translatedText': translatedText,
+      'textBlocks': textBlocks.map((e) => e.toJson()).toList(),
     };
   }
 }
