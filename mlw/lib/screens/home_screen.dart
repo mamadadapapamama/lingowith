@@ -144,7 +144,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   BlendMode.srcIn,
                 ),
               ),
-              title: const Text('갤러리에서 선택'),
+              title: const Text('photo library'),
               onTap: () {
                 Navigator.of(context).pop();
                 _pickImage(ImageSource.gallery);
@@ -160,7 +160,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   BlendMode.srcIn,
                 ),
               ),
-              title: const Text('카메라로 촬영'),
+              title: const Text('take a picture'),
               onTap: () {
                 Navigator.of(context).pop();
                 _pickImage(ImageSource.camera);
@@ -187,7 +187,7 @@ class _HomeScreenState extends State<HomeScreen> {
         print('No image selected.');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('이미지가 선택되지 않았습니다.')),
+            const SnackBar(content: Text('No image selected.')),
           );
         }
         return;
@@ -195,7 +195,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       final imageFile = File(pickedFile.path);
       if (!await imageFile.exists()) {
-        throw Exception('선택된 이미지 파일이 존재하지 않습니다.');
+        throw Exception('There is no image file.');
       }
 
       _image = imageFile;  // Set the _image variable
@@ -207,7 +207,7 @@ class _HomeScreenState extends State<HomeScreen> {
       print('Image picking error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('이미지 선택 중 오류가 발생했습니다: $e')),
+          SnackBar(content: Text('Sorry, something went wrong while choosing an image: $e')),
         );
       }
     }
@@ -248,7 +248,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                '노트 복제 중 오류가 발생했습니다.',
+                'sorry, something went wrong while duplicating the note.',
                 style: GoogleFonts.poppins(),
               ),
             ),
@@ -268,7 +268,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                '노트가 삭제되었습니다.',
+                'Your note got deleted.',
                 style: GoogleFonts.poppins(),
               ),
             ),
@@ -279,7 +279,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                '노트 삭제 중 오류가 발생했습니다.',
+                'Something went wrong while deleting the note.',
                 style: GoogleFonts.poppins(),
               ),
             ),
@@ -312,7 +312,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                '노트 제목 수정 중 오류가 발생했습니다.',
+                'Something went wrong while editing the note title. Please try again',
                 style: GoogleFonts.poppins(),
               ),
             ),
@@ -359,10 +359,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         const SizedBox(height: 4),
                         Text(
                           _currentNoteSpace?.name ?? "Loading...",
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w700,
-                            fontFamily: 'Poppins',
+                          style: TypographyTokens.getStyle('heading.h1').copyWith(
                             color: ColorTokens.semantic['text']?['body'],
                           ),
                         ),
@@ -558,7 +555,7 @@ class _HomeScreenState extends State<HomeScreen> {
       print('Note creation error: ${e.toString()}');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('노트 생성 실패: ${e.toString()}')),
+          SnackBar(content: Text('Failed to create a note. Please try again.: ${e.toString()}')),
         );
       }
     } finally {

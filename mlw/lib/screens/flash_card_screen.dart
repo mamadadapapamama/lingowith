@@ -125,12 +125,21 @@ class _FlashCardScreenState extends State<FlashCardScreen> {
                   ),
                   const SizedBox(height: 16),
                   Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: flash_card_widget.FlashCard(
-                        front: widget.flashCards[_currentIndex].front,
-                        back: widget.flashCards[_currentIndex].back,
-                        showFront: _showFront,
+                    child: GestureDetector(
+                      onHorizontalDragEnd: (details) {
+                        if (details.primaryVelocity! > 0) {
+                          _previousCard();
+                        } else if (details.primaryVelocity! < 0) {
+                          _nextCard();
+                        }
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: flash_card_widget.FlashCard(
+                          front: widget.flashCards[_currentIndex].front,
+                          back: widget.flashCards[_currentIndex].back,
+                          showFront: _showFront,
+                        ),
                       ),
                     ),
                   ),

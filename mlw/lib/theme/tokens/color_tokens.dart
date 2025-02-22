@@ -6,6 +6,7 @@ class ColorTokens {
     0: Color(0xFFFFFFFF),
     200: Color(0xFFE5E5E5),
     400: Color(0xFFB2B2B2),
+    500: Color(0xFF969696),
     600: Color(0xFF705F5F),
     800: Color(0xFF000000),
   };
