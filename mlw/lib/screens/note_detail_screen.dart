@@ -134,6 +134,133 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     }
   }
 
+  Future<void> _editPageText(int pageIndex, String newText) async {
+    try {
+      // Translate the new text
+      final translatedText = await translatorService.translate(newText, from: 'zh', to: 'ko');
+      
+      // Create a new page with updated text
+      final updatedPage = note_model.Page(
+        imageUrl: widget.note.pages[pageIndex].imageUrl,
+        extractedText: newText,
+        translatedText: translatedText,
+      );
+      
+      // Update the note with the new page
+      final updatedPages = List<note_model.Page>.from(widget.note.pages);
+      updatedPages[pageIndex] = updatedPage;
+      
+      final updatedNote = widget.note.copyWith(
+        pages: updatedPages,
+        updatedAt: DateTime.now(),
+      );
+      
+      // Update in Firestore
+      await firestore.collection('notes').doc(widget.note.id).update(updatedNote.toFirestore());
+      
+      setState(() {
+        widget.note.pages[pageIndex] = updatedPage;
+      });
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('텍스트가 수정되었습니다')),
+        );
+      }
+    } catch (e) {
+      print('Error editing page text: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('텍스트 수정 중 오류가 발생했습니다: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _deletePage(int pageIndex) async {
+    try {
+      final updatedPages = List<note_model.Page>.from(widget.note.pages)
+        ..removeAt(pageIndex);
+      
+      final updatedNote = widget.note.copyWith(
+        pages: updatedPages,
+        updatedAt: DateTime.now(),
+      );
+      
+      // Update in Firestore
+      await firestore.collection('notes').doc(widget.note.id).update(updatedNote.toFirestore());
+      
+      setState(() {
+        widget.note.pages.removeAt(pageIndex);
+      });
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('페이지가 삭제되었습니다')),
+        );
+      }
+    } catch (e) {
+      print('Error deleting page: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('페이지 삭제 중 오류가 발생했습니다: $e')),
+        );
+      }
+    }
+  }
+
+  void _showEditDialog(int pageIndex, String currentText) {
+    final textController = TextEditingController(text: currentText);
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          '텍스트 수정',
+          style: TextStyle(
+            color: ColorTokens.semantic['text']['body'],
+          ),
+        ),
+        content: TextField(
+          controller: textController,
+          maxLines: null,
+          decoration: InputDecoration(
+            hintText: '중국어 텍스트를 입력하세요',
+            hintStyle: TextStyle(
+              color: ColorTokens.semantic['text']['body'].withOpacity(0.5),
+            ),
+          ),
+          style: TextStyle(
+            color: ColorTokens.semantic['text']['body'],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              '취소',
+              style: TextStyle(
+                color: ColorTokens.semantic['text']['body'],
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _editPageText(pageIndex, textController.text);
+            },
+            child: Text(
+              '저장',
+              style: TextStyle(
+                color: ColorTokens.semantic['text']['body'],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -214,12 +341,8 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                         _speak(text);
                       },
                       currentPlayingIndex: _currentPlayingIndex,
-                      onDeletePage: () {
-                        // TODO: Implement page deletion
-                      },
-                      onEditText: (text) {
-                        // TODO: Implement text editing
-                      },
+                      onDeletePage: () => _deletePage(index),
+                      onEditText: (text) => _showEditDialog(index, text),
                       onToggleTranslation: () {
                         setState(() {
                           showTranslation = !showTranslation;

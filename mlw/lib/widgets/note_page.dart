@@ -121,8 +121,51 @@ class _NotePageState extends State<NotePage> with SingleTickerProviderStateMixin
             ),
             onTap: () {
               Navigator.pop(context);
+              _showDeleteConfirmation(context);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteConfirmation(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          '페이지 삭제',
+          style: TextStyle(
+            color: ColorTokens.semantic['text']['body'],
+          ),
+        ),
+        content: Text(
+          '이 페이지를 삭제하시겠습니까?',
+          style: TextStyle(
+            color: ColorTokens.semantic['text']['body'],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              '취소',
+              style: TextStyle(
+                color: ColorTokens.semantic['text']['body'],
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
               widget.onDeletePage?.call();
             },
+            child: Text(
+              '삭제',
+              style: TextStyle(
+                color: ColorTokens.semantic['text']['body'],
+              ),
+            ),
           ),
         ],
       ),
