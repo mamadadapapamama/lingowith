@@ -19,6 +19,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:mlw/theme/tokens/typography_tokens.dart';
 import 'package:mlw/repositories/note_repository.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:mlw/models/text_display_mode.dart';
 
 class NoteDetailScreen extends StatefulWidget {
   final note_model.Note note;
@@ -38,6 +39,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   int? _currentPlayingIndex;
   Set<String> highlightedTexts = {};
   int _currentPageIndex = 0;
+  TextDisplayMode _displayMode = TextDisplayMode.both;
 
   @override
   void initState() {
@@ -264,108 +266,87 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    
     return Scaffold(
       body: SafeArea(
         child: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.all(16.0),
+            // AppBar
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
                 children: [
+                  // Back button
                   IconButton(
                     icon: const Icon(Icons.arrow_back),
                     onPressed: () => Navigator.pop(context),
+                    color: ColorTokens.getColor('text.body'),
                   ),
-                  Expanded(
-                    child: Text(
-                      widget.note.title,
-                      style: theme.textTheme.headlineMedium,
-                      overflow: TextOverflow.ellipsis,
+                  // Title
+                  Text(
+                    widget.note.title,
+                    style: TypographyTokens.getStyle('heading.h2').copyWith(
+                      color: ColorTokens.getColor('text.body'),
                     ),
                   ),
-                  InkWell(
-                    onTap: () {
-                      if (widget.note.flashCards.isNotEmpty) {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => FlashCardScreen(
-                              flashCards: widget.note.flashCards,
-                            ),
+                  const Spacer(),
+                  // Page counter
+                  Text(
+                    '${_currentPageIndex + 1}/${widget.note.pages.length} page${widget.note.pages.length > 1 ? 's' : ''}',
+                    style: TypographyTokens.getStyle('body.medium').copyWith(
+                      color: ColorTokens.getColor('text.body'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // Flashcard counter
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: ColorTokens.getColor('primary.400').withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.style,
+                          size: 16,
+                          color: ColorTokens.getColor('primary.400'),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${widget.note.flashCards.length}',
+                          style: TypographyTokens.getStyle('body.medium').copyWith(
+                            color: ColorTokens.getColor('primary.400'),
+                            fontWeight: FontWeight.w600,
                           ),
-                        );
-                      }
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.primary.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.style,
-                            size: 16,
-                            color: theme.colorScheme.primary,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${widget.note.flashCards.length}',
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.primary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
             ),
-            
-            if (widget.note.pages.isNotEmpty) ...[
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Page ${_currentPageIndex + 1} of ${widget.note.pages.length}',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.textTheme.bodySmall?.color?.withOpacity(0.6),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(2),
-                      child: LinearProgressIndicator(
-                        value: ((_currentPageIndex + 1) / widget.note.pages.length),
-                        backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          theme.colorScheme.primary,
-                        ),
-                        minHeight: 4,
-                      ),
-                    ),
-                  ],
+            // Progress bar
+            Stack(
+              children: [
+                // 배경 바
+                Container(
+                  width: double.infinity,
+                  height: 4,
+                  color: ColorTokens.getColor('base.200'),
                 ),
-              ),
-              const SizedBox(height: 16),
-            ],
-
+                // 진행률 바
+                Container(
+                  width: MediaQuery.of(context).size.width * 
+                    (widget.note.pages.isEmpty ? 0 : (_currentPageIndex + 1) / widget.note.pages.length),
+                  height: 4,
+                  color: ColorTokens.getColor('secondary.400'),
+                ),
+              ],
+            ),
             // 페이지 컨텐츠
             Expanded(
               child: PageView.builder(
@@ -379,7 +360,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                   final page = widget.note.pages[index];
                   return NotePage(
                     page: page,
-                    showTranslation: showTranslation,
+                    displayMode: _displayMode,
                     isHighlightMode: isHighlightMode,
                     highlightedTexts: highlightedTexts,
                     onHighlighted: _onTextSelected,
@@ -401,7 +382,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: theme.scaffoldBackgroundColor,
+                color: Theme.of(context).scaffoldBackgroundColor,
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.05),
@@ -425,27 +406,57 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                     icon: Icon(
                       Icons.arrow_back_ios,
                       color: _currentPageIndex > 0
-                          ? theme.iconTheme.color
-                          : theme.disabledColor,
+                          ? Theme.of(context).iconTheme.color
+                          : Theme.of(context).disabledColor,
                     ),
                   ),
                   
-                  // 모드 토글 버튼
+                  // 모드 토글 버튼들
                   Row(
                     children: [
+                      // 원문만 보기
                       IconButton(
                         onPressed: () {
                           setState(() {
-                            showTranslation = !showTranslation;
+                            _displayMode = TextDisplayMode.originalOnly;
+                          });
+                        },
+                        icon: Icon(
+                          Icons.subject,
+                          color: _displayMode == TextDisplayMode.originalOnly
+                              ? ColorTokens.getColor('primary.400')
+                              : ColorTokens.getColor('text.body'),
+                        ),
+                      ),
+                      // 번역만 보기
+                      IconButton(
+                        onPressed: () {
+                          setState(() {
+                            _displayMode = TextDisplayMode.translationOnly;
                           });
                         },
                         icon: Icon(
                           Icons.translate,
-                          color: showTranslation
-                              ? theme.colorScheme.primary
-                              : theme.disabledColor,
+                          color: _displayMode == TextDisplayMode.translationOnly
+                              ? ColorTokens.getColor('primary.400')
+                              : ColorTokens.getColor('text.body'),
                         ),
                       ),
+                      // 둘 다 보기
+                      IconButton(
+                        onPressed: () {
+                          setState(() {
+                            _displayMode = TextDisplayMode.both;
+                          });
+                        },
+                        icon: Icon(
+                          Icons.view_agenda,
+                          color: _displayMode == TextDisplayMode.both
+                              ? ColorTokens.getColor('primary.400')
+                              : ColorTokens.getColor('text.body'),
+                        ),
+                      ),
+                      // TTS 버튼
                       IconButton(
                         onPressed: () {
                           if (widget.note.pages.isNotEmpty) {
@@ -455,8 +466,8 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                         icon: Icon(
                           Icons.volume_up,
                           color: _currentPlayingIndex == _currentPageIndex
-                              ? theme.colorScheme.primary
-                              : theme.iconTheme.color,
+                              ? ColorTokens.getColor('primary.400')
+                              : ColorTokens.getColor('text.body'),
                         ),
                       ),
                     ],
@@ -474,8 +485,8 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                     icon: Icon(
                       Icons.arrow_forward_ios,
                       color: _currentPageIndex < widget.note.pages.length - 1
-                          ? theme.iconTheme.color
-                          : theme.disabledColor,
+                          ? Theme.of(context).iconTheme.color
+                          : Theme.of(context).disabledColor,
                     ),
                   ),
                 ],

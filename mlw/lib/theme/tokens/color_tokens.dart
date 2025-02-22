@@ -68,27 +68,25 @@ class ColorTokens {
 
   static Color getColor(String path) {
     final parts = path.split('.');
-    if (parts.length == 1) {
-      // semantic color (e.g., 'text')
-      return semantic['surface']?['base'] ?? Colors.white;
-    } else if (parts.length == 2) {
-      // semantic color with variant (e.g., 'text.body')
+    if (parts.length == 2) {
       final category = parts[0];
       final variant = parts[1];
-      return semantic[category]?[variant] ?? Colors.black;
-    } else if (parts.length == 3) {
-      // palette color (e.g., 'primary.400')
-      final palette = parts[0];
-      final shade = int.tryParse(parts[1]) ?? 400;
       
-      switch (palette) {
-        case 'primary':
-          return primary[shade] ?? primary[400]!;
-        case 'secondary':
-          return secondary[shade] ?? secondary[400]!;
-        default:
-          return Colors.black;
+      // numeric variant인 경우 palette color로 처리
+      if (int.tryParse(variant) != null) {
+        final shade = int.tryParse(variant) ?? 400;
+        switch (category) {
+          case 'primary':
+            return primary[shade] ?? primary[400]!;
+          case 'secondary':
+            return secondary[shade] ?? secondary[400]!;
+          case 'base':
+            return base[shade] ?? base[200]!;
+        }
       }
+      
+      // semantic color with variant (e.g., 'text.body')
+      return semantic[category]?[variant] ?? Colors.black;
     }
     
     return Colors.black;
