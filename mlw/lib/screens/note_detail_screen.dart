@@ -365,6 +365,122 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
               ),
               const SizedBox(height: 16),
             ],
+
+            // 페이지 컨텐츠
+            Expanded(
+              child: PageView.builder(
+                itemCount: widget.note.pages.length,
+                onPageChanged: (index) {
+                  setState(() {
+                    _currentPageIndex = index;
+                  });
+                },
+                itemBuilder: (context, index) {
+                  final page = widget.note.pages[index];
+                  return NotePage(
+                    page: page,
+                    showTranslation: showTranslation,
+                    isHighlightMode: isHighlightMode,
+                    highlightedTexts: highlightedTexts,
+                    onHighlighted: _onTextSelected,
+                    onSpeak: (text) {
+                      setState(() {
+                        _currentPlayingIndex = index;
+                      });
+                      _speak(text);
+                    },
+                    currentPlayingIndex: _currentPlayingIndex,
+                    onDeletePage: () => _deletePage(index),
+                    onEditText: (text) => _showEditDialog(index, text),
+                  );
+                },
+              ),
+            ),
+
+            // 하단 컨트롤 바
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: theme.scaffoldBackgroundColor,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    offset: const Offset(0, -1),
+                    blurRadius: 8,
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // 이전 페이지 버튼
+                  IconButton(
+                    onPressed: _currentPageIndex > 0
+                        ? () {
+                            setState(() {
+                              _currentPageIndex--;
+                            });
+                          }
+                        : null,
+                    icon: Icon(
+                      Icons.arrow_back_ios,
+                      color: _currentPageIndex > 0
+                          ? theme.iconTheme.color
+                          : theme.disabledColor,
+                    ),
+                  ),
+                  
+                  // 모드 토글 버튼
+                  Row(
+                    children: [
+                      IconButton(
+                        onPressed: () {
+                          setState(() {
+                            showTranslation = !showTranslation;
+                          });
+                        },
+                        icon: Icon(
+                          Icons.translate,
+                          color: showTranslation
+                              ? theme.colorScheme.primary
+                              : theme.disabledColor,
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () {
+                          if (widget.note.pages.isNotEmpty) {
+                            _speak(widget.note.pages[_currentPageIndex].extractedText);
+                          }
+                        },
+                        icon: Icon(
+                          Icons.volume_up,
+                          color: _currentPlayingIndex == _currentPageIndex
+                              ? theme.colorScheme.primary
+                              : theme.iconTheme.color,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  // 다음 페이지 버튼
+                  IconButton(
+                    onPressed: _currentPageIndex < widget.note.pages.length - 1
+                        ? () {
+                            setState(() {
+                              _currentPageIndex++;
+                            });
+                          }
+                        : null,
+                    icon: Icon(
+                      Icons.arrow_forward_ios,
+                      color: _currentPageIndex < widget.note.pages.length - 1
+                          ? theme.iconTheme.color
+                          : theme.disabledColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),

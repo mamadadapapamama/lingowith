@@ -131,7 +131,16 @@ class TranslatorService {
     await TranslationCache.initialize();
   }
   
-  Future<String> translate(String text, {String from = 'zh', String to = 'ko'}) async {
+  String _convertHtmlEntities(String text) {
+    return text
+      .replaceAll('&quot;', '"')
+      .replaceAll('&#39;', "'")
+      .replaceAll('&lt;', '<')
+      .replaceAll('&gt;', '>')
+      .replaceAll('&amp;', '&');
+  }
+  
+  Future<String> translate(String text, {String from = 'auto', String to = 'ko'}) async {
     try {
       final keyJson = await rootBundle.loadString('assets/service-account-key.json');
       final jsonMap = json.decode(keyJson);
@@ -157,13 +166,14 @@ class TranslatorService {
           throw Exception('No translation result');
         }
 
-        return response.translations!.first.translatedText ?? text;
+        String translatedText = response.translations!.first.translatedText ?? '';
+        return _convertHtmlEntities(translatedText);
       } finally {
         client.close();
       }
     } catch (e) {
       print('Translation error: $e');
-      return text;
+      rethrow;
     }
   }
 
@@ -212,7 +222,9 @@ class TranslatorService {
       );
       
       final response = await api.projects.locations.translateText(request, parent);
-      final translations = response.translations?.map((t) => t.translatedText ?? '').toList() ?? [];
+      final translations = response.translations
+          ?.map((t) => _convertHtmlEntities(t.translatedText ?? ''))
+          .toList() ?? [];
 
       // Cache new translations
       for (int i = 0; i < translations.length; i++) {
