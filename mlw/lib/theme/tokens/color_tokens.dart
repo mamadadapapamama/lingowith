@@ -36,6 +36,17 @@ class ColorTokens {
     700: Color(0xFF0E2823),
   };
 
+  // Tertiary Colors
+  static const Map<int, Color> tertiary = {
+    100: Color(0xFFFFF7D8),
+    200: Color(0xFFFFEA9D),
+    300: Color(0xFFFFE277),
+    400: Color(0xFFFFD53C),
+    500: Color(0xFFCCAA30),
+    600: Color(0xFF998024),
+    700: Color(0xFF665518),
+  };
+
   // Semantic Colors
   static const Map<String, dynamic> semantic = {
     'text': {
@@ -72,7 +83,6 @@ class ColorTokens {
       final category = parts[0];
       final variant = parts[1];
       
-      // numeric variant인 경우 palette color로 처리
       if (int.tryParse(variant) != null) {
         final shade = int.tryParse(variant) ?? 400;
         switch (category) {
@@ -80,6 +90,8 @@ class ColorTokens {
             return primary[shade] ?? primary[400]!;
           case 'secondary':
             return secondary[shade] ?? secondary[400]!;
+          case 'tertiary':
+            return tertiary[shade] ?? tertiary[400]!;
           case 'base':
             return base[shade] ?? base[200]!;
         }

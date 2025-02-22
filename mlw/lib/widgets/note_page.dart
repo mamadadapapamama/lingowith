@@ -8,6 +8,8 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:mlw/screens/image_viewer_screen.dart';
 import 'package:mlw/screens/note_detail_screen.dart';
 import 'package:mlw/models/text_display_mode.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 
 class NotePage extends StatefulWidget {
   final note_model.Page page;
@@ -235,14 +237,17 @@ class _NotePageState extends State<NotePage> {
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Expanded(  // 텍스트가 너무 길 경우 줄바꿈
-                      child: Container(
-                        constraints: BoxConstraints(
-                          maxWidth: MediaQuery.of(context).size.width - 80,  // 화면 너비 - (패딩 + 버튼 너비 + 여유 공간)
-                        ),
+                      child: GestureDetector(
+                        onLongPress: () {
+                          _showTextOptions(context, originalSentences[i]);
+                        },
                         child: Text(
                           '${originalSentences[i]}。',
                           style: TypographyTokens.getStyle('heading.h3').copyWith(
                             color: ColorTokens.getColor('text.body'),
+                            backgroundColor: widget.highlightedTexts.contains(originalSentences[i])
+                              ? ColorTokens.getColor('tertiary.400')
+                              : Colors.transparent,
                           ),
                         ),
                       ),
@@ -354,5 +359,64 @@ class _NotePageState extends State<NotePage> {
       ),
     );
     _resetButtonStates();  // 화면 복귀 시 상태 리셋
+  }
+
+  void _showTextOptions(BuildContext context, String text) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: ColorTokens.getColor('base.0'),
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(16),
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: Icon(
+                  Icons.content_copy,
+                  color: ColorTokens.getColor('text.body'),
+                ),
+                title: Text(
+                  'Copy',
+                  style: TypographyTokens.getStyle('body.medium').copyWith(
+                    color: ColorTokens.getColor('text.body'),
+                  ),
+                ),
+                onTap: () {
+                  Clipboard.setData(ClipboardData(text: text));
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('텍스트가 복사되었습니다')),
+                  );
+                },
+              ),
+              ListTile(
+                leading: Icon(
+                  Icons.highlight,
+                  color: ColorTokens.getColor('text.body'),
+                ),
+                title: Text(
+                  'Highlight',
+                  style: TypographyTokens.getStyle('body.medium').copyWith(
+                    color: ColorTokens.getColor('text.body'),
+                  ),
+                ),
+                onTap: () {
+                  widget.onHighlighted(text);
+                  Navigator.pop(context);
+                },
+                tileColor: widget.highlightedTexts.contains(text)
+                  ? ColorTokens.getColor('tertiary.200')
+                  : null,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 } 
