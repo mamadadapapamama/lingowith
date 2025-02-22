@@ -12,7 +12,7 @@ import 'package:googleapis/vision/v1.dart' as vision;
 import 'package:googleapis_auth/auth_io.dart';
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:mlw/screens/flashcard_screen.dart';
+import 'package:mlw/screens/flash_card_screen.dart';
 import 'package:mlw/theme/tokens/color_tokens.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:path_provider/path_provider.dart';
@@ -37,6 +37,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   String? selectedText;
   int? _currentPlayingIndex;
   Set<String> highlightedTexts = {};
+  int _currentPageIndex = 0;
 
   @override
   void initState() {
@@ -266,132 +267,106 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     final theme = Theme.of(context);
     
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          widget.note.title,
-          style: theme.textTheme.headlineMedium,
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.style),
-            onPressed: () {
-              if (widget.note.flashCards.isNotEmpty) {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => FlashCardScreen(
-                      flashCards: widget.note.flashCards,
-                      noteId: widget.note.id,
-                    ),
-                  ),
-                );
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('플래시카드가 없습니다')),
-                );
-              }
-            },
-          ),
-          Container(
-            margin: const EdgeInsets.only(right: 16),
-            child: CircleAvatar(
-              backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
-              child: Text(
-                '${widget.note.flashCards.length}',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.primary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-      body: widget.note.pages.isEmpty
-          ? Center(
-              child: Text(
-                '페이지가 없습니다',
-                style: theme.textTheme.bodyLarge,
-              ),
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.all(16.0),
-              itemCount: widget.note.pages.length,
-              itemBuilder: (context, index) {
-                final page = widget.note.pages[index];
-                return Column(
-                  children: [
-                    NotePage(
-                      page: page,
-                      showTranslation: showTranslation,
-                      isHighlightMode: isHighlightMode,
-                      highlightedTexts: highlightedTexts,
-                      onHighlighted: _onTextSelected,
-                      onSpeak: (text) {
-                        setState(() {
-                          _currentPlayingIndex = index;
-                        });
-                        _speak(text);
-                      },
-                      currentPlayingIndex: _currentPlayingIndex,
-                      onDeletePage: () => _deletePage(index),
-                      onEditText: (text) => _showEditDialog(index, text),
-                      onToggleTranslation: () {
-                        setState(() {
-                          showTranslation = !showTranslation;
-                        });
-                      },
-                      onToggleHighlight: () {
-                        _toggleHighlightMode();
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-                );
-              },
-            ),
-      floatingActionButton: Column(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          if (isHighlightMode && selectedText != null)
+      body: SafeArea(
+        child: Column(
+          children: [
             Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: FloatingActionButton.extended(
-                onPressed: () => _addToFlashcards(selectedText!),
-                label: Text(
-                  'Add Page',
-                  style: TextStyle(
-                    color: ColorTokens.semantic['text']['primary'],
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back),
+                    onPressed: () => Navigator.pop(context),
                   ),
-                ),
-                icon: Icon(
-                  Icons.add,
-                  color: ColorTokens.semantic['text']['primary'],
-                ),
-                backgroundColor: ColorTokens.semantic['surface']['button']['secondary'],
+                  Expanded(
+                    child: Text(
+                      widget.note.title,
+                      style: theme.textTheme.headlineMedium,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  InkWell(
+                    onTap: () {
+                      if (widget.note.flashCards.isNotEmpty) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => FlashCardScreen(
+                              flashCards: widget.note.flashCards,
+                            ),
+                          ),
+                        );
+                      }
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.style,
+                            size: 16,
+                            color: theme.colorScheme.primary,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${widget.note.flashCards.length}',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.colorScheme.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-          FloatingActionButton(
-            onPressed: () => _showImageSourceActionSheet(context),
-            backgroundColor: ColorTokens.semantic['surface']['button']['secondary'],
-            child: SvgPicture.asset(
-              'assets/icon/addimage.svg',
-              width: 24,
-              height: 24,
-              colorFilter: ColorFilter.mode(
-                ColorTokens.semantic['text']['primary'],
-                BlendMode.srcIn,
+            
+            if (widget.note.pages.isNotEmpty) ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Page ${_currentPageIndex + 1} of ${widget.note.pages.length}',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.textTheme.bodySmall?.color?.withOpacity(0.6),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(2),
+                      child: LinearProgressIndicator(
+                        value: ((_currentPageIndex + 1) / widget.note.pages.length),
+                        backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          theme.colorScheme.primary,
+                        ),
+                        minHeight: 4,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ),
-        ],
+              const SizedBox(height: 16),
+            ],
+          ],
+        ),
       ),
     );
   }

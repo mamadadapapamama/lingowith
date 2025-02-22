@@ -34,6 +34,63 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
+class _ProcessingDialog extends StatelessWidget {
+  final int totalImages;
+  final int currentImage;
+
+  const _ProcessingDialog({
+    required this.totalImages,
+    this.currentImage = 0,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = currentImage / totalImages;
+    final percent = (progress * 100).toInt();
+
+    return Dialog(
+      backgroundColor: Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 16),
+            SizedBox(
+              width: 48,
+              height: 48,
+              child: CircularProgressIndicator(
+                value: progress,
+                backgroundColor: ColorTokens.getColor('primary.100'),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  ColorTokens.getColor('primary.400'),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              currentImage == 0 
+                ? '이미지 처리 준비 중...'
+                : '이미지 처리 중 ($currentImage/$totalImages)',
+              style: TypographyTokens.getStyle('body.medium').copyWith(
+                color: ColorTokens.getColor('text.body'),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '$percent%',
+              style: TypographyTokens.getStyle('heading.h2').copyWith(
+                color: ColorTokens.getColor('primary.400'),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _HomeScreenState extends State<HomeScreen> {
   final NoteRepository _noteRepository = NoteRepository();
   final NoteSpaceRepository _spaceRepository = NoteSpaceRepository();
@@ -731,64 +788,6 @@ class _HomeScreenState extends State<HomeScreen> {
           SnackBar(content: Text('Failed to create a note. Please try again.: ${e.toString()}')),
         );
       }
-    }
-  }
-
-  // 진행률 표시 dialog widget
-  class _ProcessingDialog extends StatelessWidget {
-    final int totalImages;
-    final int currentImage;
-
-    const _ProcessingDialog({
-      required this.totalImages,
-      this.currentImage = 0,
-    });
-
-    @override
-    Widget build(BuildContext context) {
-      final progress = currentImage / totalImages;
-      final percent = (progress * 100).toInt();
-
-      return Dialog(
-        backgroundColor: Colors.white,
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 16),
-              SizedBox(
-                width: 48,
-                height: 48,
-                child: CircularProgressIndicator(
-                  value: progress,
-                  backgroundColor: ColorTokens.getColor('primary.100'),
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    ColorTokens.getColor('primary.400'),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                currentImage == 0 
-                  ? '이미지 처리 준비 중...'
-                  : '이미지 처리 중 ($currentImage/$totalImages)',
-                style: TypographyTokens.getStyle('body.medium').copyWith(
-                  color: ColorTokens.getColor('text.body'),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                '$percent%',
-                style: TypographyTokens.getStyle('heading.h2').copyWith(
-                  color: ColorTokens.getColor('primary.400'),
-                ),
-              ),
-              const SizedBox(height: 16),
-            ],
-          ),
-        ),
-      );
     }
   }
 
