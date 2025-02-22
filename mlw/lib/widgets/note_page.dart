@@ -219,25 +219,35 @@ class _NotePageState extends State<NotePage> {
     List<Widget> widgets = [];
     
     for (var i = 0; i < originalSentences.length; i++) {
-      if (widget.displayMode != TextDisplayMode.translationOnly) {
-        final int currentIndex = i;  // closure를 위해 현재 인덱스 저장
-        widgets.add(
-          Container(
-            width: double.infinity,
-            margin: const EdgeInsets.only(bottom: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Wrap(  // Row 대신 Wrap 사용하여 overflow 방지
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 8,  // 아이템 사이 간격
+      final int currentIndex = i;
+      
+      // Container를 먼저 추가하고 그 안에서 조건부 렌더링
+      widgets.add(
+        Container(
+          width: double.infinity,
+          margin: const EdgeInsets.only(bottom: 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 원문 텍스트 (originalOnly 또는 both 모드일 때만 표시)
+              if (widget.displayMode != TextDisplayMode.translationOnly)
+                Row(  // Wrap 대신 Row 사용
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Text(
-                      '${originalSentences[i]}。',
-                      style: TypographyTokens.getStyle('heading.h3').copyWith(
-                        color: ColorTokens.getColor('text.body'),
+                    Expanded(  // 텍스트가 너무 길 경우 줄바꿈
+                      child: Container(
+                        constraints: BoxConstraints(
+                          maxWidth: MediaQuery.of(context).size.width - 80,  // 화면 너비 - (패딩 + 버튼 너비 + 여유 공간)
+                        ),
+                        child: Text(
+                          '${originalSentences[i]}。',
+                          style: TypographyTokens.getStyle('heading.h3').copyWith(
+                            color: ColorTokens.getColor('text.body'),
+                          ),
+                        ),
                       ),
                     ),
+                    const SizedBox(width: 8),
                     Container(
                       width: 24,
                       height: 24,
@@ -261,21 +271,21 @@ class _NotePageState extends State<NotePage> {
                     ),
                   ],
                 ),
-                if (widget.displayMode != TextDisplayMode.originalOnly && i < translatedSentences.length)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),  // left padding 제거
-                    child: Text(
-                      translatedSentences[i],
-                      style: TypographyTokens.getStyle('body.small').copyWith(
-                        color: ColorTokens.getColor('text.translation'),
-                      ),
+              // 번역 텍스트 (translationOnly 또는 both 모드일 때만 표시)
+              if (widget.displayMode != TextDisplayMode.originalOnly && i < translatedSentences.length)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    translatedSentences[i],
+                    style: TypographyTokens.getStyle('body.small').copyWith(
+                      color: ColorTokens.getColor('text.translation'),
                     ),
                   ),
-              ],
-            ),
+                ),
+            ],
           ),
-        );
-      }
+        ),
+      );
 
       // 문장 사이의 간격
       if (i < originalSentences.length - 1) {
