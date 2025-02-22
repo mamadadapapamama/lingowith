@@ -175,34 +175,58 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _pickImage(ImageSource source) async {
     final ImagePicker _picker = ImagePicker();
     try {
-      print('Attempting to pick image from: $source');
-      final XFile? pickedFile = await _picker.pickImage(
-        source: source,
-        maxWidth: 1200,
-        maxHeight: 1200,
-        imageQuality: 85,
-      );
+      if (source == ImageSource.gallery) {
+        // 갤러리에서 여러 이미지 선택
+        final List<XFile> pickedFiles = await _picker.pickMultiImage(
+          maxWidth: 1200,
+          maxHeight: 1200,
+          imageQuality: 85,
+        );
 
-      if (pickedFile == null) {
-        print('No image selected.');
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No image selected.')),
-          );
+        if (pickedFiles.isEmpty) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('No images selected.')),
+            );
+          }
+          return;
         }
-        return;
+
+        // 첫 번째 이미지로 _image 설정 (UI 표시용)
+        _image = File(pickedFiles.first.path);
+        
+        // 모든 선택된 이미지로 노트 생성
+        await _createNoteWithMultipleImages(pickedFiles);
+        
+      } else {
+        // 카메라는 단일 이미지 촬영
+        final XFile? pickedFile = await _picker.pickImage(
+          source: source,
+          maxWidth: 1200,
+          maxHeight: 1200,
+          imageQuality: 85,
+        );
+
+        if (pickedFile == null) {
+          print('No image selected.');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('No image selected.')),
+            );
+          }
+          return;
+        }
+
+        final imageFile = File(pickedFile.path);
+        if (!await imageFile.exists()) {
+          throw Exception('There is no image file.');
+        }
+
+        _image = imageFile;  // Set the _image variable
+        print('Image selected: ${imageFile.path}');
+
+        await _createNote();
       }
-
-      final imageFile = File(pickedFile.path);
-      if (!await imageFile.exists()) {
-        throw Exception('There is no image file.');
-      }
-
-      _image = imageFile;  // Set the _image variable
-      print('Image selected: ${imageFile.path}');
-
-      await _createNote();
-
     } catch (e) {
       print('Image picking error: $e');
       if (mounted) {
@@ -617,6 +641,154 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (e) {
       print('Vision API error: $e');
       rethrow;
+    }
+  }
+
+  Future<void> _createNoteWithMultipleImages(List<XFile> imageFiles) async {
+    // 진행 상태를 표시할 dialog 표시
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => _ProcessingDialog(
+        totalImages: imageFiles.length,
+      ),
+    );
+
+    try {
+      List<note_model.Page> pages = [];
+      
+      // 각 이미지에 대해 처리
+      for (var i = 0; i < imageFiles.length; i++) {
+        if (!mounted) return;
+
+        // 진행률 업데이트
+        Navigator.of(context).pop(); // 이전 dialog 제거
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => _ProcessingDialog(
+            totalImages: imageFiles.length,
+            currentImage: i + 1,
+          ),
+        );
+
+        final imageFile = imageFiles[i];
+        final file = File(imageFile.path);
+        final imagePath = await _saveImageLocally(file);
+        final extractedText = await _extractTextFromImage(await file.readAsBytes());
+        
+        String translatedText = '';
+        if (extractedText.isNotEmpty) {
+          final lines = extractedText.split('\n').where((s) => s.trim().isNotEmpty).toList();
+          final translatedLines = await Future.wait(
+            lines.map((line) => translatorService.translate(line, from: 'zh', to: 'ko'))
+          );
+          translatedText = translatedLines.join('\n');
+        }
+
+        pages.add(note_model.Page(
+          imageUrl: imagePath,
+          extractedText: extractedText,
+          translatedText: translatedText,
+        ));
+      }
+
+      // 모든 페이지를 포함한 새 노트 생성
+      final newNote = note_model.Note(
+        id: '',
+        spaceId: _currentNoteSpace?.id ?? '',
+        userId: userId,
+        title: 'Note #${_notes.length + 1}',
+        content: '',
+        pages: pages,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      final createdNote = await _noteRepository.createNote(newNote);
+
+      if (mounted) {
+        // dialog 제거
+        Navigator.of(context).pop();
+        
+        setState(() {
+          _notes = [..._notes, createdNote];
+        });
+        
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => NoteDetailScreen(note: createdNote),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        // dialog 제거
+        Navigator.of(context).pop();
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to create a note. Please try again.: ${e.toString()}')),
+        );
+      }
+    }
+  }
+
+  // 진행률 표시 dialog widget
+  class _ProcessingDialog extends StatelessWidget {
+    final int totalImages;
+    final int currentImage;
+
+    const _ProcessingDialog({
+      required this.totalImages,
+      this.currentImage = 0,
+    });
+
+    @override
+    Widget build(BuildContext context) {
+      final progress = currentImage / totalImages;
+      final percent = (progress * 100).toInt();
+
+      return Dialog(
+        backgroundColor: Colors.white,
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 16),
+              SizedBox(
+                width: 48,
+                height: 48,
+                child: CircularProgressIndicator(
+                  value: progress,
+                  backgroundColor: ColorTokens.getColor('primary.100'),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    ColorTokens.getColor('primary.400'),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                currentImage == 0 
+                  ? '이미지 처리 준비 중...'
+                  : '이미지 처리 중 ($currentImage/$totalImages)',
+                style: TypographyTokens.getStyle('body.medium').copyWith(
+                  color: ColorTokens.getColor('text.body'),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '$percent%',
+                style: TypographyTokens.getStyle('heading.h2').copyWith(
+                  color: ColorTokens.getColor('primary.400'),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      );
     }
   }
 
