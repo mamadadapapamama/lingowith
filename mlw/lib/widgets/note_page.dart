@@ -174,10 +174,12 @@ class _NotePageState extends State<NotePage> {
           // Text content
           Expanded(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: _buildSentences(widget.page.extractedText, widget.page.translatedText),
+              child: Padding(  // Container 대신 Padding 사용
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: _buildSentences(widget.page.extractedText, widget.page.translatedText),
+                ),
               ),
             ),
           ),
@@ -220,55 +222,56 @@ class _NotePageState extends State<NotePage> {
       if (widget.displayMode != TextDisplayMode.translationOnly) {
         final int currentIndex = i;  // closure를 위해 현재 인덱스 저장
         widgets.add(
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,  // Row의 크기를 내용물 크기에 맞춤
-            children: [
-              Text(
-                '${originalSentences[i]}。',
-                style: TypographyTokens.getStyle('heading.h3').copyWith(
-                  color: ColorTokens.getColor('text.body'),
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(  // Row 대신 Wrap 사용하여 overflow 방지
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 8,  // 아이템 사이 간격
+                  children: [
+                    Text(
+                      '${originalSentences[i]}。',
+                      style: TypographyTokens.getStyle('heading.h3').copyWith(
+                        color: ColorTokens.getColor('text.body'),
+                      ),
+                    ),
+                    Container(
+                      width: 24,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        color: _playingSentenceIndex == currentIndex
+                          ? ColorTokens.getColor('secondary.400')
+                          : ColorTokens.getColor('primary.25'),
+                        borderRadius: BorderRadius.circular(100),
+                      ),
+                      child: IconButton(
+                        padding: EdgeInsets.zero,
+                        icon: Icon(
+                          Icons.volume_up,
+                          size: 16,
+                          color: _playingSentenceIndex == currentIndex
+                            ? ColorTokens.getColor('base.0')
+                            : ColorTokens.getColor('secondary.100'),
+                        ),
+                        onPressed: () => _handleTTS(originalSentences[currentIndex], currentIndex),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                width: 24,
-                height: 24,
-                decoration: BoxDecoration(
-                  color: _playingSentenceIndex == currentIndex
-                    ? ColorTokens.getColor('secondary.400')
-                    : ColorTokens.getColor('primary.25'),
-                  borderRadius: BorderRadius.circular(100),
-                ),
-                child: IconButton(
-                  padding: EdgeInsets.zero,
-                  icon: Icon(
-                    Icons.volume_up,
-                    size: 16,
-                    color: _playingSentenceIndex == currentIndex
-                      ? ColorTokens.getColor('base.0')
-                      : ColorTokens.getColor('secondary.100'),
+                if (widget.displayMode != TextDisplayMode.originalOnly && i < translatedSentences.length)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),  // left padding 제거
+                    child: Text(
+                      translatedSentences[i],
+                      style: TypographyTokens.getStyle('body.small').copyWith(
+                        color: ColorTokens.getColor('text.translation'),
+                      ),
+                    ),
                   ),
-                  onPressed: () => _handleTTS(originalSentences[currentIndex], currentIndex),
-                ),
-              ),
-            ],
-          ),
-        );
-      }
-
-      // 번역 텍스트 (translationOnly 또는 both 모드일 때만 표시)
-      if (widget.displayMode != TextDisplayMode.originalOnly && i < translatedSentences.length) {
-        widgets.add(
-          Padding(
-            padding: widget.displayMode == TextDisplayMode.both
-              ? const EdgeInsets.only(left: 16, bottom: 16, top: 4)  // spacing 4px
-              : const EdgeInsets.only(left: 16, bottom: 16),
-            child: Text(
-              translatedSentences[i],
-              style: TypographyTokens.getStyle('body.small').copyWith(
-                color: ColorTokens.getColor('text.translation'),
-              ),
+              ],
             ),
           ),
         );
