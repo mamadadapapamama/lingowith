@@ -2,11 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mlw/models/note.dart' as note_model;
 import 'package:flutter_tts/flutter_tts.dart';
-import 'package:mlw/widgets/text_highlighter.dart';
 import 'package:mlw/widgets/note_page.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:mlw/services/translator.dart';
 import 'package:googleapis/vision/v1.dart' as vision;
 import 'package:googleapis_auth/auth_io.dart';
@@ -14,12 +12,11 @@ import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mlw/screens/flash_card_screen.dart';
 import 'package:mlw/theme/tokens/color_tokens.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:mlw/theme/tokens/typography_tokens.dart';
-import 'package:mlw/repositories/note_repository.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:mlw/models/text_display_mode.dart';
+
 
 class NoteDetailScreen extends StatefulWidget {
   final note_model.Note note;
@@ -92,19 +89,65 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     });
   }
 
-  void _onTextSelected(String text) {
-    setState(() {
-      selectedText = text;
-    });
+  void _onTextSelected(String text) async {
+    try {
+      if (highlightedTexts.contains(text)) {
+        return;
+      }
+
+      final translatedText = await translatorService.translate(text, from: 'zh', to: 'ko');
+      
+      // 새 플래시카드 생성
+      final newFlashCard = note_model.FlashCard(
+        front: text,
+        back: translatedText,
+      );
+
+      // 노트 업데이트
+      final updatedFlashCards = [...widget.note.flashCards, newFlashCard];
+      final updatedNote = widget.note.copyWith(
+        flashCards: updatedFlashCards,
+        updatedAt: DateTime.now(),
+      );
+
+      // Firestore 업데이트
+      await firestore.collection('notes').doc(widget.note.id).update(updatedNote.toFirestore());
+
+      // UI 업데이트
+      setState(() {
+        widget.note.flashCards.add(newFlashCard);
+        highlightedTexts.add(text);
+      });
+
+      // 알림 표시
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('플래시카드에 저장되었습니다'),
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error saving flashcard: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('플래시카드 저장 중 오류가 발생했습니다'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    }
   }
 
   void _addToFlashcards(String text) async {
     try {
-      final translation = await translatorService.translate(text, from: 'zh', to: 'ko');
+      final translatedText = await translatorService.translate(text, from: 'zh', to: 'ko');
       
       final newFlashCard = note_model.FlashCard(
         front: text,
-        back: translation,
+        back: translatedText,
       );
       
       final updatedNote = widget.note.copyWith(
@@ -271,63 +314,83 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
         child: Column(
           children: [
             // AppBar
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
+            AppBar(
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back),
+                color: ColorTokens.getColor('text.body'),
+                onPressed: () => Navigator.pop(context),
+              ),
+              title: Row(
                 children: [
-                  // Back button
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back),
-                    onPressed: () => Navigator.pop(context),
-                    color: ColorTokens.getColor('text.body'),
-                  ),
-                  // Title
                   Text(
                     widget.note.title,
-                    style: TypographyTokens.getStyle('heading.h2').copyWith(
-                      color: ColorTokens.getColor('text.body'),
-                    ),
-                  ),
-                  const Spacer(),
-                  // Page counter
-                  Text(
-                    '${_currentPageIndex + 1}/${widget.note.pages.length} page${widget.note.pages.length > 1 ? 's' : ''}',
                     style: TypographyTokens.getStyle('body.medium').copyWith(
                       color: ColorTokens.getColor('text.body'),
                     ),
                   ),
                   const SizedBox(width: 8),
-                  // Flashcard counter
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: ColorTokens.getColor('primary.400').withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.style,
-                          size: 16,
-                          color: ColorTokens.getColor('primary.400'),
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${widget.note.flashCards.length}',
-                          style: TypographyTokens.getStyle('body.medium').copyWith(
-                            color: ColorTokens.getColor('primary.400'),
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
+                  Text(
+                    '(${_currentPageIndex + 1}/${widget.note.pages.length} pages)',
+                    style: TypographyTokens.getStyle('body.small').copyWith(
+                      color: ColorTokens.getColor('base.400'),
                     ),
                   ),
                 ],
               ),
+              actions: [
+                Container(
+                  margin: const EdgeInsets.only(right: 16),
+                  child: Stack(
+                    children: [
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: _openFlashCards,
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: ColorTokens.getColor('tertiary.400'),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SvgPicture.asset(
+                                  'assets/icon/flashcard_color.svg',
+                                  width: 24,
+                                  height: 24,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  widget.note.flashCards.length.toString(),
+                                  style: TypographyTokens.getStyle('button.small').copyWith(
+                                    color: ColorTokens.getColor('secondary.500'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Ripple effect overlay for tertiary.500 on tap
+                      Positioned.fill(
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: _openFlashCards,
+                            borderRadius: BorderRadius.circular(8),
+                            highlightColor: ColorTokens.getColor('tertiary.500').withOpacity(0.1),
+                            splashColor: ColorTokens.getColor('tertiary.500').withOpacity(0.2),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
             // Progress bar
             Stack(
@@ -651,10 +714,23 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     }
   }
 
+  void _openFlashCards() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => FlashCardScreen(
+          flashCards: widget.note.flashCards,
+          title: widget.note.title,
+        ),
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _flutterTts.stop();
     super.dispose();
   }
 }
+
 

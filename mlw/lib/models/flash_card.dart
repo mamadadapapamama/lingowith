@@ -16,10 +16,10 @@ class FlashCard {
     required this.translatedText,
     this.pinyin,
     required this.noteId,
-    required this.createdAt,
+    DateTime? createdAt,
     this.reviewCount = 0,
     this.lastReviewedAt,
-  });
+  }) : this.createdAt = createdAt ?? DateTime.now();
 
   factory FlashCard.fromMap(Map<String, dynamic> map) {
     return FlashCard(

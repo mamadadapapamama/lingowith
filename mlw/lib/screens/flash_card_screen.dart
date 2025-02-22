@@ -8,11 +8,13 @@ import 'package:mlw/widgets/flash_card.dart' as flash_card_widget;
 
 class FlashCardScreen extends StatefulWidget {
   final List<FlashCard> flashCards;
+  final String title;
 
   const FlashCardScreen({
-    super.key,
+    Key? key,
     required this.flashCards,
-  });
+    required this.title,
+  }) : super(key: key);
 
   @override
   State<FlashCardScreen> createState() => _FlashCardScreenState();
@@ -68,7 +70,7 @@ class _FlashCardScreenState extends State<FlashCardScreen> {
             onPressed: () => Navigator.pop(context),
           ),
           title: Text(
-            'Flash Cards',
+            widget.title,
             style: theme.textTheme.headlineMedium,
           ),
           centerTitle: true,
