@@ -3,8 +3,9 @@ import 'package:mlw/theme/tokens/color_tokens.dart';
 import 'package:mlw/theme/tokens/typography_tokens.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'dart:math' show pi;
 
-class FlashCard extends StatelessWidget {
+class FlashCard extends StatefulWidget {
   final String front;
   final String back;
   final String? pinyin;
@@ -13,8 +14,6 @@ class FlashCard extends StatelessWidget {
   final VoidCallback onKeep;
   final VoidCallback onArchive;
   final FlutterTts flutterTts;
-  final VoidCallback? onNext;
-  final VoidCallback? onPrevious;
 
   const FlashCard({
     super.key,
@@ -26,158 +25,175 @@ class FlashCard extends StatelessWidget {
     required this.onKeep,
     required this.onArchive,
     required this.flutterTts,
-    this.onNext,
-    this.onPrevious,
   });
 
   @override
+  State<FlashCard> createState() => _FlashCardState();
+}
+
+class _FlashCardState extends State<FlashCard> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _animation = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween(begin: 0.0, end: -pi / 2),
+        weight: 1.0,
+      ),
+      TweenSequenceItem(
+        tween: Tween(begin: pi / 2, end: 0.0),
+        weight: 1.0,
+      ),
+    ]).animate(CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeInOut,
+    ));
+
+    _controller.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        _controller.reset();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onTap() {
+    widget.onFlip();
+    _controller.forward();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Expanded(
-          child: GestureDetector(
-            onTap: onFlip,
-            child: Container(
-              width: double.infinity,
-              margin: const EdgeInsets.symmetric(vertical: 16),
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: showFront 
-                  ? ColorTokens.getColor('tertiary.100')
-                  : ColorTokens.getColor('surface.base'),
-                border: Border.all(
-                  color: ColorTokens.getColor('primary.400'),
-                  width: 1,
-                ),
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: ColorTokens.getColor('text.body').withOpacity(0.08),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
+    return Dismissible(
+      key: ValueKey(widget.front),
+      onDismissed: (direction) {
+        if (direction == DismissDirection.endToStart) {
+          widget.onKeep();
+        } else {
+          widget.onArchive();
+        }
+      },
+      background: Container(
+        color: ColorTokens.getColor('primary.400').withOpacity(0.1),
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.only(left: 24),
+        child: SvgPicture.asset(
+          'assets/icon/star.svg',
+          colorFilter: ColorFilter.mode(
+            ColorTokens.getColor('primary.400'),
+            BlendMode.srcIn,
+          ),
+        ),
+      ),
+      secondaryBackground: Container(
+        color: ColorTokens.getColor('secondary.400').withOpacity(0.1),
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 24),
+        child: SvgPicture.asset(
+          'assets/icon/archive.svg',
+          colorFilter: ColorFilter.mode(
+            ColorTokens.getColor('secondary.400'),
+            BlendMode.srcIn,
+          ),
+        ),
+      ),
+      child: GestureDetector(
+        onTap: _onTap,
+        child: AnimatedBuilder(
+          animation: _animation,
+          builder: (context, child) {
+            return Transform(
+              transform: Matrix4.identity()
+                ..setEntry(3, 2, 0.001)
+                ..rotateY(_animation.value),
+              alignment: Alignment.center,
+              child: Container(
+                width: double.infinity,
+                margin: const EdgeInsets.symmetric(vertical: 16),
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: widget.showFront 
+                    ? ColorTokens.getColor('tertiary.100')
+                    : ColorTokens.getColor('surface.base'),
+                  border: Border.all(
+                    color: ColorTokens.getColor('primary.400'),
+                    width: 2,
                   ),
-                ],
-              ),
-              child: Stack(
-                children: [
-                  // TTS 버튼
-                  if (showFront)
-                    Positioned(
-                      top: 0,
-                      right: 0,
-                      child: IconButton(
-                        icon: SvgPicture.asset(
-                          'assets/icon/sound.svg',
-                          colorFilter: ColorFilter.mode(
-                            ColorTokens.getColor('primary.400'),
-                            BlendMode.srcIn,
-                          ),
-                        ),
-                        onPressed: () => _speak(front),
-                      ),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: ColorTokens.getColor('text.body').withOpacity(0.08),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
                     ),
-                  
-                  // Keep/Archive 버튼
-                  if (!showFront)
-                    Positioned(
-                      top: 0,
-                      right: 0,
-                      child: Row(
+                  ],
+                ),
+                child: Stack(
+                  children: [
+                    if (widget.showFront)
+                      Positioned(
+                        top: 0,
+                        right: 0,
+                        child: IconButton(
+                          icon: SvgPicture.asset(
+                            'assets/icon/sound.svg',
+                            colorFilter: ColorFilter.mode(
+                              ColorTokens.getColor('primary.400'),
+                              BlendMode.srcIn,
+                            ),
+                          ),
+                          onPressed: () => _speak(widget.front),
+                        ),
+                      ),
+                    
+                    Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          IconButton(
-                            onPressed: onKeep,
-                            icon: SvgPicture.asset(
-                              'assets/icon/star.svg',
-                              colorFilter: ColorFilter.mode(
-                                ColorTokens.getColor('primary.400'),
-                                BlendMode.srcIn,
+                          Text(
+                            widget.showFront ? widget.front : widget.back,
+                            style: TypographyTokens.getStyle('heading.h2').copyWith(
+                              color: ColorTokens.getColor('text.body'),
+                              height: 1.5,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          if (widget.showFront && widget.pinyin != null) ...[
+                            const SizedBox(height: 12),
+                            Text(
+                              widget.pinyin!,
+                              style: TypographyTokens.getStyle('body.large').copyWith(
+                                color: ColorTokens.getColor('text.translation'),
                               ),
                             ),
-                          ),
-                          IconButton(
-                            onPressed: onArchive,
-                            icon: SvgPicture.asset(
-                              'assets/icon/archive.svg',
-                              colorFilter: ColorFilter.mode(
-                                ColorTokens.getColor('secondary.400'),
-                                BlendMode.srcIn,
-                              ),
-                            ),
-                          ),
+                          ],
                         ],
                       ),
                     ),
-                  
-                  // 카드 내용
-                  Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          showFront ? front : back,
-                          style: TypographyTokens.getStyle('heading.h2').copyWith(
-                            color: ColorTokens.getColor('text.body'),
-                            height: 1.5,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        if (showFront && pinyin != null) ...[
-                          const SizedBox(height: 12),
-                          Text(
-                            pinyin!,
-                            style: TypographyTokens.getStyle('body.large').copyWith(
-                              color: ColorTokens.getColor('text.translation'),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        
-        // Bottom Navigation Bar with arrows
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              IconButton(
-                onPressed: onPrevious,
-                icon: SvgPicture.asset(
-                  'assets/icon/arrow-left.svg',
-                  colorFilter: ColorFilter.mode(
-                    onPrevious != null 
-                      ? ColorTokens.getColor('text.body')
-                      : ColorTokens.getColor('text.disabled'),
-                    BlendMode.srcIn,
-                  ),
+                  ],
                 ),
               ),
-              IconButton(
-                onPressed: onNext,
-                icon: SvgPicture.asset(
-                  'assets/icon/arrow-right.svg',
-                  colorFilter: ColorFilter.mode(
-                    onNext != null 
-                      ? ColorTokens.getColor('text.body')
-                      : ColorTokens.getColor('text.disabled'),
-                    BlendMode.srcIn,
-                  ),
-                ),
-              ),
-            ],
-          ),
+            );
+          },
         ),
-      ],
+      ),
     );
   }
 
   Future<void> _speak(String text) async {
-    await flutterTts.setLanguage('zh-CN');
-    await flutterTts.speak(text);
+    await widget.flutterTts.setLanguage('zh-CN');
+    await widget.flutterTts.speak(text);
   }
 } 

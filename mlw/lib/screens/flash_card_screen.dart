@@ -164,8 +164,6 @@ class _FlashCardScreenState extends State<FlashCardScreen> {
                       });
                     },
                     flutterTts: _flutterTts,
-                    onPrevious: index > 0 ? () => _previousCard() : null,
-                    onNext: index < _remainingCards.length - 1 ? () => _nextCard() : null,
                   ),
                 );
               },

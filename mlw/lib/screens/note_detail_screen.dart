@@ -17,6 +17,7 @@ import 'package:mlw/theme/tokens/typography_tokens.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:mlw/models/text_display_mode.dart';
 import 'package:mlw/models/flash_card.dart';
+import 'package:mlw/services/pinyin_service.dart';
 
 
 class NoteDetailScreen extends StatefulWidget {
@@ -97,12 +98,12 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       }
 
       final translatedText = await translatorService.translate(text, from: 'zh', to: 'ko');
+      final pinyin = await pinyinService.getPinyin(text);
       
-      // 새 플래시카드 생성
       final newFlashCard = note_model.FlashCard(
         front: text,
         back: translatedText,
-        pinyin: await getPinyin(text),
+        pinyin: pinyin,
       );
 
       // 노트 업데이트
@@ -152,11 +153,12 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   void _addToFlashcards(String text) async {
     try {
       final translatedText = await translatorService.translate(text, from: 'zh', to: 'ko');
+      final pinyin = await pinyinService.getPinyin(text);
       
       final newFlashCard = note_model.FlashCard(
         front: text,
         back: translatedText,
-        pinyin: await getPinyin(text),
+        pinyin: pinyin,
       );
       
       final updatedNote = widget.note.copyWith(
