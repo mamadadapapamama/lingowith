@@ -106,67 +106,24 @@ class _NotePageState extends State<NotePage> {
                   child: Row(
                     children: [
                       // Expand button
-                      Container(
-                        width: 40,
-                        height: 40,
-                        margin: const EdgeInsets.only(right: 8),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: ColorTokens.getColor('base.800').withOpacity(0.7),
-                        ),
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: () {
-                              setState(() {
-                                _isExpanding = true;
-                              });
-                              _openImageViewer(context);
-                            },
-                            customBorder: const CircleBorder(),
-                            child: Center(
-                              child: SvgPicture.asset(
-                                'assets/icon/expand.svg',
-                                width: 24,
-                                height: 24,
-                                colorFilter: ColorFilter.mode(
-                                  _isExpanding 
-                                    ? ColorTokens.getColor('secondary.400')
-                                    : ColorTokens.getColor('base.200'),
-                                  BlendMode.srcIn,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
+                      _buildActionButton(
+                        icon: 'assets/icon/expand.svg',
+                        onTap: () {
+                          setState(() {
+                            _isExpanding = true;
+                          });
+                          _openImageViewer(context);
+                        },
                       ),
                       // More button
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: ColorTokens.getColor('base.800').withOpacity(0.7),
-                        ),
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: () {
-                              setState(() {
-                                _isMorePressed = true;
-                              });
-                              _showMoreOptions();
-                            },
-                            customBorder: const CircleBorder(),
-                            child: Icon(
-                              Icons.more_vert,
-                              color: _isMorePressed 
-                                ? ColorTokens.getColor('secondary.400')
-                                : ColorTokens.getColor('base.200'),
-                              size: 24,
-                            ),
-                          ),
-                        ),
+                      _buildActionButton(
+                        icon: 'assets/icon/more.svg',
+                        onTap: () {
+                          setState(() {
+                            _isMorePressed = true;
+                          });
+                          _showMoreOptions();
+                        },
                       ),
                     ],
                   ),
@@ -188,6 +145,31 @@ class _NotePageState extends State<NotePage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required String icon,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: ColorTokens.getColor('base.800').withOpacity(0.2),
+      borderRadius: BorderRadius.circular(4),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(4),
+        onTap: onTap,
+        highlightColor: ColorTokens.getColor('base.800').withOpacity(0.6),
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: SvgPicture.asset(
+            icon,
+            colorFilter: ColorFilter.mode(
+              ColorTokens.getColor('base.0'),
+              BlendMode.srcIn,
+            ),
+          ),
+        ),
       ),
     );
   }

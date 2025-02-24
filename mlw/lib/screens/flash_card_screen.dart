@@ -148,7 +148,7 @@ class _FlashCardScreenState extends State<FlashCardScreen> {
                   child: flash_card_widget.FlashCard(
                     front: _remainingCards[index].front,
                     back: _remainingCards[index].back,
-                    pinyin: null,
+                    pinyin: _remainingCards[index].pinyin,
                     showFront: _showFront,
                     onFlip: _flipCard,
                     onKeep: () {

@@ -164,7 +164,7 @@ class _FlashCardState extends State<FlashCard> with SingleTickerProviderStateMix
                         children: [
                           Text(
                             widget.showFront ? widget.front : widget.back,
-                            style: TypographyTokens.getStyle('heading.h2').copyWith(
+                            style: TypographyTokens.getStyle('heading.flashcard').copyWith(
                               color: ColorTokens.getColor('text.body'),
                               height: 1.5,
                             ),

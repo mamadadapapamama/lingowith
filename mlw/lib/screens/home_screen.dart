@@ -185,39 +185,23 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _showImageSourceActionSheet() async {
+  void _showImageSourceActionSheet() {
     showModalBottomSheet(
       context: context,
       builder: (context) => SafeArea(
         child: Wrap(
           children: <Widget>[
             ListTile(
-              leading: SvgPicture.asset(
-                'assets/icon/addimage.svg',
-                width: 24,
-                height: 24,
-                colorFilter: ColorFilter.mode(
-                  ColorTokens.semantic['text']?['body'],
-                  BlendMode.srcIn,
-                ),
-              ),
-              title: const Text('photo library'),
+              leading: const Icon(Icons.photo_library),
+              title: const Text('갤러리에서 선택'),
               onTap: () {
                 Navigator.of(context).pop();
                 _pickImage(ImageSource.gallery);
               },
             ),
             ListTile(
-              leading: SvgPicture.asset(
-                'assets/icon/camera.svg',
-                width: 24,
-                height: 24,
-                colorFilter: ColorFilter.mode(
-                  ColorTokens.semantic['text']?['body'],
-                  BlendMode.srcIn,
-                ),
-              ),
-              title: const Text('take a picture'),
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('카메라로 촬영'),
               onTap: () {
                 Navigator.of(context).pop();
                 _pickImage(ImageSource.camera);
@@ -507,16 +491,19 @@ class _HomeScreenState extends State<HomeScreen> {
                       );
                     },
                   ),
-        floatingActionButton: !_isLoading && _notes.isNotEmpty ? FloatingActionButton.extended(
-          onPressed: _showImageSourceActionSheet,
-          label: Text(
-            'Add Note',
-            style: TextStyle(
-              color: ColorTokens.semantic['text']['primary'],
-            ),
-          ),
-          backgroundColor: ColorTokens.semantic['surface']['button']['secondary'],
-        ) : null,
+        floatingActionButton: !_isLoading && _notes.isNotEmpty 
+          ? FloatingActionButton(
+              backgroundColor: ColorTokens.getColor('surface.button.primary'),
+              onPressed: _showImageSourceActionSheet,
+              child: SvgPicture.asset(
+                'assets/icon/addnote.svg',
+                colorFilter: ColorFilter.mode(
+                  ColorTokens.getColor('base.0'),
+                  BlendMode.srcIn,
+                ),
+              ),
+            )
+          : null,
         floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       ),
     );

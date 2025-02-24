@@ -329,28 +329,36 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
               backgroundColor: Colors.transparent,
               elevation: 0,
               leading: IconButton(
-                icon: const Icon(Icons.arrow_back),
-                color: ColorTokens.getColor('text.body'),
+                icon: SvgPicture.asset(
+                  'assets/icon/arrow-left.svg',
+                  colorFilter: ColorFilter.mode(
+                    ColorTokens.getColor('text.body'),
+                    BlendMode.srcIn,
+                  ),
+                ),
                 onPressed: () => Navigator.pop(context),
               ),
+              titleSpacing: 0,
               title: Row(
                 children: [
                   Text(
                     widget.note.title,
-                    style: TypographyTokens.getStyle('body.medium').copyWith(
+                    style: TypographyTokens.getStyle('heading.h1').copyWith(
                       color: ColorTokens.getColor('text.body'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '(${_currentPageIndex + 1}/${widget.note.pages.length} pages)',
-                    style: TypographyTokens.getStyle('body.small').copyWith(
-                      color: ColorTokens.getColor('base.400'),
                     ),
                   ),
                 ],
               ),
               actions: [
+                // 페이지 숫자
+                Text(
+                  '${_currentPageIndex + 1}/${widget.note.pages.length} pages',
+                  style: TypographyTokens.getStyle('body.small').copyWith(
+                    color: ColorTokens.getColor('text.secondary'),
+                  ),
+                ),
+                const SizedBox(width: 4),  // 4px 간격
+                // 플래시카드 버튼
                 Container(
                   margin: const EdgeInsets.only(right: 16),
                   child: Stack(
@@ -362,26 +370,12 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                           borderRadius: BorderRadius.circular(8),
                           child: Container(
                             padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: ColorTokens.getColor('tertiary.400'),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                SvgPicture.asset(
-                                  'assets/icon/flashcard_color.svg',
-                                  width: 24,
-                                  height: 24,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  widget.note.flashCards.length.toString(),
-                                  style: TypographyTokens.getStyle('button.small').copyWith(
-                                    color: ColorTokens.getColor('secondary.500'),
-                                  ),
-                                ),
-                              ],
+                            child: SvgPicture.asset(
+                              'assets/icon/flashcard.svg',
+                              colorFilter: ColorFilter.mode(
+                                ColorTokens.getColor('text.body'),
+                                BlendMode.srcIn,
+                              ),
                             ),
                           ),
                         ),
