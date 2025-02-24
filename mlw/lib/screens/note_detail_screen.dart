@@ -16,7 +16,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:mlw/theme/tokens/typography_tokens.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:mlw/models/text_display_mode.dart';
-import 'package:mlw/models/flash_card.dart';
+import 'package:mlw/models/flash_card.dart' as flash_card_model;
 import 'package:mlw/services/pinyin_service.dart';
 import 'package:mlw/widgets/flashcard_counter.dart';
 
@@ -42,10 +42,12 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   TextDisplayMode _displayMode = TextDisplayMode.both;
   Set<String> _highlightedTexts = {};
   int _flashCardCount = 0;
+  late note_model.Note _note;
 
   @override
   void initState() {
     super.initState();
+    _note = widget.note;
     _highlightedTexts = widget.note.highlightedTexts;
     _flashCardCount = _highlightedTexts.length;
     _initTTS();
@@ -61,10 +63,9 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       if (Platform.isIOS) {
         await _flutterTts.setSharedInstance(true);
         await _flutterTts.setIosAudioCategory(
-          IosTextToSpeechAudioCategory.ambient,
+          IosTextToSpeechAudioCategory.playAndRecord,
           [
-            IosTextToSpeechAudioCategoryOptions.allowBluetooth,
-            IosTextToSpeechAudioCategoryOptions.allowBluetoothA2DP,
+            IosTextToSpeechAudioCategoryOptions.defaultToSpeaker,
             IosTextToSpeechAudioCategoryOptions.mixWithOthers,
           ],
         );
@@ -97,7 +98,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
 
   void _onTextSelected(String text) async {
     try {
-      if (highlightedTexts.contains(text)) {
+      if (_highlightedTexts.contains(text)) {
         return;
       }
 
@@ -110,20 +111,25 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
         pinyin: pinyin,
       );
 
-      // 노트 업데이트
-      final updatedFlashCards = [...widget.note.flashCards, newFlashCard];
-      final updatedNote = widget.note.copyWith(
+      final List<note_model.FlashCard> updatedFlashCards = [
+        ..._note.flashCards,
+        newFlashCard,
+      ];
+
+      final updatedNote = _note.copyWith(
         flashCards: updatedFlashCards,
+        highlightedTexts: {..._highlightedTexts, text},
         updatedAt: DateTime.now(),
       );
 
       // Firestore 업데이트
-      await firestore.collection('notes').doc(widget.note.id).update(updatedNote.toFirestore());
+      await firestore.collection('notes').doc(_note.id).update(updatedNote.toFirestore());
 
       // UI 업데이트
       setState(() {
-        widget.note.flashCards.add(newFlashCard);
-        highlightedTexts.add(text);
+        _note = updatedNote;
+        _highlightedTexts = Set<String>.from(updatedNote.highlightedTexts);
+        _flashCardCount = _highlightedTexts.length;
       });
 
       // 알림 표시
@@ -136,7 +142,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
         );
       }
     } catch (e) {
-      print('Error saving flashcard: $e');
+      print('Error creating flashcard: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -165,18 +171,23 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
         pinyin: pinyin,
       );
       
+      final List<note_model.FlashCard> updatedFlashCards = [
+        ...widget.note.flashCards,
+        newFlashCard,
+      ];
+
       final updatedNote = widget.note.copyWith(
-        flashCards: [...widget.note.flashCards, newFlashCard],
+        flashCards: updatedFlashCards,
         updatedAt: DateTime.now(),
       );
       
-      // Update Firestore
+      // Firestore 업데이트
       await firestore.collection('notes').doc(widget.note.id).update(updatedNote.toFirestore());
       
-      // Update local state
+      // UI 업데이트
       setState(() {
-        widget.note.flashCards.add(newFlashCard);
-        highlightedTexts.add(text);
+        _note = updatedNote;
+        _highlightedTexts.add(text);
         selectedText = null;
       });
 
@@ -362,10 +373,10 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),  // 8px 간격
-                // 플래시카드 버튼
+                // 플래시카드 카운터 업데이트
                 FlashcardCounter(
-                  flashCards: widget.note.flashCards,
-                  noteTitle: widget.note.title,
+                  flashCards: _note.flashCards,
+                  noteTitle: _note.title,
                   alwaysShow: true,
                 ),
                 const SizedBox(width: 8),  // 우측 여백
@@ -404,7 +415,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                     page: page,
                     displayMode: _displayMode,
                     isHighlightMode: isHighlightMode,
-                    highlightedTexts: highlightedTexts,
+                    highlightedTexts: _highlightedTexts,
                     onHighlighted: _onTextSelected,
                     onSpeak: (text) {
                       setState(() {

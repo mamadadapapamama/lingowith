@@ -20,6 +20,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:mlw/screens/note_detail_screen.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:async';  // StreamSubscription을 위한 import 추가
 
 class HomeScreen extends StatefulWidget {
   final String spaceId;
@@ -109,13 +110,13 @@ class _HomeScreenState extends State<HomeScreen> {
   final ValueNotifier<String> _loadingMessage = ValueNotifier('');
 
   final FirebaseFirestore firestore = FirebaseFirestore.instance;
+  StreamSubscription? _notesSubscription;
 
   @override
   void initState() {
     super.initState();
-    print('HomeScreen initState called'); // 디버깅용 로그
+    print('HomeScreen initState called');
     _loadCurrentNoteSpace();
-    _loadNotes(widget.spaceId);
   }
 
   Future<void> _loadCurrentNoteSpace() async {
@@ -165,24 +166,33 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadNotes(String spaceId) async {
-    try {
-      final notesStream = _noteRepository.getNotes(spaceId, userId);
-      final loadedNotes = await notesStream.first;
-      
-      // 디버그 로그 추가
-      for (var note in loadedNotes) {
-        print('Note ID: ${note.id}');
-        print('Note Title: ${note.title}');
-        print('FlashCards count: ${note.flashCards.length}');
-        print('FlashCards data: ${note.flashCards}');
-      }
+    await _notesSubscription?.cancel();
 
-      if (mounted) {
-        setState(() {
-          _notes = loadedNotes;
-          _isLoading = false;
-        });
-      }
+    try {
+      // 단순화된 쿼리 사용
+      _notesSubscription = firestore
+          .collection('notes')
+          .where('spaceId', isEqualTo: spaceId)
+          .where('userId', isEqualTo: userId)
+          .orderBy('updatedAt', descending: true)
+          .snapshots()
+          .listen((snapshot) {
+            final loadedNotes = snapshot.docs.map((doc) {
+              final note = note_model.Note.fromFirestore(doc);
+              print('Note ID: ${note.id}');
+              print('Note Title: ${note.title}');
+              print('FlashCards count: ${note.flashCards.length}');
+              print('FlashCards data: ${note.flashCards}');
+              return note;
+            }).toList();
+
+            if (mounted) {
+              setState(() {
+                _notes = loadedNotes;
+                _isLoading = false;
+              });
+            }
+          });
     } catch (e) {
       print('Error loading notes: $e');
     }
@@ -786,4 +796,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   final translatorService = TranslatorService();
+
+  @override
+  void dispose() {
+    _notesSubscription?.cancel();
+    super.dispose();
+  }
 }

@@ -31,14 +31,14 @@ class Page {
 class FlashCard {
   final String front;
   final String back;
-  final String? pinyin;
+  final String pinyin;
   final int reviewCount;
   final DateTime? lastReviewedAt;
 
   const FlashCard({
     required this.front,
     required this.back,
-    this.pinyin,
+    required this.pinyin,
     this.reviewCount = 0,
     this.lastReviewedAt,
   });
@@ -47,7 +47,7 @@ class FlashCard {
     return FlashCard(
       front: json['front'] as String,
       back: json['back'] as String,
-      pinyin: json['pinyin'] as String?,
+      pinyin: json['pinyin'] as String,
       reviewCount: json['reviewCount'] as int? ?? 0,
       lastReviewedAt: json['lastReviewedAt'] != null 
           ? (json['lastReviewedAt'] as Timestamp).toDate()
