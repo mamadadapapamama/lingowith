@@ -18,6 +18,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:mlw/models/text_display_mode.dart';
 import 'package:mlw/models/flash_card.dart';
 import 'package:mlw/services/pinyin_service.dart';
+import 'package:mlw/widgets/flashcard_counter.dart';
 
 
 class NoteDetailScreen extends StatefulWidget {
@@ -39,11 +40,14 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   Set<String> highlightedTexts = {};
   int _currentPageIndex = 0;
   TextDisplayMode _displayMode = TextDisplayMode.both;
+  Set<String> _highlightedTexts = {};
+  int _flashCardCount = 0;
 
   @override
   void initState() {
     super.initState();
-    highlightedTexts = widget.note.flashCards.map((card) => card.front).toSet();
+    _highlightedTexts = widget.note.highlightedTexts;
+    _flashCardCount = _highlightedTexts.length;
     _initTTS();
   }
 
@@ -350,51 +354,21 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                 ],
               ),
               actions: [
-                // 페이지 숫자
+                // 페이지 숫자 표시
                 Text(
                   '${_currentPageIndex + 1}/${widget.note.pages.length} pages',
                   style: TypographyTokens.getStyle('body.small').copyWith(
-                    color: ColorTokens.getColor('text.secondary'),
+                    color: ColorTokens.getColor('base.400'),
                   ),
                 ),
-                const SizedBox(width: 4),  // 4px 간격
+                const SizedBox(width: 8),  // 8px 간격
                 // 플래시카드 버튼
-                Container(
-                  margin: const EdgeInsets.only(right: 16),
-                  child: Stack(
-                    children: [
-                      Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: _openFlashCards,
-                          borderRadius: BorderRadius.circular(8),
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            child: SvgPicture.asset(
-                              'assets/icon/flashcard.svg',
-                              colorFilter: ColorFilter.mode(
-                                ColorTokens.getColor('text.body'),
-                                BlendMode.srcIn,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      // Ripple effect overlay for tertiary.500 on tap
-                      Positioned.fill(
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: _openFlashCards,
-                            borderRadius: BorderRadius.circular(8),
-                            highlightColor: ColorTokens.getColor('tertiary.500').withOpacity(0.1),
-                            splashColor: ColorTokens.getColor('tertiary.500').withOpacity(0.2),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                FlashcardCounter(
+                  flashCards: widget.note.flashCards,
+                  noteTitle: widget.note.title,
+                  alwaysShow: true,
                 ),
+                const SizedBox(width: 8),  // 우측 여백
               ],
             ),
             // Progress bar
@@ -719,23 +693,23 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     }
   }
 
-  void _openFlashCards() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => FlashCardScreen(
-          flashCards: widget.note.flashCards,
-          title: widget.note.title,
-        ),
-      ),
-    );
-  }
-
   @override
   void dispose() {
     _flutterTts.stop();
     super.dispose();
   }
+
+  void _handleHighlight(String text) {
+    setState(() {
+      if (_highlightedTexts.contains(text)) {
+        _highlightedTexts.remove(text);
+      } else {
+        _highlightedTexts.add(text);
+      }
+      _flashCardCount = _highlightedTexts.length;
+    });
+  }
 }
+
 
 

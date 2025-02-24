@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:mlw/models/note.dart';
+import 'package:mlw/models/note.dart' as note_model;
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:io';
 import 'package:mlw/theme/tokens/color_tokens.dart';
 import 'package:intl/intl.dart';
 import 'package:mlw/screens/note_detail_screen.dart';
+import 'package:mlw/widgets/flashcard_counter.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:mlw/theme/tokens/typography_tokens.dart';
 
 class NoteCard extends StatelessWidget {
-  final Note note;
-  final Function(Note) onDuplicate;
-  final Function(Note) onDelete;
-  final Function(Note, String)? onTitleEdit;
+  final note_model.Note note;
+  final Function(note_model.Note) onDuplicate;
+  final Function(note_model.Note) onDelete;
+  final Function(note_model.Note, String)? onTitleEdit;
 
   const NoteCard({
     super.key,
@@ -20,121 +23,17 @@ class NoteCard extends StatelessWidget {
     this.onTitleEdit,
   });
 
-  String _formatDate(DateTime date) {
-    return DateFormat('MMM dd, yyyy').format(date);
-  }
-
-  void _showEditDialog(BuildContext context) {
-    final titleController = TextEditingController(text: note.title);
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-          'Edit Note',
-          style: GoogleFonts.poppins(
-            color: ColorTokens.getColor('text'),
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: titleController,
-              decoration: InputDecoration(
-                labelText: 'Title',
-                labelStyle: GoogleFonts.poppins(
-                  color: ColorTokens.getColor('text'),
-                ),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Cancel',
-              style: GoogleFonts.poppins(
-                color: ColorTokens.getColor('text'),
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              onTitleEdit?.call(note, titleController.text);
-              Navigator.pop(context);
-            },
-            child: Text(
-              'Save',
-              style: GoogleFonts.poppins(
-                color: ColorTokens.getColor('primary.400'),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showDeleteConfirmation(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-          'Delete Note',
-          style: GoogleFonts.poppins(
-            color: ColorTokens.semantic['text']['body'],
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        content: Text(
-          'Do you want to delete this note?',
-          style: GoogleFonts.poppins(
-            color: ColorTokens.semantic['text']['body'],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'No',
-              style: GoogleFonts.poppins(
-                color: ColorTokens.semantic['text']['body'],
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              onDelete(note);
-              Navigator.pop(context);
-            },
-            child: Text(
-              'Yes',
-              style: GoogleFonts.poppins(
-                color: ColorTokens.semantic['text']['body'],
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
+    print("Note title: ${note.title}");
+    print("FlashCards count: ${note.flashCards.length}");
+    print("FlashCards: ${note.flashCards}");
+
     return InkWell(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => NoteDetailScreen(note: note),
-          ),
-        );
-      },
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => NoteDetailScreen(note: note)),
+      ),
       borderRadius: BorderRadius.circular(8),
       child: Container(
         width: double.infinity,
@@ -156,7 +55,7 @@ class NoteCard extends StatelessWidget {
             Row(
               children: [
                 Text(
-                  _formatDate(note.createdAt),
+                  DateFormat('yyyy.MM.dd').format(note.createdAt),
                   style: GoogleFonts.poppins(
                     color: ColorTokens.base[400],
                     fontSize: 12,
@@ -179,34 +78,24 @@ class NoteCard extends StatelessWidget {
                     color: ColorTokens.base[500],
                   ),
                   onPressed: () {
-                    showMenu(
+                    showMenu<String>(
                       context: context,
                       position: RelativeRect.fromLTRB(100, 100, 0, 0),
                       items: [
                         PopupMenuItem(
-                          child: Text(
-                            'Edit',
-                            style: GoogleFonts.poppins(
-                              color: ColorTokens.semantic['text']['body'],
-                            ),
-                          ),
                           value: 'edit',
+                          child: Text('Edit'),
                         ),
                         PopupMenuItem(
-                          child: Text(
-                            'Delete',
-                            style: GoogleFonts.poppins(
-                              color: ColorTokens.semantic['text']['body'],
-                            ),
-                          ),
                           value: 'delete',
+                          child: Text('Delete'),
                         ),
                       ],
                     ).then((value) {
                       if (value == 'edit') {
-                        _showEditDialog(context);
+                        onTitleEdit?.call(note, note.title);
                       } else if (value == 'delete') {
-                        _showDeleteConfirmation(context);
+                        onDelete(note);
                       }
                     });
                   },
@@ -233,59 +122,26 @@ class NoteCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        note.title.isNotEmpty ? note.title : note.pages.first.extractedText.split('\n').first,
+                        note.title.isNotEmpty
+                            ? note.title
+                            : note.pages.first.extractedText.split('\n').first,
                         style: GoogleFonts.poppins(
                           fontSize: 20,
                           fontWeight: FontWeight.w600,
                           color: ColorTokens.semantic['text']['heading'],
                         ),
                       ),
-                      if (note.pages.isNotEmpty && note.pages.first.translatedText.isNotEmpty) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          note.pages.first.translatedText.split('\n').first,
-                          style: GoogleFonts.poppins(
-                            fontSize: 14,
-                            color: ColorTokens.semantic['text']['translation'],
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                      const SizedBox(height: 12),
+                      if (note.flashCards.isNotEmpty)
+                        FlashcardCounter(
+                          flashCards: note.flashCards,
+                          noteTitle: note.title,
                         ),
-                      ],
                     ],
                   ),
                 ),
               ],
             ),
-            if (note.flashCards.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                decoration: BoxDecoration(
-                  color: ColorTokens.getColor('primary.50'),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.style,
-                      size: 16,
-                      color: ColorTokens.getColor('primary.400'),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      note.flashCards.length.toString(),
-                      style: GoogleFonts.poppins(
-                        color: ColorTokens.getColor('primary.400'),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
           ],
         ),
       ),

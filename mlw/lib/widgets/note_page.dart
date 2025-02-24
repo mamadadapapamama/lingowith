@@ -191,9 +191,9 @@ class _NotePageState extends State<NotePage> {
   List<String> _splitChineseText(String text) {
     if (text.isEmpty) return [];
     
-    // 중국어 문장 구분자로 분리 (마침표, 느낌표, 물음표, 중국어 마침표)
+    // 중국어는 문장 부호로 분리
     return text
-      .split(RegExp(r'[\.!？。.]'))
+      .split(RegExp(r'[\.!？。，:]'))
       .map((s) => s.trim())
       .where((s) => s.isNotEmpty)
       .toList();
@@ -202,12 +202,36 @@ class _NotePageState extends State<NotePage> {
   List<String> _splitKoreanTranslation(String translation) {
     if (translation.isEmpty) return [];
 
-    // 한국어도 동일한 구분자로 분리
-    return translation
-      .split(RegExp(r'[\.!？。.]'))
-      .map((s) => s.trim())
-      .where((s) => s.isNotEmpty)
-      .toList();
+    // 한국어는 문장 단위로 분리하되, 따옴표 내의 내용을 하나로 처리
+    List<String> sentences = translation.split(RegExp(r'(?<=[..!?"]) +|(?<=[.!?])\s+'));
+    List<String> mergedSentences = [];
+    String tempSentence = "";
+    bool insideQuote = false;
+
+    for (String sentence in sentences) {
+      if (sentence.contains('"')) {
+        int quoteCount = sentence.split('"').length - 1;
+        insideQuote = (quoteCount % 2 != 0) ? !insideQuote : insideQuote;
+      }
+
+      // 따옴표 안의 내용과 밖의 내용을 구분하여 처리
+      if (insideQuote) {
+        tempSentence += (tempSentence.isEmpty ? "" : ' ') + sentence.trim();
+      } else {
+        if (tempSentence.isNotEmpty) {
+          mergedSentences.add(tempSentence + ' ' + sentence.trim());
+          tempSentence = "";
+        } else {
+          mergedSentences.add(sentence.trim());
+        }
+      }
+    }
+
+    if (tempSentence.isNotEmpty) {
+      mergedSentences.add(tempSentence);
+    }
+
+    return mergedSentences.where((s) => s.isNotEmpty).toList();
   }
 
   List<(String, String)> _matchTranslations(String chineseText, String koreanTranslation) {
@@ -249,7 +273,46 @@ class _NotePageState extends State<NotePage> {
           Row(
             children: [
               Expanded(
-                child: _buildSentence(chinese, matchedSentences.indexOf(pair)),
+                child: TextHighlighter(
+                  text: chinese,
+                  isHighlightMode: widget.isHighlightMode,
+                  highlightedTexts: widget.highlightedTexts,
+                  onHighlighted: widget.onHighlighted,
+                  highlightColor: ColorTokens.getColor('tertiary.200'),
+                  style: TypographyTokens.getStyle('body.original'),
+                  contextMenuBuilder: (context, text, selection) {
+                    return AdaptiveTextSelectionToolbar.buttonItems(
+                      anchors: selection.contextMenuAnchors,
+                      buttonItems: [
+                        ContextMenuButtonItem(
+                          label: 'Copy',
+                          onPressed: () {
+                            Clipboard.setData(ClipboardData(text: text));
+                            selection.hideToolbar();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('텍스트가 복사되었습니다')),
+                            );
+                          },
+                        ),
+                        if (widget.isHighlightMode && !widget.highlightedTexts.contains(text))
+                          ContextMenuButtonItem(
+                            label: 'Highlight',
+                            onPressed: () {
+                              widget.onHighlighted(text);
+                              selection.hideToolbar();
+                            },
+                          ),
+                        ContextMenuButtonItem(
+                          label: 'Dictionary',
+                          onPressed: () {
+                            _showDictionaryLookup(context, text);
+                            selection.hideToolbar();
+                          },
+                        ),
+                      ],
+                    );
+                  },
+                ),
               ),
               // TTS 버튼
               Container(
@@ -257,7 +320,7 @@ class _NotePageState extends State<NotePage> {
                 height: 32,
                 margin: const EdgeInsets.only(left: 8),
                 child: Material(
-                  color: ColorTokens.getColor('base.800').withOpacity(0.2),
+                  color: ColorTokens.getColor('primary.25'),
                   shape: const CircleBorder(),
                   child: InkWell(
                     customBorder: const CircleBorder(),
@@ -270,15 +333,21 @@ class _NotePageState extends State<NotePage> {
                         _handleTTS(chinese, index);
                       }
                     },
+                    highlightColor: ColorTokens.getColor('secondary.400').withOpacity(0.1),
+                    splashColor: ColorTokens.getColor('secondary.400').withOpacity(0.2),
                     child: Center(
                       child: ValueListenableBuilder<int?>(
                         valueListenable: _playingSentenceIndex,
                         builder: (context, playingIndex, _) {
                           final isPlaying = playingIndex == matchedSentences.indexOf(pair);
-                          return Icon(
-                            isPlaying ? Icons.stop : Icons.play_arrow,
-                            color: ColorTokens.getColor('base.0'),
-                            size: 20,
+                          return SvgPicture.asset(
+                            'assets/icon/sound.svg',
+                            width: 20,
+                            height: 20,
+                            colorFilter: ColorFilter.mode(
+                              ColorTokens.getColor('secondary.100'),
+                              BlendMode.srcIn,
+                            ),
                           );
                         },
                       ),
@@ -291,7 +360,12 @@ class _NotePageState extends State<NotePage> {
           // 한국어 번역문
           if (widget.displayMode != TextDisplayMode.originalOnly && korean.isNotEmpty) ...[
             const SizedBox(height: 4),
-            _buildSentence(korean, -1),  // 번역문은 TTS 인덱스 불필요
+            Text(
+              korean,
+              style: TypographyTokens.getStyle('body.large').copyWith(
+                color: ColorTokens.getColor('text.translation'),
+              ),
+            ),
             const SizedBox(height: 16),
           ],
         ],
@@ -339,13 +413,6 @@ class _NotePageState extends State<NotePage> {
                   label: 'Dictionary',
                   onPressed: () {
                     _showDictionaryLookup(context, text);
-                    selection.hideToolbar();
-                  },
-                ),
-                ContextMenuButtonItem(
-                  label: 'Speak',
-                  onPressed: () {
-                    _handleTTS(text, index);
                     selection.hideToolbar();
                   },
                 ),

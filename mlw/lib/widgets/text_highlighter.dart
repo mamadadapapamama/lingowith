@@ -49,7 +49,9 @@ class TextHighlighter extends StatelessWidget {
       spans.add(TextSpan(
         text: chineseText,
         style: style.copyWith(
-          backgroundColor: isHighlighted ? highlightColor : null,
+          backgroundColor: isHighlighted 
+            ? ColorTokens.getColor('tertiary.200')  // 하이라이트된 단어
+            : null,
         ),
       ));
 

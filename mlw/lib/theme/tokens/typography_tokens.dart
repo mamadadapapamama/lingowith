@@ -59,6 +59,17 @@ class TypographyTokens {
           height: 1.2,
           letterSpacing: 0,
         );
+      
+      case 'body.original':
+        return GoogleFonts.poppins(
+          fontSize: 22,
+          fontWeight: FontWeight.w500,
+          height: 1.2,
+          letterSpacing: 0,
+        );
+      
+      
+      
       case 'body.small':
         return GoogleFonts.poppins(
           fontSize: 14,

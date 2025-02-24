@@ -19,6 +19,7 @@ import 'dart:convert';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:mlw/screens/note_detail_screen.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class HomeScreen extends StatefulWidget {
   final String spaceId;
@@ -70,8 +71,8 @@ class _ProcessingDialog extends StatelessWidget {
             const SizedBox(height: 16),
             Text(
               currentImage == 0 
-                ? '이미지 처리 준비 중...'
-                : '이미지 처리 중 ($currentImage/$totalImages)',
+                ? 'Analyzing images...'
+                : 'Translating... ($currentImage/$totalImages)',
               style: TypographyTokens.getStyle('body.medium').copyWith(
                 color: ColorTokens.getColor('text.body'),
               ),
@@ -107,11 +108,14 @@ class _HomeScreenState extends State<HomeScreen> {
   // 로딩 메시지를 위한 ValueNotifier 추가
   final ValueNotifier<String> _loadingMessage = ValueNotifier('');
 
+  final FirebaseFirestore firestore = FirebaseFirestore.instance;
+
   @override
   void initState() {
     super.initState();
     print('HomeScreen initState called'); // 디버깅용 로그
     _loadCurrentNoteSpace();
+    _loadNotes(widget.spaceId);
   }
 
   Future<void> _loadCurrentNoteSpace() async {
@@ -164,6 +168,15 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final notesStream = _noteRepository.getNotes(spaceId, userId);
       final loadedNotes = await notesStream.first;
+      
+      // 디버그 로그 추가
+      for (var note in loadedNotes) {
+        print('Note ID: ${note.id}');
+        print('Note Title: ${note.title}');
+        print('FlashCards count: ${note.flashCards.length}');
+        print('FlashCards data: ${note.flashCards}');
+      }
+
       if (mounted) {
         setState(() {
           _notes = loadedNotes;
@@ -172,19 +185,6 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     } catch (e) {
       print('Error loading notes: $e');
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '노트를 불러오는 중 오류가 발생했습니다.',
-              style: GoogleFonts.poppins(),
-            ),
-          ),
-        );
-      }
     }
   }
 

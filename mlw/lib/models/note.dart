@@ -99,34 +99,39 @@ class Note {
   final String content;
   final List<Page> pages;
   final List<FlashCard> flashCards;
+  final Set<String> highlightedTexts;
   final DateTime createdAt;
   final DateTime updatedAt;
 
-  const Note({
+  Note({
     required this.id,
     required this.spaceId,
     required this.userId,
-    this.title = '',
+    required this.title,
     this.content = '',
-    this.pages = const [],
-    this.flashCards = const [],
+    required this.pages,
+    List<FlashCard>? flashCards,
+    Set<String>? highlightedTexts,
     required this.createdAt,
     required this.updatedAt,
-  });
+  }) : 
+    flashCards = flashCards ?? [],
+    highlightedTexts = highlightedTexts ?? const <String>{};
 
   factory Note.fromJson(Map<String, dynamic> json) {
     return Note(
-      id: json['id'] as String,
-      spaceId: json['spaceId'] as String,
-      userId: json['userId'] as String,
+      id: json['id'] as String? ?? '',
+      spaceId: json['spaceId'] as String? ?? '',
+      userId: json['userId'] as String? ?? '',
       title: json['title'] as String? ?? '',
       content: json['content'] as String? ?? '',
       pages: (json['pages'] as List<dynamic>?)
           ?.map((e) => Page.fromJson(e as Map<String, dynamic>))
-          .toList() ?? [],
+          .toList() ?? const [],
       flashCards: (json['flashCards'] as List<dynamic>?)
           ?.map((e) => FlashCard.fromJson(e as Map<String, dynamic>))
-          .toList() ?? [],
+          .toList() ?? const [],
+      highlightedTexts: Set<String>.from(json['highlightedTexts'] as List<dynamic>? ?? const []),
       createdAt: (json['createdAt'] as Timestamp).toDate(),
       updatedAt: (json['updatedAt'] as Timestamp).toDate(),
     );
@@ -141,6 +146,7 @@ class Note {
       'content': content,
       'pages': pages.map((e) => e.toJson()).toList(),
       'flashCards': flashCards.map((e) => e.toJson()).toList(),
+      'highlightedTexts': highlightedTexts.toList(),
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
     };
@@ -148,10 +154,26 @@ class Note {
 
   factory Note.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
-    return Note.fromJson({
-      'id': doc.id,
-      ...data,
-    });
+    
+    // flashCards 데이터를 가져오는 부분 확인
+    final flashCardsData = data['flashCards'] as List<dynamic>?;
+    final flashCards = flashCardsData?.map((cardData) {
+      return FlashCard.fromJson(cardData as Map<String, dynamic>);
+    }).toList() ?? [];
+
+    return Note(
+      id: doc.id,
+      spaceId: data['spaceId'] ?? '',
+      userId: data['userId'] ?? '',
+      title: data['title'] ?? '',
+      content: data['content'] ?? '',
+      pages: (data['pages'] as List<dynamic>?)?.map((pageData) {
+        return Page.fromJson(pageData as Map<String, dynamic>);
+      }).toList() ?? [],
+      flashCards: flashCards,  // 여기서 flashCards가 제대로 할당되어야 함
+      createdAt: (data['createdAt'] as Timestamp).toDate(),
+      updatedAt: (data['updatedAt'] as Timestamp).toDate(),
+    );
   }
 
   Map<String, dynamic> toFirestore() {
@@ -168,6 +190,7 @@ class Note {
     String? content,
     List<Page>? pages,
     List<FlashCard>? flashCards,
+    Set<String>? highlightedTexts,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -179,6 +202,7 @@ class Note {
       content: content ?? this.content,
       pages: pages ?? this.pages,
       flashCards: flashCards ?? this.flashCards,
+      highlightedTexts: highlightedTexts ?? this.highlightedTexts,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
