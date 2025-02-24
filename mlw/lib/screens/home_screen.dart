@@ -104,6 +104,9 @@ class _HomeScreenState extends State<HomeScreen> {
   List<note_model.Note> _notes = [];
   bool _isLoading = true;
 
+  // 로딩 메시지를 위한 ValueNotifier 추가
+  final ValueNotifier<String> _loadingMessage = ValueNotifier('');
+
   @override
   void initState() {
     super.initState();
@@ -266,7 +269,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _image = imageFile;  // Set the _image variable
         print('Image selected: ${imageFile.path}');
 
-        await _createNote();
+        await _createNoteWithImage(imageFile);
       }
     } catch (e) {
       print('Image picking error: $e');
@@ -492,14 +495,20 @@ class _HomeScreenState extends State<HomeScreen> {
                     },
                   ),
         floatingActionButton: !_isLoading && _notes.isNotEmpty 
-          ? FloatingActionButton(
-              backgroundColor: ColorTokens.getColor('surface.button.primary'),
+          ? FloatingActionButton.extended(
+              backgroundColor: ColorTokens.getColor('primary.400'),
               onPressed: _showImageSourceActionSheet,
-              child: SvgPicture.asset(
+              icon: SvgPicture.asset(
                 'assets/icon/addnote.svg',
                 colorFilter: ColorFilter.mode(
                   ColorTokens.getColor('base.0'),
                   BlendMode.srcIn,
+                ),
+              ),
+              label: Text(
+                'Add note',
+                style: TypographyTokens.getStyle('button.medium').copyWith(
+                  color: ColorTokens.getColor('base.0'),
                 ),
               ),
             )
@@ -541,77 +550,77 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<void> _createNote() async {
-    if (_image == null) {
-      print('No image to create note with.');
-      return;
-    }
+  Future<void> _createNoteWithImage(File imageFile) async {
+    final ValueNotifier<String> loadingMessage = ValueNotifier('analyzing image...');
 
-    print('Starting note creation process...');
-
-    setState(() {
-      _isProcessing = true;
-    });
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: ValueListenableBuilder<String>(
+          valueListenable: loadingMessage,
+          builder: (context, message, _) {
+            return Container(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  Text(
+                    message,
+                    style: TypographyTokens.getStyle('body.medium').copyWith(
+                      color: ColorTokens.getColor('text.body'),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
 
     try {
-      // Save the image locally and get the path
-      final imagePath = await _saveImageLocally(_image!);
-      print('Image saved at: $imagePath');
-
-      // Extract text from the image
-      final extractedText = await _extractTextFromImage(await _image!.readAsBytes());
-      print('Extracted text: $extractedText');
-
-      // Translate the extracted text
-      String? translatedText;
-      if (extractedText != null) {
-        try {
-          final lines = extractedText.split('\n').where((s) => s.trim().isNotEmpty).toList();
-          final translatedLines = await Future.wait(
-            lines.map((line) => translatorService.translate(line, from: 'zh', to: 'ko'))
-          );
-          translatedText = translatedLines.join('\n');
-          print('Translated text: $translatedText');
-        } catch (e) {
-          print('Translation error: $e');
-        }
-      }
-
-      // Create a new page with the image and extracted text
-      final newPage = note_model.Page(
-        imageUrl: imagePath,
-        extractedText: extractedText ?? '',
-        translatedText: translatedText ?? '',
-      );
-
-      // Create a new note with the extracted and translated text
+      // 이미지 분석
+      loadingMessage.value = 'analyzing image...';
+      final imagePath = await _saveImageLocally(imageFile);
+      final extractedText = await _extractTextFromImage(await imageFile.readAsBytes());
+      
+      // 번역
+      loadingMessage.value = 'translating...';
+      final translatedText = await translatorService.translate(extractedText, from: 'zh', to: 'ko');
+      
+      // 노트 생성
+      loadingMessage.value = 'almost done!';
       final newNote = note_model.Note(
         id: '',
         spaceId: _currentNoteSpace?.id ?? '',
         userId: userId,
-        title: 'Note #${_notes.length + 1}',  // Auto-generate title
+        title: 'Note #${_notes.length + 1}',
         content: '',
-        pages: [newPage], // Add the new page to the note
+        pages: [
+          note_model.Page(
+            imageUrl: imagePath,
+            extractedText: extractedText,
+            translatedText: translatedText,
+          ),
+        ],
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
 
-      print('Creating note in Firestore...');
       final createdNote = await _noteRepository.createNote(newNote);
-      print('Note created with ID: ${createdNote.id}');
-
+      
       if (mounted) {
+        Navigator.pop(context);  // 로딩 다이얼로그 닫기
         setState(() {
           _notes = [..._notes, createdNote];
         });
         
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('노트가 생성되었습니다.')),
-        );
-      }
-
-      // Navigate to NoteDetailScreen after creating the note
-      if (mounted) {
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -620,16 +629,14 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       }
     } catch (e) {
-      print('Note creation error: ${e.toString()}');
       if (mounted) {
+        Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to create a note. Please try again.: ${e.toString()}')),
+          SnackBar(content: Text('Error: $e')),
         );
       }
     } finally {
-      setState(() {
-        _isProcessing = false;
-      });
+      loadingMessage.dispose();
     }
   }
 

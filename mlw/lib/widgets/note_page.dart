@@ -41,9 +41,10 @@ class NotePage extends StatefulWidget {
 }
 
 class _NotePageState extends State<NotePage> {
+  // ValueNotifier로 변경
+  final ValueNotifier<int?> _playingSentenceIndex = ValueNotifier<int?>(null);
   bool _isExpanding = false;
   bool _isMorePressed = false;
-  int? _playingSentenceIndex;  // 현재 재생 중인 문장 인덱스
   String? _selectedText;
 
   @override
@@ -53,6 +54,7 @@ class _NotePageState extends State<NotePage> {
 
   @override
   void dispose() {
+    _playingSentenceIndex.dispose();  // ValueNotifier 정리
     super.dispose();
   }
 
@@ -64,19 +66,26 @@ class _NotePageState extends State<NotePage> {
     });
   }
 
-  // TTS 재생 처리 메서드
-  void _handleTTS(String text, int index) {
-    setState(() {
-      _playingSentenceIndex = index;  // 재생 시작
-    });
-    
-    widget.onSpeak?.call(text).then((_) {
-      if (mounted) {
-        setState(() {
-          _playingSentenceIndex = null;  // 재생 완료
-        });
+  // TTS 재생 처리 메서드 최적화
+  Future<void> _handleTTS(String text, int index) async {
+    // 이미 재생 중인 문장이 있다면 중지
+    if (_playingSentenceIndex.value != null) {
+      await widget.onSpeak?.call('');  // TTS 중지
+    }
+
+    try {
+      _playingSentenceIndex.value = index;  // 재생 시작
+      
+      await widget.onSpeak?.call(text);
+      
+      // 현재 인덱스가 여전히 같은 경우에만 null로 설정
+      if (_playingSentenceIndex.value == index) {
+        _playingSentenceIndex.value = null;  // 재생 완료
       }
-    });
+    } catch (e) {
+      print('TTS error: $e');
+      _playingSentenceIndex.value = null;  // 에러 시에도 초기화
+    }
   }
 
   @override
@@ -110,7 +119,7 @@ class _NotePageState extends State<NotePage> {
                         icon: 'assets/icon/expand.svg',
                         onTap: () {
                           setState(() {
-                            _isExpanding = true;
+                            _isExpanding = !_isExpanding;
                           });
                           _openImageViewer(context);
                         },
@@ -120,7 +129,7 @@ class _NotePageState extends State<NotePage> {
                         icon: 'assets/icon/more.svg',
                         onTap: () {
                           setState(() {
-                            _isMorePressed = true;
+                            _isMorePressed = !_isMorePressed;
                           });
                           _showMoreOptions();
                         },
@@ -153,20 +162,25 @@ class _NotePageState extends State<NotePage> {
     required String icon,
     required VoidCallback onTap,
   }) {
-    return Material(
-      color: ColorTokens.getColor('base.800').withOpacity(0.2),
-      borderRadius: BorderRadius.circular(4),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(4),
-        onTap: onTap,
-        highlightColor: ColorTokens.getColor('base.800').withOpacity(0.6),
-        child: Padding(
-          padding: const EdgeInsets.all(8),
-          child: SvgPicture.asset(
-            icon,
-            colorFilter: ColorFilter.mode(
-              ColorTokens.getColor('base.0'),
-              BlendMode.srcIn,
+    return Container(
+      width: 40,  // 고정 크기
+      height: 40,
+      margin: const EdgeInsets.only(left: 8),  // 버튼 간격
+      child: Material(
+        color: ColorTokens.getColor('base.800').withOpacity(0.2),
+        shape: const CircleBorder(),  // 원형 모양
+        child: InkWell(
+          onTap: onTap,
+          customBorder: const CircleBorder(),  // 터치 효과도 원형
+          child: Center(  // 아이콘 중앙 정렬
+            child: SvgPicture.asset(
+              icon,
+              width: 24,  // 아이콘 크기
+              height: 24,
+              colorFilter: ColorFilter.mode(
+                ColorTokens.getColor('base.0'),
+                BlendMode.srcIn,
+              ),
             ),
           ),
         ),
@@ -174,214 +188,173 @@ class _NotePageState extends State<NotePage> {
     );
   }
 
+  List<String> _splitChineseText(String text) {
+    if (text.isEmpty) return [];
+    
+    // 중국어 문장 구분자로 분리 (마침표, 느낌표, 물음표, 중국어 마침표)
+    return text
+      .split(RegExp(r'[\.!？。.]'))
+      .map((s) => s.trim())
+      .where((s) => s.isNotEmpty)
+      .toList();
+  }
+
+  List<String> _splitKoreanTranslation(String translation) {
+    if (translation.isEmpty) return [];
+
+    // 한국어도 동일한 구분자로 분리
+    return translation
+      .split(RegExp(r'[\.!？。.]'))
+      .map((s) => s.trim())
+      .where((s) => s.isNotEmpty)
+      .toList();
+  }
+
+  List<(String, String)> _matchTranslations(String chineseText, String koreanTranslation) {
+    // 전체 원문과 번역문
+    final fullChineseText = chineseText.trim();
+    final fullKoreanText = koreanTranslation.trim();
+    
+    // ! 기준으로 분리
+    List<String> chineseSentences = _splitChineseText(fullChineseText);
+    List<String> koreanSentences = _splitKoreanTranslation(fullKoreanText);
+
+    // 문장이 하나도 분리되지 않은 경우 전체를 하나의 문장으로 처리
+    if (chineseSentences.isEmpty) {
+      chineseSentences = [fullChineseText];
+    }
+    if (koreanSentences.isEmpty) {
+      koreanSentences = [fullKoreanText];
+    }
+    
+    List<(String, String)> matchedSentences = [];
+    
+    for (int i = 0; i < chineseSentences.length; i++) {
+      String korean = i < koreanSentences.length ? koreanSentences[i] : fullKoreanText;
+      matchedSentences.add((chineseSentences[i], korean));
+    }
+
+    return matchedSentences;
+  }
+
   List<Widget> _buildSentences(String originalText, String translatedText) {
-    // 원문 텍스트 전처리
-    final processedOriginalText = originalText
-      .split('\n')
-      .map((line) => line.trim())
-      .where((line) => line.isNotEmpty)
-      .join('\n');
+    final matchedSentences = _matchTranslations(originalText, translatedText);
 
-
-    // 문장 단위로 분리 (중국어 구분자: 。, ，, ：, ！)
-    final originalSentences = processedOriginalText
-      .split(RegExp(r'[。，：！]'))  // 중국어 구분자로 분리
-      .map((sentence) {
-        return sentence
-          .trim()
-          .replaceAll(RegExp(r'\s+'), ' ')
-          .replaceAll('  ', ' ');
-      })
-      .where((sentence) => sentence.isNotEmpty)
-      .toList();
-
-    // 번역 텍스트 전처리 (한글 구분자: ., ,, :, !)
-    final translatedSentences = translatedText
-      .split(RegExp(r'[.,:]|!'))  // 한글 구분자로 분리
-      .map((sentence) => sentence.trim())
-      .where((sentence) => sentence.isNotEmpty)
-      .toList();
-    
-    List<Widget> widgets = [];
-    
-    for (var i = 0; i < originalSentences.length; i++) {
-      final int currentIndex = i;
-      
-      // Container를 먼저 추가하고 그 안에서 조건부 렌더링
-      widgets.add(
-        Container(
-          width: double.infinity,
-          margin: const EdgeInsets.only(bottom: 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return matchedSentences.map((pair) {
+      final (chinese, korean) = pair;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 중국어 문장과 TTS 버튼
+          Row(
             children: [
-              // 원문 텍스트 (originalOnly 또는 both 모드일 때만 표시)
-              if (widget.displayMode != TextDisplayMode.translationOnly)
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Expanded(
-                      child: SelectableText(
-                        '${originalSentences[i]}${_getOriginalPunctuation(i, processedOriginalText)}',
-                        style: TypographyTokens.getStyle('heading.h3').copyWith(
-                          color: ColorTokens.getColor('text.body'),
-                          backgroundColor: widget.highlightedTexts.contains(originalSentences[i])
-                            ? ColorTokens.getColor('tertiary.400')
-                            : Colors.transparent,
-                        ),
-                        contextMenuBuilder: (context, editableTextState) {
-                          final Offset globalPosition = editableTextState.contextMenuAnchors.primaryAnchor;
-                          
-                          return Stack(
-                            children: [
-                              Positioned(
-                                left: globalPosition.dx,
-                                top: globalPosition.dy - 48,
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: ColorTokens.getColor('base.0'),
-                                    borderRadius: BorderRadius.circular(8),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.1),
-                                        blurRadius: 8,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
-                                  ),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: Material(
-                                      color: Colors.transparent,
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          TextButton(
-                                            onPressed: () {
-                                              final String selectedText = editableTextState.textEditingValue.selection
-                                                  .textInside(editableTextState.textEditingValue.text);
-                                              Clipboard.setData(ClipboardData(text: selectedText));
-                                              editableTextState.hideToolbar();
-                                              ScaffoldMessenger.of(context).showSnackBar(
-                                                const SnackBar(
-                                                  content: Text('텍스트가 복사되었습니다'),
-                                                  duration: Duration(seconds: 1),
-                                                ),
-                                              );
-                                            },
-                                            style: TextButton.styleFrom(
-                                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                            ),
-                                            child: Text(
-                                              'Copy',
-                                              style: TypographyTokens.getStyle('body.small').copyWith(
-                                                color: ColorTokens.getColor('text.body'),
-                                              ),
-                                            ),
-                                          ),
-                                          Container(width: 1, height: 24, color: ColorTokens.getColor('base.200')),
-                                          TextButton(
-                                            onPressed: () {
-                                              final String selectedText = editableTextState.textEditingValue.selection
-                                                  .textInside(editableTextState.textEditingValue.text);
-                                              widget.onHighlighted(selectedText);
-                                              editableTextState.hideToolbar();
-                                            },
-                                            style: TextButton.styleFrom(
-                                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                            ),
-                                            child: Text(
-                                              'Highlight',
-                                              style: TypographyTokens.getStyle('body.small').copyWith(
-                                                color: ColorTokens.getColor('text.body'),
-                                              ),
-                                            ),
-                                          ),
-                                          Container(width: 1, height: 24, color: ColorTokens.getColor('base.200')),
-                                          TextButton(
-                                            onPressed: () {
-                                              final String selectedText = editableTextState.textEditingValue.selection
-                                                  .textInside(editableTextState.textEditingValue.text);
-                                              _showDictionaryLookup(context, selectedText);
-                                              editableTextState.hideToolbar();
-                                            },
-                                            style: TextButton.styleFrom(
-                                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                            ),
-                                            child: Text(
-                                              'Look Up',
-                                              style: TypographyTokens.getStyle('body.small').copyWith(
-                                                color: ColorTokens.getColor('text.body'),
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
+              Expanded(
+                child: _buildSentence(chinese, matchedSentences.indexOf(pair)),
+              ),
+              // TTS 버튼
+              Container(
+                width: 32,
+                height: 32,
+                margin: const EdgeInsets.only(left: 8),
+                child: Material(
+                  color: ColorTokens.getColor('base.800').withOpacity(0.2),
+                  shape: const CircleBorder(),
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: () {
+                      final index = matchedSentences.indexOf(pair);
+                      if (_playingSentenceIndex.value == index) {
+                        widget.onSpeak?.call('');
+                        _playingSentenceIndex.value = null;
+                      } else {
+                        _handleTTS(chinese, index);
+                      }
+                    },
+                    child: Center(
+                      child: ValueListenableBuilder<int?>(
+                        valueListenable: _playingSentenceIndex,
+                        builder: (context, playingIndex, _) {
+                          final isPlaying = playingIndex == matchedSentences.indexOf(pair);
+                          return Icon(
+                            isPlaying ? Icons.stop : Icons.play_arrow,
+                            color: ColorTokens.getColor('base.0'),
+                            size: 20,
                           );
                         },
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Container(
-                      width: 24,
-                      height: 24,
-                      decoration: BoxDecoration(
-                        color: _playingSentenceIndex == currentIndex
-                          ? ColorTokens.getColor('secondary.400')
-                          : ColorTokens.getColor('primary.25'),
-                        borderRadius: BorderRadius.circular(100),
-                      ),
-                      child: IconButton(
-                        padding: EdgeInsets.zero,
-                        icon: Icon(
-                          Icons.volume_up,
-                          size: 16,
-                          color: _playingSentenceIndex == currentIndex
-                            ? ColorTokens.getColor('base.0')
-                            : ColorTokens.getColor('secondary.100'),
-                        ),
-                        onPressed: () => _handleTTS(originalSentences[currentIndex], currentIndex),
-                      ),
-                    ),
-                  ],
-                ),
-              // 번역 텍스트 (translationOnly 또는 both 모드일 때만 표시)
-              if (widget.displayMode != TextDisplayMode.originalOnly && i < translatedSentences.length)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text(
-                    translatedSentences[i],
-                    style: TypographyTokens.getStyle('body.small').copyWith(
-                      color: ColorTokens.getColor('text.translation'),
-                    ),
                   ),
                 ),
+              ),
             ],
           ),
-        ),
+          // 한국어 번역문
+          if (widget.displayMode != TextDisplayMode.originalOnly && korean.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            _buildSentence(korean, -1),  // 번역문은 TTS 인덱스 불필요
+            const SizedBox(height: 16),
+          ],
+        ],
       );
-
-      // 문장 사이의 간격
-      if (i < originalSentences.length - 1) {
-        widgets.add(const SizedBox(height: 16));
-      }
-    }
-    
-    return widgets;
+    }).toList();
   }
 
-  // 원문의 구분자를 찾아 반환하는 헬퍼 메서드
-  String _getOriginalPunctuation(int index, String originalText) {
-    final punctuations = RegExp(r'[。，：！]').allMatches(originalText).toList();
-    if (index < punctuations.length) {
-      return punctuations[index].group(0) ?? '。';
-    }
-    return '。';
+  Widget _buildSentence(String text, int index) {
+    return ValueListenableBuilder<int?>(
+      valueListenable: _playingSentenceIndex,
+      builder: (context, playingIndex, child) {
+        return TextHighlighter(
+          text: text,
+          isHighlightMode: widget.isHighlightMode,
+          highlightedTexts: widget.highlightedTexts,
+          onHighlighted: widget.onHighlighted,
+          highlightColor: ColorTokens.getColor('tertiary.200'),
+          style: TypographyTokens.getStyle('body.large').copyWith(
+            color: ColorTokens.getColor('text.body'),
+            height: 1.8,
+          ),
+          contextMenuBuilder: (context, text, selection) {
+            return AdaptiveTextSelectionToolbar.buttonItems(
+              anchors: selection.contextMenuAnchors,
+              buttonItems: [
+                ContextMenuButtonItem(
+                  label: 'Copy',
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: text));
+                    selection.hideToolbar();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('텍스트가 복사되었습니다')),
+                    );
+                  },
+                ),
+                if (widget.isHighlightMode && !widget.highlightedTexts.contains(text))
+                  ContextMenuButtonItem(
+                    label: 'Highlight',
+                    onPressed: () {
+                      widget.onHighlighted(text);
+                      selection.hideToolbar();
+                    },
+                  ),
+                ContextMenuButtonItem(
+                  label: 'Dictionary',
+                  onPressed: () {
+                    _showDictionaryLookup(context, text);
+                    selection.hideToolbar();
+                  },
+                ),
+                ContextMenuButtonItem(
+                  label: 'Speak',
+                  onPressed: () {
+                    _handleTTS(text, index);
+                    selection.hideToolbar();
+                  },
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   void _showMoreOptions() async {
@@ -442,65 +415,6 @@ class _NotePageState extends State<NotePage> {
       ),
     );
     _resetButtonStates();  // 화면 복귀 시 상태 리셋
-  }
-
-  void _showTextOptions(BuildContext context, String text) {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => Container(
-        decoration: BoxDecoration(
-          color: ColorTokens.getColor('base.0'),
-          borderRadius: const BorderRadius.vertical(
-            top: Radius.circular(16),
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: Icon(
-                  Icons.content_copy,
-                  color: ColorTokens.getColor('text.body'),
-                ),
-                title: Text(
-                  'Copy',
-                  style: TypographyTokens.getStyle('body.medium').copyWith(
-                    color: ColorTokens.getColor('text.body'),
-                  ),
-                ),
-                onTap: () {
-                  Clipboard.setData(ClipboardData(text: text));
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('텍스트가 복사되었습니다')),
-                  );
-                },
-              ),
-              ListTile(
-                leading: Icon(
-                  Icons.highlight,
-                  color: ColorTokens.getColor('text.body'),
-                ),
-                title: Text(
-                  'Highlight',
-                  style: TypographyTokens.getStyle('body.medium').copyWith(
-                    color: ColorTokens.getColor('text.body'),
-                  ),
-                ),
-                onTap: () {
-                  widget.onHighlighted(text);
-                  Navigator.pop(context);
-                },
-                tileColor: widget.highlightedTexts.contains(text)
-                  ? ColorTokens.getColor('tertiary.200')
-                  : null,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   void _showDictionaryLookup(BuildContext context, String word) {

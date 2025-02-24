@@ -411,7 +411,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                   width: MediaQuery.of(context).size.width * 
                     (widget.note.pages.isEmpty ? 0 : (_currentPageIndex + 1) / widget.note.pages.length),
                   height: 4,
-                  color: ColorTokens.getColor('secondary.400'),
+                  color: ColorTokens.getColor('primary.400'),
                 ),
               ],
             ),
