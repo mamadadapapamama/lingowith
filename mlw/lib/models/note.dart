@@ -31,12 +31,14 @@ class Page {
 class FlashCard {
   final String front;
   final String back;
+  final String? pinyin;
   final int reviewCount;
   final DateTime? lastReviewedAt;
 
   const FlashCard({
     required this.front,
     required this.back,
+    this.pinyin,
     this.reviewCount = 0,
     this.lastReviewedAt,
   });
@@ -45,6 +47,7 @@ class FlashCard {
     return FlashCard(
       front: json['front'] as String,
       back: json['back'] as String,
+      pinyin: json['pinyin'] as String?,
       reviewCount: json['reviewCount'] as int? ?? 0,
       lastReviewedAt: json['lastReviewedAt'] != null 
           ? (json['lastReviewedAt'] as Timestamp).toDate()
@@ -56,6 +59,7 @@ class FlashCard {
     return {
       'front': front,
       'back': back,
+      'pinyin': pinyin,
       'reviewCount': reviewCount,
       'lastReviewedAt': lastReviewedAt != null 
           ? Timestamp.fromDate(lastReviewedAt!)
@@ -66,12 +70,14 @@ class FlashCard {
   FlashCard copyWith({
     String? front,
     String? back,
+    String? pinyin,
     int? reviewCount,
     DateTime? lastReviewedAt,
   }) {
     return FlashCard(
       front: front ?? this.front,
       back: back ?? this.back,
+      pinyin: pinyin ?? this.pinyin,
       reviewCount: reviewCount ?? this.reviewCount,
       lastReviewedAt: lastReviewedAt ?? this.lastReviewedAt,
     );

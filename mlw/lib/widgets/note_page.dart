@@ -241,7 +241,7 @@ class _NotePageState extends State<NotePage> {
                     Expanded(
                       child: SelectableText(
                         '${originalSentences[i]}${_getOriginalPunctuation(i, processedOriginalText)}',
-                        style: TypographyTokens.getStyle('heading.h1.5').copyWith(
+                        style: TypographyTokens.getStyle('heading.h3').copyWith(
                           color: ColorTokens.getColor('text.body'),
                           backgroundColor: widget.highlightedTexts.contains(originalSentences[i])
                             ? ColorTokens.getColor('tertiary.400')

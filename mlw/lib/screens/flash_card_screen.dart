@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:mlw/models/note.dart';
+import 'package:mlw/models/note.dart' as note_model;
 import 'package:mlw/theme/tokens/color_tokens.dart';
 import 'package:mlw/theme/tokens/typography_tokens.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:mlw/widgets/flash_card.dart' as flash_card_widget;
+import 'package:flutter_tts/flutter_tts.dart';
 
 class FlashCardScreen extends StatefulWidget {
-  final List<FlashCard> flashCards;
+  final List<note_model.FlashCard> flashCards;
   final String title;
 
   const FlashCardScreen({
@@ -21,25 +22,25 @@ class FlashCardScreen extends StatefulWidget {
 }
 
 class _FlashCardScreenState extends State<FlashCardScreen> {
-  int _currentIndex = 0;
   bool _showFront = true;
+  int _currentIndex = 0;
+  final FlutterTts _flutterTts = FlutterTts();
+  late List<note_model.FlashCard> _remainingCards;
+  int _keepCount = 0;
+  int _archiveCount = 0;
 
-  void _nextCard() {
-    setState(() {
-      if (_currentIndex < widget.flashCards.length - 1) {
-        _currentIndex++;
-        _showFront = true;
-      }
-    });
+  @override
+  void initState() {
+    super.initState();
+    _remainingCards = List.from(widget.flashCards);
+    _initTTS();
   }
 
-  void _previousCard() {
-    setState(() {
-      if (_currentIndex > 0) {
-        _currentIndex--;
-        _showFront = true;
-      }
-    });
+  Future<void> _initTTS() async {
+    await _flutterTts.setLanguage('zh-CN');
+    await _flutterTts.setSpeechRate(0.5);
+    await _flutterTts.setVolume(1.0);
+    await _flutterTts.setPitch(1.0);
   }
 
   void _flipCard() {
@@ -48,138 +49,177 @@ class _FlashCardScreenState extends State<FlashCardScreen> {
     });
   }
 
+  void _keepCard() {
+    setState(() {
+      _showFront = true;
+      if (_currentIndex < _remainingCards.length - 1) {
+        _currentIndex++;
+      } else {
+        _currentIndex = 0;
+      }
+    });
+  }
+
+  void _markAsDone() {
+    setState(() {
+      _remainingCards.removeAt(_currentIndex);
+      if (_currentIndex >= _remainingCards.length) {
+        _currentIndex = 0;
+      }
+      _showFront = true;
+    });
+  }
+
+  void _previousCard() {
+    setState(() {
+      _currentIndex = (_currentIndex - 1 + _remainingCards.length) % _remainingCards.length;
+      _showFront = true;
+    });
+  }
+
+  void _nextCard() {
+    setState(() {
+      _currentIndex = (_currentIndex + 1) % _remainingCards.length;
+      _showFront = true;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.dark,
-        statusBarBrightness: Brightness.light,
-        systemNavigationBarColor: theme.scaffoldBackgroundColor,
-        systemNavigationBarIconBrightness: Brightness.dark,
-      ),
-      child: Scaffold(
-        backgroundColor: theme.scaffoldBackgroundColor,
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: () => Navigator.pop(context),
-          ),
-          title: Text(
-            widget.title,
-            style: theme.textTheme.headlineMedium,
-          ),
-          centerTitle: true,
+    return Scaffold(
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
         ),
-        body: widget.flashCards.isEmpty
-            ? Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    SvgPicture.asset(
-                      'assets/images/zero_flashcard.svg',
-                      width: 48,
-                      height: 48,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'No flash cards yet',
-                      style: theme.textTheme.headlineMedium,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Highlight text to create flash cards',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.textTheme.bodySmall?.color?.withOpacity(0.6),
-                      ),
-                    ),
-                  ],
+        title: Row(
+          children: [
+            SvgPicture.asset('assets/icon/flashcard.svg'),
+            const SizedBox(width: 8),
+            Text('Flashcards'),
+          ],
+        ),
+        actions: [
+          Text('${_currentIndex + 1}/${_remainingCards.length}'),
+          const SizedBox(width: 16),
+        ],
+      ),
+      body: Column(
+        children: [
+          // Keep/Archive Counts
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            child: Row(
+              children: [
+                _CountButton(
+                  count: _keepCount,
+                  label: 'Keep',
+                  color: ColorTokens.getColor('tertiary.400'),
+                  onTap: () {
+                    // TODO: Show kept flashcards
+                  },
                 ),
-              )
-            : Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          '${_currentIndex + 1} / ${widget.flashCards.length}',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.textTheme.bodySmall?.color?.withOpacity(0.6),
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: _flipCard,
-                          child: Text(
-                            'Flip',
-                            style: theme.textTheme.labelLarge?.copyWith(
-                              color: theme.colorScheme.primary,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                const SizedBox(width: 16),
+                _CountButton(
+                  count: _archiveCount,
+                  label: 'Archive',
+                  color: ColorTokens.getColor('secondary.400'),
+                  onTap: () {
+                    // TODO: Show archived flashcards
+                  },
+                ),
+              ],
+            ),
+          ),
+          
+          // Flashcard
+          Expanded(
+            child: PageView.builder(
+              itemCount: _remainingCards.length,
+              onPageChanged: (index) {
+                setState(() {
+                  _currentIndex = index;
+                  _showFront = true;
+                });
+              },
+              itemBuilder: (context, index) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: flash_card_widget.FlashCard(
+                    front: _remainingCards[index].front,
+                    back: _remainingCards[index].back,
+                    pinyin: null,
+                    showFront: _showFront,
+                    onFlip: _flipCard,
+                    onKeep: () {
+                      setState(() {
+                        _keepCount++;
+                        _remainingCards.removeAt(index);
+                      });
+                    },
+                    onArchive: () {
+                      setState(() {
+                        _archiveCount++;
+                        _remainingCards.removeAt(index);
+                      });
+                    },
+                    flutterTts: _flutterTts,
+                    onPrevious: index > 0 ? () => _previousCard() : null,
+                    onNext: index < _remainingCards.length - 1 ? () => _nextCard() : null,
                   ),
-                  const SizedBox(height: 16),
-                  Expanded(
-                    child: GestureDetector(
-                      onHorizontalDragEnd: (details) {
-                        if (details.primaryVelocity! > 0) {
-                          _previousCard();
-                        } else if (details.primaryVelocity! < 0) {
-                          _nextCard();
-                        }
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: flash_card_widget.FlashCard(
-                          front: widget.flashCards[_currentIndex].front,
-                          back: widget.flashCards[_currentIndex].back,
-                          showFront: _showFront,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  Padding(
-                    padding: EdgeInsets.only(
-                      left: 24,
-                      right: 24,
-                      bottom: MediaQuery.of(context).padding.bottom + 24,
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        IconButton(
-                          onPressed: _currentIndex > 0 ? _previousCard : null,
-                          icon: Icon(
-                            Icons.arrow_back_ios,
-                            color: _currentIndex > 0
-                                ? theme.iconTheme.color
-                                : theme.disabledColor,
-                          ),
-                        ),
-                        IconButton(
-                          onPressed: _currentIndex < widget.flashCards.length - 1
-                              ? _nextCard
-                              : null,
-                          icon: Icon(
-                            Icons.arrow_forward_ios,
-                            color: _currentIndex < widget.flashCards.length - 1
-                                ? theme.iconTheme.color
-                                : theme.disabledColor,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _flutterTts.stop();
+    super.dispose();
+  }
+}
+
+class _CountButton extends StatelessWidget {
+  final int count;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _CountButton({
+    required this.count,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: color.withOpacity(0.1),
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            children: [
+              Text(
+                count.toString(),
+                style: TypographyTokens.getStyle('heading.h3'),
               ),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TypographyTokens.getStyle('body.medium'),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

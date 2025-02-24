@@ -16,6 +16,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:mlw/theme/tokens/typography_tokens.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:mlw/models/text_display_mode.dart';
+import 'package:mlw/models/flash_card.dart';
 
 
 class NoteDetailScreen extends StatefulWidget {
@@ -101,6 +102,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       final newFlashCard = note_model.FlashCard(
         front: text,
         back: translatedText,
+        pinyin: await getPinyin(text),
       );
 
       // 노트 업데이트
@@ -141,6 +143,12 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     }
   }
 
+  Future<String> getPinyin(String text) async {
+    // TODO: pinyin API 연동
+    // 임시로 더미 데이터 반환
+    return 'mao he gou shi hao peng you';
+  }
+
   void _addToFlashcards(String text) async {
     try {
       final translatedText = await translatorService.translate(text, from: 'zh', to: 'ko');
@@ -148,6 +156,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       final newFlashCard = note_model.FlashCard(
         front: text,
         back: translatedText,
+        pinyin: await getPinyin(text),
       );
       
       final updatedNote = widget.note.copyWith(

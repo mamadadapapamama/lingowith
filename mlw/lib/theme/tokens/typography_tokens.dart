@@ -24,7 +24,7 @@ class TypographyTokens {
           letterSpacing: 0,
         );
 
-      case 'heading.h1.5':
+      case 'heading.h3':
         return GoogleFonts.poppins(
           fontSize: 22,
           fontWeight: FontWeight.w400,
@@ -40,6 +40,17 @@ class TypographyTokens {
           letterSpacing: 0,
         );
       
+      case 'heading.flashcard':
+        return GoogleFonts.poppins(
+          fontSize: 40,
+          fontWeight: FontWeight.w600,
+          height: 1.2,
+          letterSpacing: 0,
+        );
+  
+      
+
+
       case 'body':
       case 'body.medium':
         return GoogleFonts.poppins(
