@@ -11,6 +11,7 @@ import 'package:mlw/models/text_display_mode.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:mlw/widgets/dictionary_lookup_sheet.dart';
+import 'package:flutter/widgets.dart' show EditableTextState;
 
 class NotePage extends StatefulWidget {
   final note_model.Page page;
@@ -18,10 +19,10 @@ class NotePage extends StatefulWidget {
   final bool isHighlightMode;
   final Set<String> highlightedTexts;
   final Function(String) onHighlighted;
-  final Function(String)? onSpeak;
+  final Function(String) onSpeak;
   final int? currentPlayingIndex;
-  final VoidCallback? onDeletePage;
-  final Function(String)? onEditText;
+  final VoidCallback onDeletePage;
+  final Function(String) onEditText;
 
   const NotePage({
     Key? key,
@@ -30,10 +31,10 @@ class NotePage extends StatefulWidget {
     required this.isHighlightMode,
     required this.highlightedTexts,
     required this.onHighlighted,
-    this.onSpeak,
+    required this.onSpeak,
     this.currentPlayingIndex,
-    this.onDeletePage,
-    this.onEditText,
+    required this.onDeletePage,
+    required this.onEditText,
   }) : super(key: key);
 
   @override
@@ -70,13 +71,13 @@ class _NotePageState extends State<NotePage> {
   Future<void> _handleTTS(String text, int index) async {
     // 이미 재생 중인 문장이 있다면 중지
     if (_playingSentenceIndex.value != null) {
-      await widget.onSpeak?.call('');  // TTS 중지
+      await widget.onSpeak.call('');  // TTS 중지
     }
 
     try {
       _playingSentenceIndex.value = index;  // 재생 시작
       
-      await widget.onSpeak?.call(text);
+      await widget.onSpeak.call(text);
       
       // 현재 인덱스가 여전히 같은 경우에만 null로 설정
       if (_playingSentenceIndex.value == index) {
@@ -90,6 +91,9 @@ class _NotePageState extends State<NotePage> {
 
   @override
   Widget build(BuildContext context) {
+    print('NotePage - isHighlightMode: ${widget.isHighlightMode}');
+    print('NotePage - highlightedTexts: ${widget.highlightedTexts}');
+    
     return Container(  // 페이지 배경색 추가
       color: ColorTokens.getColor('base.0'),
       child: Column(
@@ -280,38 +284,7 @@ class _NotePageState extends State<NotePage> {
                   onHighlighted: widget.onHighlighted,
                   highlightColor: ColorTokens.getColor('tertiary.200'),
                   style: TypographyTokens.getStyle('body.original'),
-                  contextMenuBuilder: (context, text, selection) {
-                    return AdaptiveTextSelectionToolbar.buttonItems(
-                      anchors: selection.contextMenuAnchors,
-                      buttonItems: [
-                        ContextMenuButtonItem(
-                          label: 'Copy',
-                          onPressed: () {
-                            Clipboard.setData(ClipboardData(text: text));
-                            selection.hideToolbar();
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('텍스트가 복사되었습니다')),
-                            );
-                          },
-                        ),
-                        if (widget.isHighlightMode && !widget.highlightedTexts.contains(text))
-                          ContextMenuButtonItem(
-                            label: 'Highlight',
-                            onPressed: () {
-                              widget.onHighlighted(text);
-                              selection.hideToolbar();
-                            },
-                          ),
-                        ContextMenuButtonItem(
-                          label: 'Dictionary',
-                          onPressed: () {
-                            _showDictionaryLookup(context, text);
-                            selection.hideToolbar();
-                          },
-                        ),
-                      ],
-                    );
-                  },
+                  contextMenuBuilder: null,
                 ),
               ),
               // TTS 버튼
@@ -327,7 +300,7 @@ class _NotePageState extends State<NotePage> {
                     onTap: () {
                       final index = matchedSentences.indexOf(pair);
                       if (_playingSentenceIndex.value == index) {
-                        widget.onSpeak?.call('');
+                        widget.onSpeak.call('');
                         _playingSentenceIndex.value = null;
                       } else {
                         _handleTTS(chinese, index);
@@ -387,38 +360,7 @@ class _NotePageState extends State<NotePage> {
             color: ColorTokens.getColor('text.body'),
             height: 1.8,
           ),
-          contextMenuBuilder: (context, text, selection) {
-            return AdaptiveTextSelectionToolbar.buttonItems(
-              anchors: selection.contextMenuAnchors,
-              buttonItems: [
-                ContextMenuButtonItem(
-                  label: 'Copy',
-                  onPressed: () {
-                    Clipboard.setData(ClipboardData(text: text));
-                    selection.hideToolbar();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('텍스트가 복사되었습니다')),
-                    );
-                  },
-                ),
-                if (widget.isHighlightMode && !widget.highlightedTexts.contains(text))
-                  ContextMenuButtonItem(
-                    label: 'Highlight',
-                    onPressed: () {
-                      widget.onHighlighted(text);
-                      selection.hideToolbar();
-                    },
-                  ),
-                ContextMenuButtonItem(
-                  label: 'Dictionary',
-                  onPressed: () {
-                    _showDictionaryLookup(context, text);
-                    selection.hideToolbar();
-                  },
-                ),
-              ],
-            );
-          },
+          contextMenuBuilder: null,
         );
       },
     );
@@ -444,7 +386,7 @@ class _NotePageState extends State<NotePage> {
               ),
               onTap: () {
                 Navigator.pop(context);
-                widget.onEditText?.call(widget.page.extractedText);
+                widget.onEditText.call(widget.page.extractedText);
               },
             ),
             ListTile(
@@ -460,7 +402,7 @@ class _NotePageState extends State<NotePage> {
               ),
               onTap: () {
                 Navigator.pop(context);
-                widget.onDeletePage?.call();
+                widget.onDeletePage.call();
               },
             ),
           ],

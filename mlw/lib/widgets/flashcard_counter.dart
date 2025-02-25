@@ -8,26 +8,37 @@ import 'package:mlw/models/note.dart' as note_model;
 class FlashcardCounter extends StatelessWidget {
   final List<note_model.FlashCard> flashCards;
   final String noteTitle;
+  final String noteId; // 노트 ID 추가
+  final int knownCount;
   final bool isInteractive;
-  final bool alwaysShow;  // 추가: 항상 보여줄지 여부
+  final bool alwaysShow;
 
   const FlashcardCounter({
     Key? key,
     required this.flashCards,
     required this.noteTitle,
+    required this.noteId, // 필수 파라미터로 추가
+    this.knownCount = 0,
     this.isInteractive = true,
-    this.alwaysShow = false,  // 기본값은 false
+    this.alwaysShow = false,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    // alwaysShow가 false이고 flashCards가 비어있으면 숨김
-    if (!alwaysShow && flashCards.isEmpty) return const SizedBox.shrink();
+    print('FlashcardCounter - flashCards count: ${flashCards.length}');
+    print('FlashcardCounter - known cards: $knownCount');
+    
+    if (!alwaysShow && flashCards.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    // 남은 카드 수 계산
+    final remainingCards = flashCards.length - knownCount;
 
     Widget counter = Container(
       padding: const EdgeInsets.symmetric(
-        vertical: 4,  // spacing-100
-        horizontal: 12,  // spacing-300
+        vertical: 4,
+        horizontal: 12,
       ),
       decoration: BoxDecoration(
         color: ColorTokens.getColor('tertiary.400'),
@@ -43,7 +54,7 @@ class FlashcardCounter extends StatelessWidget {
           ),
           const SizedBox(width: 1),
           Text(
-            flashCards.length.toString(),
+            '$remainingCards 플래시카드',
             style: TypographyTokens.getStyle('button.small').copyWith(
               color: ColorTokens.getColor('text.body'),
             ),
@@ -65,6 +76,7 @@ class FlashcardCounter extends StatelessWidget {
               builder: (context) => FlashCardScreen(
                 flashCards: flashCards,
                 title: noteTitle,
+                noteId: noteId, // noteId 전달
               ),
             ),
           );

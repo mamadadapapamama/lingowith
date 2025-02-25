@@ -11,9 +11,8 @@ class TextHighlighter extends StatelessWidget {
   final bool isHighlightMode;
   final Set<String> highlightedTexts;
   final Function(String) onHighlighted;
+  final Color highlightColor;
   final TextStyle style;
-  final Color? highlightColor;
-  final Function(BuildContext, String, TextSelectionState)? contextMenuBuilder;
 
   const TextHighlighter({
     Key? key,
@@ -21,113 +20,170 @@ class TextHighlighter extends StatelessWidget {
     required this.isHighlightMode,
     required this.highlightedTexts,
     required this.onHighlighted,
+    required this.highlightColor,
     required this.style,
-    this.highlightColor,
-    this.contextMenuBuilder,
+    Widget Function(BuildContext, EditableTextState)? contextMenuBuilder,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    final List<TextSpan> spans = [];
-    final RegExp pattern = RegExp(r'[\u4e00-\u9fa5]+'); // Chinese characters pattern
-    final matches = pattern.allMatches(text);
-    int lastEnd = 0;
+    // 디버그 로그 추가
+    print('TextHighlighter - text: $text');
+    print('TextHighlighter - highlightedTexts: $highlightedTexts');
+    print('TextHighlighter - isHighlightMode: $isHighlightMode');
 
-    for (var match in matches) {
-      // Add non-Chinese text before the match
-      if (match.start > lastEnd) {
+    // 텍스트 분할 및 하이라이트 처리
+    List<TextSpan> spans = [];
+    
+    // 하이라이트된 텍스트가 없거나 하이라이트 모드가 아닌 경우
+    if (highlightedTexts.isEmpty || !isHighlightMode) {
+      spans = [TextSpan(text: text, style: style)];
+    } else {
+      // 하이라이트 처리
+      String remaining = text;
+      List<(int, int, String)> highlights = [];
+      
+      // 모든 하이라이트 위치 찾기
+      for (String highlight in highlightedTexts) {
+        if (highlight.isEmpty) continue;
+        
+        int startIndex = 0;
+        while (true) {
+          int index = text.indexOf(highlight, startIndex);  // remaining -> text로 변경
+          if (index == -1) break;
+          
+          highlights.add((index, index + highlight.length, highlight));
+          startIndex = index + 1;
+        }
+      }
+      
+      // 위치별로 정렬
+      highlights.sort((a, b) => a.$1.compareTo(b.$1));
+      
+      // 겹치는 하이라이트 제거
+      List<(int, int, String)> filteredHighlights = [];
+      for (var highlight in highlights) {
+        if (filteredHighlights.isEmpty) {
+          filteredHighlights.add(highlight);
+          continue;
+        }
+        
+        var last = filteredHighlights.last;
+        if (highlight.$1 >= last.$2) {
+          filteredHighlights.add(highlight);
+        }
+      }
+      
+      // 스팬 생성
+      int lastIndex = 0;
+      for (var highlight in filteredHighlights) {
+        if (highlight.$1 > lastIndex) {
+          spans.add(TextSpan(
+            text: text.substring(lastIndex, highlight.$1),
+            style: style,
+          ));
+        }
+        
         spans.add(TextSpan(
-          text: text.substring(lastEnd, match.start),
+          text: highlight.$3,
+          style: style.copyWith(
+            backgroundColor: highlightColor,
+          ),
+        ));
+        
+        lastIndex = highlight.$2;
+      }
+      
+      if (lastIndex < text.length) {
+        spans.add(TextSpan(
+          text: text.substring(lastIndex),
           style: style,
         ));
       }
-
-      // Add Chinese text with highlight
-      final chineseText = match.group(0)!;
-      final isHighlighted = highlightedTexts.contains(chineseText);
-
-      spans.add(TextSpan(
-        text: chineseText,
-        style: style.copyWith(
-          backgroundColor: isHighlighted 
-            ? ColorTokens.getColor('tertiary.200')  // 하이라이트된 단어
-            : null,
-        ),
-      ));
-
-      lastEnd = match.end;
     }
-
-    // Add any remaining text
-    if (lastEnd < text.length) {
-      spans.add(TextSpan(
-        text: text.substring(lastEnd),
-        style: style,
-      ));
-    }
-
+    
+    // 선택 가능한 텍스트 위젯 생성
     return SelectableText.rich(
       TextSpan(children: spans),
+      style: style,
       contextMenuBuilder: (context, editableTextState) {
-        final selectedText = editableTextState.textEditingValue.selection.textInside(text);
-        
-        // 중국어 문자가 포함된 경우에만 특별 메뉴 표시
-        if (RegExp(r'[\u4e00-\u9fa5]').hasMatch(selectedText)) {
-          return AdaptiveTextSelectionToolbar.buttonItems(
+        try {
+          final TextEditingValue value = editableTextState.textEditingValue;
+          final TextSelection selection = value.selection;
+          
+          if (selection.isCollapsed || 
+              selection.baseOffset < 0 || 
+              selection.extentOffset > text.length) {
+            return Container();
+          }
+          
+          final String selectedText = value.text.substring(
+            selection.baseOffset, 
+            selection.extentOffset
+          );
+          
+          print('Selected text: $selectedText');
+          print('Is highlight mode: $isHighlightMode');
+          
+          return AdaptiveTextSelectionToolbar(
             anchors: editableTextState.contextMenuAnchors,
-            buttonItems: [
-              // 복사 버튼
-              ContextMenuButtonItem(
-                label: 'Copy',
+            children: [
+              TextButton(
                 onPressed: () {
                   Clipboard.setData(ClipboardData(text: selectedText));
                   editableTextState.hideToolbar();
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('텍스트가 복사되었습니다')),
+                    const SnackBar(content: Text('Text copied')),
                   );
                 },
+                child: const Text('Copy'),
               ),
-              // 사전 검색 버튼
-              ContextMenuButtonItem(
-                label: 'Look up',
+              // 항상 하이라이트 버튼 표시 (조건 검사 제거)
+              TextButton(
                 onPressed: () {
-                  showModalBottomSheet(
-                    context: context,
-                    isScrollControlled: true,
-                    shape: const RoundedRectangleBorder(
-                      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-                    ),
-                    builder: (context) => DraggableScrollableSheet(
-                      initialChildSize: 0.7,
-                      minChildSize: 0.5,
-                      maxChildSize: 0.9,
-                      builder: (context, scrollController) => DictionaryLookupSheet(
-                        word: selectedText,
-                        scrollController: scrollController,
-                      ),
-                    ),
+                  print('Highlight button pressed for: $selectedText');
+                  onHighlighted(selectedText);
+                  editableTextState.hideToolbar();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Text highlighted')),
                   );
+                },
+                child: const Text('Highlight'),
+              ),
+              TextButton(
+                onPressed: () {
+                  _showDictionaryLookup(context, selectedText);
                   editableTextState.hideToolbar();
                 },
+                child: const Text('Dictionary'),
               ),
-              // 하이라이트 버튼 (이미 하이라이트되지 않은 경우에만)
-              if (!highlightedTexts.contains(selectedText))
-                ContextMenuButtonItem(
-                  label: 'Highlight',
-                  onPressed: () {
-                    onHighlighted(selectedText);  // 하이라이트 및 플래시카드 추가
-                    editableTextState.hideToolbar();
-                  },
-                ),
             ],
           );
+        } catch (e) {
+          print('Error in context menu: $e');
+          return Container();
         }
-
-        // 중국어가 아닌 경우 기본 메뉴
-        return AdaptiveTextSelectionToolbar.editableText(
-          editableTextState: editableTextState,
-        );
       },
+    );
+  }
+
+  // 사전 조회 시트 표시
+  void _showDictionaryLookup(BuildContext context, String word) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.5,
+        maxChildSize: 0.9,
+        builder: (context, scrollController) => DictionaryLookupSheet(
+          word: word,
+          scrollController: scrollController,
+        ),
+      ),
     );
   }
 }

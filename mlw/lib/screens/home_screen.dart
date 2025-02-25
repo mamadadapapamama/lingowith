@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:mlw/models/note.dart' as note_model;
-import 'package:mlw/services/note_repository.dart';
+import 'package:mlw/repositories/note_repository.dart';
 import 'package:mlw/widgets/note_card.dart';
 import 'package:mlw/screens/note_space_settings_screen.dart';
 import 'package:mlw/models/note_space.dart';
@@ -11,25 +10,23 @@ import 'package:mlw/theme/tokens/typography_tokens.dart';
 import 'package:mlw/widgets/custom_button.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
-import 'package:path_provider/path_provider.dart';
-import 'package:googleapis/vision/v1.dart' as vision;
-import 'package:googleapis_auth/auth_io.dart';
 import 'package:mlw/services/translator.dart';
-import 'dart:convert';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:mlw/screens/note_detail_screen.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'dart:async';  // StreamSubscription을 위한 import 추가
+import 'dart:async';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:mlw/services/image_processing_service.dart';
+import 'package:mlw/utils/app_constants.dart';
 
 class HomeScreen extends StatefulWidget {
-  final String spaceId;
-  final String userId;
+  final String? spaceId;
+  final String? userId;
 
   const HomeScreen({
     super.key,
-    required this.spaceId,
-    required this.userId,
+    this.spaceId,
+    this.userId,
   });
 
   @override
@@ -94,70 +91,89 @@ class _ProcessingDialog extends StatelessWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore firestore = FirebaseFirestore.instance;
   final NoteRepository _noteRepository = NoteRepository();
   final NoteSpaceRepository _spaceRepository = NoteSpaceRepository();
-  NoteSpace? _currentNoteSpace;
   
-  // 임시 userId - 나중에 실제 인증된 사용자 ID로 교체
-  static const userId = 'test_user';
-
-  File? _image;
-  bool _isProcessing = false;
+  NoteSpace? _currentNoteSpace;
   List<note_model.Note> _notes = [];
   bool _isLoading = true;
-
+  String? _error;
+  
   // 로딩 메시지를 위한 ValueNotifier 추가
   final ValueNotifier<String> _loadingMessage = ValueNotifier('');
-
-  final FirebaseFirestore firestore = FirebaseFirestore.instance;
-  StreamSubscription? _notesSubscription;
-
+  
+  // 서비스 인스턴스 생성
+  final ImageProcessingService _imageProcessingService = ImageProcessingService(
+    translatorService: TranslatorService(),
+  );
+  
   @override
   void initState() {
     super.initState();
-    print('HomeScreen initState called');
-    _loadCurrentNoteSpace();
+    print("HomeScreen initState called");
+    
+    // 약간의 지연 후 로드 (UI가 먼저 그려지도록)
+    Future.delayed(Duration.zero, () {
+      _loadCurrentNoteSpace();
+      _checkFirestoreData(); // 직접 Firestore 데이터 확인
+    });
   }
 
   Future<void> _loadCurrentNoteSpace() async {
+    print("Loading current note space...");
+    
     try {
-      print('Loading note spaces...'); // 디버깅용 로그
+      final userId = widget.userId ?? _auth.currentUser?.uid ?? 'test_user';
+      print("User ID: $userId");
+      
+      // 로딩 상태 표시
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+      
       final spaces = await _spaceRepository.getNoteSpaces(userId).first;
-      print('Loaded spaces: ${spaces.length}'); // 디버깅용 로그
+      print("Found ${spaces.length} note spaces");
       
       if (spaces.isEmpty) {
-        print('Creating default note space...'); // 디버깅용 로그
+        print("No note spaces found, creating default space");
         final defaultSpace = NoteSpace(
           id: '',
           userId: userId,
-          name: "Chinese book",
-          language: "zh",
+          name: AppConstants.defaultSpaceName,
+          language: AppConstants.defaultLanguage,
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
         );
         
         final createdSpace = await _spaceRepository.createNoteSpace(defaultSpace);
-        print('Default space created: ${createdSpace.id}'); // 디버깅용 로그
         
         if (mounted) {
           setState(() {
             _currentNoteSpace = createdSpace;
           });
-          _loadNotes(createdSpace.id);
+          print("Created default space: ${createdSpace.id}");
+          _loadNotes();
         }
       } else {
-        print('Using existing space: ${spaces.first.id}'); // 디버깅용 로그
         if (mounted) {
           setState(() {
             _currentNoteSpace = spaces.first;
           });
-          _loadNotes(spaces.first.id);
+          print("Using existing space: ${spaces.first.id}");
+          _loadNotes();
         }
       }
-    } catch (e, stackTrace) {
-      print('Error loading note spaces: $e'); // 디버깅용 로그
-      print('Stack trace: $stackTrace'); // 디버깅용 로그
+    } catch (e) {
+      print("Error loading note space: $e");
       if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _error = "노트 스페이스 로딩 실패: $e";
+        });
+        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('노트 스페이스 로딩 실패: $e')),
         );
@@ -165,36 +181,72 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _loadNotes(String spaceId) async {
-    await _notesSubscription?.cancel();
+  void _loadNotes() async {
+    print("Loading notes...");
+    
+    if (!mounted) return;
+    
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
 
+    final userId = widget.userId ?? _auth.currentUser?.uid ?? 'test_user';
+    
+    // 수정된 코드: 실제 노트 스페이스 ID 사용
+    final spaceId = widget.spaceId ?? _currentNoteSpace?.id;
+    
+    print("Loading notes for userId: $userId, spaceId: $spaceId");
+    
+    // 노트 스페이스 ID가 없으면 로드하지 않음
+    if (spaceId == null) {
+      print("No note space ID available, cannot load notes");
+      setState(() {
+        _isLoading = false;
+        _error = "노트 스페이스 ID가 없습니다";
+      });
+      return;
+    }
+    
     try {
-      // 단순화된 쿼리 사용
-      _notesSubscription = firestore
+      // 직접 Firestore에서 데이터 가져오기
+      final snapshot = await FirebaseFirestore.instance
           .collection('notes')
-          .where('spaceId', isEqualTo: spaceId)
           .where('userId', isEqualTo: userId)
-          .orderBy('updatedAt', descending: true)
-          .snapshots()
-          .listen((snapshot) {
-            final loadedNotes = snapshot.docs.map((doc) {
-              final note = note_model.Note.fromFirestore(doc);
-              print('Note ID: ${note.id}');
-              print('Note Title: ${note.title}');
-              print('FlashCards count: ${note.flashCards.length}');
-              print('FlashCards data: ${note.flashCards}');
-              return note;
-            }).toList();
-
-            if (mounted) {
-              setState(() {
-                _notes = loadedNotes;
-                _isLoading = false;
-              });
-            }
-          });
+          .where('spaceId', isEqualTo: spaceId)
+          .get();
+      
+      print("Found ${snapshot.docs.length} notes in Firestore");
+      
+      // 노트 모델로 변환
+      final loadedNotes = snapshot.docs.map((doc) {
+        try {
+          return note_model.Note.fromFirestore(doc);
+        } catch (e) {
+          print("Error parsing note ${doc.id}: $e");
+          return null;
+        }
+      }).where((note) => note != null).cast<note_model.Note>().toList();
+      
+      // 메모리에서 정렬
+      loadedNotes.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      
+      print("Successfully parsed ${loadedNotes.length} notes");
+      
+      if (mounted) {
+        setState(() {
+          _notes = loadedNotes;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       print('Error loading notes: $e');
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -227,305 +279,182 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _pickImage(ImageSource source) async {
-    final ImagePicker _picker = ImagePicker();
+    final ImagePicker picker = ImagePicker();
     try {
       if (source == ImageSource.gallery) {
         // 갤러리에서 여러 이미지 선택
-        final List<XFile> pickedFiles = await _picker.pickMultiImage(
+        final List<XFile> pickedFiles = await picker.pickMultiImage(
           maxWidth: 1200,
           maxHeight: 1200,
-          imageQuality: 85,
         );
-
-        if (pickedFiles.isEmpty) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('No images selected.')),
-            );
+        
+        if (pickedFiles.isNotEmpty) {
+          if (pickedFiles.length > 1) {
+            // 여러 이미지 처리
+            _createNoteWithMultipleImages(pickedFiles);
+          } else {
+            // 단일 이미지 처리
+            _createNoteWithImage(File(pickedFiles.first.path));
           }
-          return;
         }
-
-        // 첫 번째 이미지로 _image 설정 (UI 표시용)
-        _image = File(pickedFiles.first.path);
-        
-        // 모든 선택된 이미지로 노트 생성
-        await _createNoteWithMultipleImages(pickedFiles);
-        
       } else {
-        // 카메라는 단일 이미지 촬영
-        final XFile? pickedFile = await _picker.pickImage(
-          source: source,
+        // 카메라로 촬영
+        final XFile? pickedFile = await picker.pickImage(
+          source: ImageSource.camera,
           maxWidth: 1200,
           maxHeight: 1200,
-          imageQuality: 85,
         );
-
-        if (pickedFile == null) {
-          print('No image selected.');
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('No image selected.')),
-            );
-          }
-          return;
+        
+        if (pickedFile != null) {
+          _createNoteWithImage(File(pickedFile.path));
         }
-
-        final imageFile = File(pickedFile.path);
-        if (!await imageFile.exists()) {
-          throw Exception('There is no image file.');
-        }
-
-        _image = imageFile;  // Set the _image variable
-        print('Image selected: ${imageFile.path}');
-
-        await _createNoteWithImage(imageFile);
       }
     } catch (e) {
-      print('Image picking error: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Sorry, something went wrong while choosing an image: $e')),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('이미지 선택 중 오류가 발생했습니다: $e')),
+      );
+    }
+  }
+
+  Future<void> _duplicateNote(note_model.Note note) async {
+    try {
+      final newNote = note_model.Note(
+        id: '',
+        spaceId: note.spaceId,
+        userId: note.userId,
+        title: '${note.title} (복사본)',
+        content: note.content,
+        pages: note.pages,
+        flashCards: note.flashCards,
+        highlightedTexts: note.highlightedTexts,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        knownFlashCards: note.knownFlashCards,
+      );
+
+      await _noteRepository.createNote(newNote);
+      // 실시간 리스너가 자동으로 UI를 업데이트합니다
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('노트 복제 중 오류가 발생했습니다: $e')),
+      );
+    }
+  }
+
+  Future<void> _deleteNote(note_model.Note note) async {
+    try {
+      await _noteRepository.deleteNote(note.id);
+      // 실시간 리스너가 자동으로 UI를 업데이트합니다
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('노트 삭제 중 오류가 발생했습니다: $e')),
+      );
+    }
+  }
+
+  Future<void> _updateNoteTitle(note_model.Note note, String newTitle) async {
+    try {
+      final updatedNote = note.copyWith(
+        title: newTitle,
+        updatedAt: DateTime.now(),
+      );
+      
+      await _noteRepository.updateNote(updatedNote);
+      // 실시간 리스너가 자동으로 UI를 업데이트합니다
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('노트 제목 변경 중 오류가 발생했습니다: $e')),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // 노트 복제 함수
-    Future<void> _duplicateNote(note_model.Note note) async {
-      try {
-        final newNote = note_model.Note(
-          id: '',
-          spaceId: note.spaceId,
-          userId: note.userId,
-          title: '${note.title} (복사본)',
-          content: note.content,
-          pages: note.pages,
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-        );
-        
-        final createdNote = await _noteRepository.createNote(newNote);
-        if (mounted) {
-          setState(() {
-            _notes = [..._notes, createdNote];
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                '노트가 복제되었습니다.',
-                style: GoogleFonts.poppins(),
-              ),
+    print("HomeScreen build called - notes count: ${_notes.length}");
+    
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: ColorTokens.getColor('base.0'),
+        elevation: 0,
+        title: Row(
+          children: [
+            SvgPicture.asset(
+              'assets/icon/logo_small.svg',
+              width: 24,
+              height: 24,
             ),
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'sorry, something went wrong while duplicating the note.',
-                style: GoogleFonts.poppins(),
-              ),
+            const SizedBox(width: 8),
+            Text(
+              _currentNoteSpace?.name ?? 'My Notes',
+              style: TypographyTokens.getStyle('heading.h3'),
             ),
-          );
-        }
-      }
-    }
-
-    // 노트 삭제 함수
-    Future<void> _deleteNote(note_model.Note note) async {
-      try {
-        await _noteRepository.deleteNote(note.id);
-        if (mounted) {
-          setState(() {
-            _notes = _notes.where((n) => n.id != note.id).toList();
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Your note got deleted.',
-                style: GoogleFonts.poppins(),
-              ),
-            ),
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Something went wrong while deleting the note.',
-                style: GoogleFonts.poppins(),
-              ),
-            ),
-          );
-        }
-      }
-    }
-
-    // HomeScreen 클래스 내부에 추가
-    Future<void> _updateNoteTitle(note_model.Note note, String newTitle) async {
-      try {
-        final updatedNote = note.copyWith(
-          title: newTitle,
-          updatedAt: DateTime.now(),
-        );
-        
-        await _noteRepository.updateNote(updatedNote);
-        
-        if (mounted) {
-          setState(() {
-            final index = _notes.indexWhere((n) => n.id == note.id);
-            if (index != -1) {
-              _notes = List<note_model.Note>.from(_notes)
-                ..[index] = updatedNote;
-            }
-          });
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Something went wrong while editing the note title. Please try again',
-                style: GoogleFonts.poppins(),
-              ),
-            ),
-          );
-        }
-      }
-    }
-
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.dark,
-        statusBarBrightness: Brightness.light,
-        systemNavigationBarColor: ColorTokens.semantic['surface']?['background'],
-        systemNavigationBarIconBrightness: Brightness.dark,
+          ],
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadNotes,
+          ),
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              if (_currentNoteSpace != null) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => NoteSpaceSettingsScreen(
+                      noteSpace: _currentNoteSpace!,
+                    ),
+                  ),
+                );
+              }
+            },
+          ),
+        ],
       ),
-      child: Scaffold(
-        backgroundColor: ColorTokens.semantic['surface']?['background'],
-        appBar: PreferredSize(
-          preferredSize: const Size.fromHeight(84),
-          child: Container(
-            color: ColorTokens.semantic['surface']?['background'],
-            child: SafeArea(
-              bottom: false,
-              child: Padding(
-                padding: const EdgeInsets.only(
-                  left: 24,
-                  right: 24,
-                  top: 12,
-                  bottom: 8,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        SvgPicture.asset(
-                          'assets/icon/logo_small.svg',
-                          width: 71,
-                          height: 21,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _currentNoteSpace?.name ?? "Loading...",
-                          style: TypographyTokens.getStyle('heading.h1').copyWith(
-                            color: ColorTokens.semantic['text']?['body'],
-                          ),
-                        ),
-                      ],
-                    ),
-                    IconButton(
-                      icon: SvgPicture.asset(
-                        'assets/icon/profile.svg',
-                        width: 24,
-                        height: 24,
-                        colorFilter: ColorFilter.mode(
-                          ColorTokens.semantic['text']?['body'],
-                          BlendMode.srcIn,
-                        ),
-                      ),
-                      onPressed: _currentNoteSpace == null ? null : () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => NoteSpaceSettingsScreen(
-                              noteSpace: _currentNoteSpace!,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ),
+      body: _isLoading 
+        ? const Center(child: CircularProgressIndicator())
+        : _error != null
+          ? Center(child: Text('Error: $_error'))
+          : _notes.isEmpty
+            ? _buildEmptyState()
+            : _buildNotesList(),
+      floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: ColorTokens.getColor('primary.400'),
+        onPressed: _showImageSourceActionSheet,
+        icon: SvgPicture.asset(
+          'assets/icon/addnote.svg',
+          colorFilter: ColorFilter.mode(
+            ColorTokens.getColor('base.0'),
+            BlendMode.srcIn,
           ),
         ),
-        body: _isLoading
-            ? Center(
-                child: CircularProgressIndicator(
-                  color: ColorTokens.getColor('primary.400'),
-                ),
-              )
-            : _notes.isEmpty
-                ? Padding(
-                    padding: EdgeInsets.only(
-                      bottom: MediaQuery.of(context).padding.bottom + 84,
-                    ),
-                    child: _buildEmptyState(),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.only(
-                      left: 16,
-                      right: 16,
-                      top: 8,
-                      bottom: 80,
-                    ),
-                    itemCount: _notes.length,
-                    itemBuilder: (context, index) {
-                      final note = _notes[index];
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 16),
-                        child: NoteCard(
-                          note: note,
-                          onDuplicate: _duplicateNote,
-                          onDelete: _deleteNote,
-                          onTitleEdit: _updateNoteTitle,
-                        ),
-                      );
-                    },
-                  ),
-        floatingActionButton: !_isLoading && _notes.isNotEmpty 
-          ? FloatingActionButton.extended(
-              backgroundColor: ColorTokens.getColor('primary.400'),
-              onPressed: _showImageSourceActionSheet,
-              icon: SvgPicture.asset(
-                'assets/icon/addnote.svg',
-                colorFilter: ColorFilter.mode(
-                  ColorTokens.getColor('base.0'),
-                  BlendMode.srcIn,
-                ),
-              ),
-              label: Text(
-                'Add note',
-                style: TypographyTokens.getStyle('button.medium').copyWith(
-                  color: ColorTokens.getColor('base.0'),
-                ),
-              ),
-            )
-          : null,
-        floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+        label: Text(
+          'Add note',
+          style: TypographyTokens.getStyle('button.medium').copyWith(
+            color: ColorTokens.getColor('base.0'),
+          ),
+        ),
       ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    print("HomeScreen didChangeDependencies called");
+  }
+
+  @override
+  void didUpdateWidget(HomeScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    print("HomeScreen didUpdateWidget called");
+    
+    // 위젯이 업데이트되면 노트 다시 로드
+    if (oldWidget.spaceId != widget.spaceId || oldWidget.userId != widget.userId) {
+      _loadCurrentNoteSpace();
+    }
   }
 
   Widget _buildEmptyState() {
@@ -547,7 +476,7 @@ class _HomeScreenState extends State<HomeScreen> {
           Text(
             'Add image to create a new note',
             style: TypographyTokens.getStyle('body.small').copyWith(
-              color: ColorTokens.semantic['text']?['description'],
+              color: ColorTokens.getColor('text.secondary'),
             ),
           ),
           const SizedBox(height: 24),
@@ -557,6 +486,33 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildNotesList() {
+    print("Building notes list with ${_notes.length} notes");
+    
+    if (_notes.isEmpty) {
+      return _buildEmptyState();
+    }
+    
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: _notes.length,
+      itemBuilder: (context, index) {
+        final note = _notes[index];
+        print("Rendering note at index $index: ${note.title}");
+        
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: NoteCard(
+            note: note,
+            onDuplicate: _duplicateNote,
+            onDelete: _deleteNote,
+            onTitleEdit: _updateNoteTitle,
+          ),
+        );
+      },
     );
   }
 
@@ -597,12 +553,15 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       // 이미지 분석
       loadingMessage.value = 'analyzing image...';
-      final imagePath = await _saveImageLocally(imageFile);
-      final extractedText = await _extractTextFromImage(await imageFile.readAsBytes());
+      final imagePath = await _imageProcessingService.saveImageLocally(imageFile);
+      final extractedText = await _imageProcessingService.extractTextFromImage(await imageFile.readAsBytes());
       
       // 번역
       loadingMessage.value = 'translating...';
-      final translatedText = await translatorService.translate(extractedText, from: 'zh', to: 'ko');
+      final translatedText = await _imageProcessingService.translateText(extractedText);
+      
+      // userId 가져오기
+      final userId = widget.userId ?? _auth.currentUser?.uid ?? 'test_user';
       
       // 노트 생성
       loadingMessage.value = 'almost done!';
@@ -619,8 +578,11 @@ class _HomeScreenState extends State<HomeScreen> {
             translatedText: translatedText,
           ),
         ],
+        flashCards: [],
+        highlightedTexts: {},
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
+        knownFlashCards: {},
       );
 
       final createdNote = await _noteRepository.createNote(newNote);
@@ -650,156 +612,155 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<String> _saveImageLocally(File image) async {
-    try {
-      final directory = await getApplicationDocumentsDirectory();
-      final fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final savedImage = await image.copy('${directory.path}/$fileName');
-      return savedImage.path;
-    } catch (e) {
-      print('Error saving image: $e');
-      rethrow;
-    }
+  Future<note_model.Page> _processImage(XFile imageFile, int index, int total) async {
+    if (!mounted) return Future.error('Widget not mounted');
+    
+    // 진행률 업데이트
+    _updateProgressDialog(index, total);
+    
+    final file = File(imageFile.path);
+    final imagePath = await _imageProcessingService.saveImageLocally(file);
+    final extractedText = await _imageProcessingService.extractTextFromImage(await file.readAsBytes());
+    final translatedText = await _imageProcessingService.translateText(extractedText);
+    
+    return note_model.Page(
+      imageUrl: imagePath,
+      extractedText: extractedText,
+      translatedText: translatedText,
+    );
   }
 
-  Future<String> _extractTextFromImage(List<int> imageBytes) async {
-    try {
-      final keyJson = await rootBundle.loadString('assets/service-account-key.json');
-      final credentials = ServiceAccountCredentials.fromJson(keyJson);
-      final client = await clientViaServiceAccount(credentials, [vision.VisionApi.cloudVisionScope]);
-      final api = vision.VisionApi(client);
-
-      try {
-        final request = vision.BatchAnnotateImagesRequest(requests: [
-          vision.AnnotateImageRequest(
-            image: vision.Image(content: base64Encode(imageBytes)),
-            features: [vision.Feature(type: 'TEXT_DETECTION')],
-            imageContext: vision.ImageContext(languageHints: ['zh']),
-          ),
-        ]);
-
-        final response = await api.images.annotate(request)
-          .timeout(const Duration(seconds: 30));
-
-        if (response.responses == null || response.responses!.isEmpty) {
-          return '';
-        }
-
-        final texts = response.responses!.first.textAnnotations;
-        if (texts == null || texts.isEmpty) return '';
-
-        final lines = texts.first.description?.split('\n') ?? [];
-        final chineseLines = lines.where((line) {
-          final hasChineseChar = RegExp(r'[\u4e00-\u9fa5]').hasMatch(line);
-          final isOnlyNumbers = RegExp(r'^[0-9\s]*$').hasMatch(line);
-          return hasChineseChar && !isOnlyNumbers;
-        }).toList();
-
-        return chineseLines.join('\n');
-      } finally {
-        client.close();
-      }
-    } catch (e) {
-      print('Vision API error: $e');
-      rethrow;
-    }
-  }
-
-  Future<void> _createNoteWithMultipleImages(List<XFile> imageFiles) async {
-    // 진행 상태를 표시할 dialog 표시
+  void _updateProgressDialog(int current, int total) {
+    Navigator.of(context).pop(); // 이전 dialog 제거
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => _ProcessingDialog(
-        totalImages: imageFiles.length,
+        totalImages: total,
+        currentImage: current,
       ),
+    );
+  }
+
+  Future<void> _createNoteWithMultipleImages(List<XFile> imageFiles) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => _ProcessingDialog(totalImages: imageFiles.length),
     );
 
     try {
       List<note_model.Page> pages = [];
       
-      // 각 이미지에 대해 처리
+      // 각 이미지 처리
       for (var i = 0; i < imageFiles.length; i++) {
-        if (!mounted) return;
-
-        // 진행률 업데이트
-        Navigator.of(context).pop(); // 이전 dialog 제거
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => _ProcessingDialog(
-            totalImages: imageFiles.length,
-            currentImage: i + 1,
-          ),
-        );
-
-        final imageFile = imageFiles[i];
-        final file = File(imageFile.path);
-        final imagePath = await _saveImageLocally(file);
-        final extractedText = await _extractTextFromImage(await file.readAsBytes());
-        
-        String translatedText = '';
-        if (extractedText.isNotEmpty) {
-          final lines = extractedText.split('\n').where((s) => s.trim().isNotEmpty).toList();
-          final translatedLines = await Future.wait(
-            lines.map((line) => translatorService.translate(line, from: 'zh', to: 'ko'))
-          );
-          translatedText = translatedLines.join('\n');
-        }
-
-        pages.add(note_model.Page(
-          imageUrl: imagePath,
-          extractedText: extractedText,
-          translatedText: translatedText,
-        ));
+        final page = await _processImage(imageFiles[i], i + 1, imageFiles.length);
+        pages.add(page);
       }
-
-      // 모든 페이지를 포함한 새 노트 생성
-      final newNote = note_model.Note(
-        id: '',
-        spaceId: _currentNoteSpace?.id ?? '',
-        userId: userId,
-        title: 'Note #${_notes.length + 1}',
-        content: '',
-        pages: pages,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
-
-      final createdNote = await _noteRepository.createNote(newNote);
-
+      
+      // 노트 생성 및 저장
+      final newNote = await _createNoteWithPages(pages);
+      
       if (mounted) {
-        // dialog 제거
-        Navigator.of(context).pop();
-        
-        setState(() {
-          _notes = [..._notes, createdNote];
-        });
-        
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => NoteDetailScreen(note: createdNote),
-          ),
-        );
+        Navigator.of(context).pop(); // dialog 제거
+        _navigateToNoteDetail(newNote);
       }
     } catch (e) {
       if (mounted) {
-        // dialog 제거
-        Navigator.of(context).pop();
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to create a note. Please try again.: ${e.toString()}')),
-        );
+        Navigator.of(context).pop(); // dialog 제거
+        _showErrorSnackBar('Failed to create a note: $e');
       }
     }
+  }
+
+  Future<note_model.Note> _createNoteWithPages(List<note_model.Page> pages) async {
+    final userId = widget.userId ?? _auth.currentUser?.uid ?? 'test_user';
+    
+    final newNote = note_model.Note(
+      id: '',
+      spaceId: _currentNoteSpace?.id ?? '',
+      userId: userId,
+      title: 'Note #${_notes.length + 1}',
+      content: '',
+      pages: pages,
+      flashCards: [],
+      highlightedTexts: {},
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+      knownFlashCards: {},
+    );
+    
+    final createdNote = await _noteRepository.createNote(newNote);
+    
+    setState(() {
+      _notes = [..._notes, createdNote];
+    });
+    
+    return createdNote;
+  }
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   final translatorService = TranslatorService();
 
   @override
   void dispose() {
-    _notesSubscription?.cancel();
+    _loadingMessage.dispose();
     super.dispose();
+  }
+
+  Future<void> _checkFirestoreData() async {
+    try {
+      final userId = widget.userId ?? _auth.currentUser?.uid ?? 'test_user';
+      
+      print("Directly checking Firestore data for userId: $userId");
+      
+      // 모든 노트 가져오기 (spaceId 필터 없이)
+      final snapshot = await FirebaseFirestore.instance
+          .collection('notes')
+          .where('userId', isEqualTo: userId)
+          .get();
+      
+      print("Found ${snapshot.docs.length} total notes in Firestore");
+      
+      // 각 노트의 spaceId 확인
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        print("Note in Firestore: ${doc.id}, spaceId: ${data['spaceId']}, title: ${data['title']}");
+      }
+      
+      // 노트 스페이스 확인
+      final spacesSnapshot = await FirebaseFirestore.instance
+          .collection('note_spaces')
+          .where('userId', isEqualTo: userId)
+          .get();
+      
+      print("Found ${spacesSnapshot.docs.length} note spaces in Firestore");
+      
+      for (var doc in spacesSnapshot.docs) {
+        final data = doc.data();
+        print("Note space in Firestore: ${doc.id}, name: ${data['name']}");
+      }
+    } catch (e) {
+      print("Error checking Firestore data: $e");
+    }
+  }
+
+  void _navigateToNoteDetail(note_model.Note note) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => NoteDetailScreen(note: note),
+      ),
+    );
+    
+    if (result == true) {
+      print("Returned from NoteDetailScreen, refreshing notes");
+      _loadNotes();
+    }
   }
 }

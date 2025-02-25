@@ -3,58 +3,94 @@ import 'package:mlw/models/note.dart';
 
 class NoteRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final CollectionReference _notesCollection;
 
-  Stream<List<Note>> getNotes(String spaceId, String userId) {
-    return _firestore
-        .collection('notes')
-        .where('spaceId', isEqualTo: spaceId)
-        .where('userId', isEqualTo: userId)
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map((snapshot) {
-      return snapshot.docs.map((doc) {
-        return Note.fromJson({
-          'id': doc.id,
-          ...doc.data(),
-        });
-      }).toList();
-    });
+  NoteRepository() : _notesCollection = FirebaseFirestore.instance.collection('notes');
+
+  Future<List<Note>> getNotesList(String userId, String spaceId) async {
+    print("Repository: Getting notes for userId: $userId, spaceId: $spaceId");
+    
+    try {
+      final snapshot = await _notesCollection
+          .where('userId', isEqualTo: userId)
+          .where('spaceId', isEqualTo: spaceId)
+          .get();
+      
+      print("Repository: Found ${snapshot.docs.length} documents");
+      
+      final notes = snapshot.docs.map((doc) {
+        try {
+          final note = Note.fromFirestore(doc);
+          print("Successfully parsed note: ${note.id}, title: ${note.title}");
+          return note;
+        } catch (e) {
+          print("Error parsing note ${doc.id}: $e");
+          return null;
+        }
+      }).where((note) => note != null).cast<Note>().toList();
+      
+      notes.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      
+      print("Repository: Returning ${notes.length} valid notes");
+      return notes;
+    } catch (e) {
+      print("Repository error: $e");
+      throw e;
+    }
+  }
+
+  Future<Note> getNote(String id) async {
+    final doc = await _notesCollection.doc(id).get();
+    return Note.fromFirestore(doc);
   }
 
   Future<Note> createNote(Note note) async {
-    final docRef = await _firestore.collection('notes').add({
-      'spaceId': note.spaceId,
-      'userId': note.userId,
-      'title': note.title,
-      'content': note.content,
-      'pages': note.pages.map((e) => e.toJson()).toList(),
-      'flashCards': note.flashCards.map((e) => e.toJson()).toList(),
-      'createdAt': note.createdAt,
-      'updatedAt': note.updatedAt,
-    });
-
-    return note.copyWith(id: docRef.id);
+    final docRef = await _notesCollection.add(note.toFirestore());
+    final newDoc = await docRef.get();
+    return Note.fromFirestore(newDoc);
   }
 
   Future<void> updateNote(Note note) async {
-    await _firestore.collection('notes').doc(note.id).update({
-      'title': note.title,
-      'content': note.content,
-      'pages': note.pages.map((e) => e.toJson()).toList(),
-      'flashCards': note.flashCards.map((e) => e.toJson()).toList(),
-      'updatedAt': note.updatedAt,
-    });
+    await _notesCollection.doc(note.id).update(note.toFirestore());
   }
 
   Future<void> deleteNote(String id) async {
-    await _firestore.collection('notes').doc(id).delete();
+    await _notesCollection.doc(id).delete();
+  }
+
+  Future<void> updateNoteTitle(String id, String title) async {
+    await _notesCollection.doc(id).update({
+      'title': title,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> updateHighlightedTexts(String id, Set<String> highlightedTexts) async {
+    await _notesCollection.doc(id).update({
+      'highlightedTexts': highlightedTexts.toList(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> updateFlashCards(String id, List<FlashCard> flashCards) async {
+    await _notesCollection.doc(id).update({
+      'flashCards': flashCards.map((card) => card.toJson()).toList(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> updateKnownFlashCards(String id, Map<String, bool> knownFlashCards) async {
+    await _notesCollection.doc(id).update({
+      'knownFlashCards': knownFlashCards,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
   }
 
   Future<void> updateFlashCard(String noteId, int index, FlashCard updatedCard) async {
     try {
       final note = await getNote(noteId);
-      if (note != null) {
-        final updatedFlashCards = List<FlashCard>.from(note.flashCards);
+      final updatedFlashCards = List<FlashCard>.from(note.flashCards);
+      if (index < updatedFlashCards.length) {
         updatedFlashCards[index] = updatedCard;
         
         final updatedNote = note.copyWith(
@@ -66,19 +102,6 @@ class NoteRepository {
       }
     } catch (e) {
       print('Error updating flash card: $e');
-      rethrow;
-    }
-  }
-
-  Future<Note?> getNote(String id) async {
-    try {
-      final doc = await _firestore.collection('notes').doc(id).get();
-      if (doc.exists) {
-        return Note.fromFirestore(doc);
-      }
-      return null;
-    } catch (e) {
-      print('Error getting note: $e');
       rethrow;
     }
   }

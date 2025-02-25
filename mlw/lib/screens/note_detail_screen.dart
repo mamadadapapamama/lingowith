@@ -19,6 +19,7 @@ import 'package:mlw/models/text_display_mode.dart';
 import 'package:mlw/models/flash_card.dart' as flash_card_model;
 import 'package:mlw/services/pinyin_service.dart';
 import 'package:mlw/widgets/flashcard_counter.dart';
+import 'package:mlw/services/image_processing_service.dart';
 
 
 class NoteDetailScreen extends StatefulWidget {
@@ -33,9 +34,7 @@ class NoteDetailScreen extends StatefulWidget {
 class _NoteDetailScreenState extends State<NoteDetailScreen> {
   final FlutterTts _flutterTts = FlutterTts();
   final FirebaseFirestore firestore = FirebaseFirestore.instance;
-  bool showTranslation = true;
-  bool isHighlightMode = false;
-  String? selectedText;
+  bool _isHighlightMode = true;
   int? _currentPlayingIndex;
   Set<String> highlightedTexts = {};
   int _currentPageIndex = 0;
@@ -43,35 +42,36 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   Set<String> _highlightedTexts = {};
   int _flashCardCount = 0;
   late note_model.Note _note;
+  late ImageProcessingService _imageProcessingService;
 
   @override
   void initState() {
     super.initState();
+    _isHighlightMode = true;
     _note = widget.note;
     _highlightedTexts = widget.note.highlightedTexts;
     _flashCardCount = _highlightedTexts.length;
     _initTTS();
+    _imageProcessingService = ImageProcessingService(
+      translatorService: TranslatorService(),
+    );
   }
 
   Future<void> _initTTS() async {
-    try {
-      await _flutterTts.setLanguage('zh-CN');
+    await _flutterTts.setLanguage("zh-CN");
       await _flutterTts.setSpeechRate(0.5);
       await _flutterTts.setVolume(1.0);
       await _flutterTts.setPitch(1.0);
       
       if (Platform.isIOS) {
-        await _flutterTts.setSharedInstance(true);
         await _flutterTts.setIosAudioCategory(
-          IosTextToSpeechAudioCategory.playAndRecord,
+          IosTextToSpeechAudioCategory.ambient,
           [
-            IosTextToSpeechAudioCategoryOptions.defaultToSpeaker,
-            IosTextToSpeechAudioCategoryOptions.mixWithOthers,
+            IosTextToSpeechAudioCategoryOptions.allowBluetooth,
+            IosTextToSpeechAudioCategoryOptions.allowBluetoothA2DP,
+          IosTextToSpeechAudioCategoryOptions.mixWithOthers
           ],
         );
-      }
-    } catch (e) {
-      print('TTS initialization error: $e');
     }
   }
 
@@ -91,66 +91,102 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
 
   void _toggleHighlightMode() {
     setState(() {
-      isHighlightMode = !isHighlightMode;
-      selectedText = null;
+      _isHighlightMode = !_isHighlightMode;
+      print('Highlight mode toggled: $_isHighlightMode');
     });
   }
 
-  void _onTextSelected(String text) async {
+  Future<void> _handleTextSelection(String text) async {
     try {
+      // 이미 하이라이트된 텍스트인 경우 제거
       if (_highlightedTexts.contains(text)) {
+        await _removeHighlight(text);
         return;
       }
 
-      final translatedText = await translatorService.translate(text, from: 'zh', to: 'ko');
-      final pinyin = await pinyinService.getPinyin(text);
-      
-      final newFlashCard = note_model.FlashCard(
-        front: text,
-        back: translatedText,
-        pinyin: pinyin,
-      );
-
-      final List<note_model.FlashCard> updatedFlashCards = [
-        ..._note.flashCards,
-        newFlashCard,
-      ];
-
-      final updatedNote = _note.copyWith(
-        flashCards: updatedFlashCards,
-        highlightedTexts: {..._highlightedTexts, text},
-        updatedAt: DateTime.now(),
-      );
-
-      // Firestore 업데이트
-      await firestore.collection('notes').doc(_note.id).update(updatedNote.toFirestore());
-
-      // UI 업데이트
-      setState(() {
-        _note = updatedNote;
-        _highlightedTexts = Set<String>.from(updatedNote.highlightedTexts);
-        _flashCardCount = _highlightedTexts.length;
-      });
-
-      // 알림 표시
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('플래시카드에 저장되었습니다'),
-            duration: Duration(seconds: 1),
-          ),
-        );
-      }
+      // 새로운 하이라이트 추가
+      await _addHighlight(text);
     } catch (e) {
-      print('Error creating flashcard: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('플래시카드 저장 중 오류가 발생했습니다'),
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
+      _handleError('텍스트 처리 중 오류가 발생했습니다', e);
+    }
+  }
+
+  Future<void> _removeHighlight(String text) async {
+    setState(() {
+      _highlightedTexts.remove(text);
+      _flashCardCount = _highlightedTexts.length;
+    });
+    
+    // Firestore 업데이트
+    final updatedNote = _note.copyWith(
+      highlightedTexts: Set<String>.from(_highlightedTexts),
+      updatedAt: DateTime.now(),
+    );
+    
+    await firestore.collection('notes').doc(_note.id).update(updatedNote.toFirestore());
+    
+    setState(() {
+      _note = updatedNote;
+    });
+    
+    _showMessage('하이라이트가 제거되었습니다');
+  }
+
+  Future<void> _addHighlight(String text) async {
+    final translatedText = await translatorService.translate(text, from: 'zh', to: 'ko');
+    final pinyin = await pinyinService.getPinyin(text);
+    
+    final newFlashCard = note_model.FlashCard(
+      front: text,
+      back: translatedText,
+      pinyin: pinyin,
+    );
+
+    // 중복 플래시카드 방지
+    final List<note_model.FlashCard> updatedFlashCards = [
+      ..._note.flashCards.where((card) => card.front != text),
+      newFlashCard,
+    ];
+
+    final updatedNote = _note.copyWith(
+      flashCards: updatedFlashCards,
+      highlightedTexts: {..._highlightedTexts, text},
+      updatedAt: DateTime.now(),
+    );
+
+    // Firestore 업데이트
+    await firestore.collection('notes').doc(_note.id).update(updatedNote.toFirestore());
+
+    // UI 업데이트
+    setState(() {
+      _note = updatedNote;
+      _highlightedTexts = Set<String>.from(updatedNote.highlightedTexts);
+      _flashCardCount = _highlightedTexts.length;
+    });
+
+    _showMessage('플래시카드에 저장되었습니다');
+  }
+
+  void _showMessage(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          duration: const Duration(seconds: 1),
+        ),
+      );
+    }
+  }
+
+  void _handleError(String message, dynamic error) {
+    print('$message: $error');
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('$message: $error'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
     }
   }
 
@@ -172,23 +208,22 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       );
       
       final List<note_model.FlashCard> updatedFlashCards = [
-        ...widget.note.flashCards,
+        ..._note.flashCards,
         newFlashCard,
       ];
 
-      final updatedNote = widget.note.copyWith(
+      final updatedNote = _note.copyWith(
         flashCards: updatedFlashCards,
         updatedAt: DateTime.now(),
       );
       
       // Firestore 업데이트
-      await firestore.collection('notes').doc(widget.note.id).update(updatedNote.toFirestore());
+      await firestore.collection('notes').doc(_note.id).update(updatedNote.toFirestore());
       
       // UI 업데이트
       setState(() {
         _note = updatedNote;
         _highlightedTexts.add(text);
-        selectedText = null;
       });
 
       if (mounted) {
@@ -208,30 +243,26 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
 
   Future<void> _editPageText(int pageIndex, String newText) async {
     try {
-      // Translate the new text
       final translatedText = await translatorService.translate(newText, from: 'zh', to: 'ko');
       
-      // Create a new page with updated text
       final updatedPage = note_model.Page(
-        imageUrl: widget.note.pages[pageIndex].imageUrl,
+        imageUrl: _note.pages[pageIndex].imageUrl,
         extractedText: newText,
         translatedText: translatedText,
       );
       
-      // Update the note with the new page
-      final updatedPages = List<note_model.Page>.from(widget.note.pages);
+      final updatedPages = List<note_model.Page>.from(_note.pages);
       updatedPages[pageIndex] = updatedPage;
       
-      final updatedNote = widget.note.copyWith(
+      final updatedNote = _note.copyWith(
         pages: updatedPages,
         updatedAt: DateTime.now(),
       );
       
-      // Update in Firestore
-      await firestore.collection('notes').doc(widget.note.id).update(updatedNote.toFirestore());
+      await firestore.collection('notes').doc(_note.id).update(updatedNote.toFirestore());
       
       setState(() {
-        widget.note.pages[pageIndex] = updatedPage;
+        _note = updatedNote;
       });
       
       if (mounted) {
@@ -251,19 +282,18 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
 
   Future<void> _deletePage(int pageIndex) async {
     try {
-      final updatedPages = List<note_model.Page>.from(widget.note.pages)
+      final updatedPages = List<note_model.Page>.from(_note.pages)
         ..removeAt(pageIndex);
       
-      final updatedNote = widget.note.copyWith(
+      final updatedNote = _note.copyWith(
         pages: updatedPages,
         updatedAt: DateTime.now(),
       );
       
-      // Update in Firestore
-      await firestore.collection('notes').doc(widget.note.id).update(updatedNote.toFirestore());
+      await firestore.collection('notes').doc(_note.id).update(updatedNote.toFirestore());
       
       setState(() {
-        widget.note.pages.removeAt(pageIndex);
+        _note = updatedNote;
       });
       
       if (mounted) {
@@ -333,252 +363,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            // AppBar
-            AppBar(
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              leading: IconButton(
-                icon: SvgPicture.asset(
-                  'assets/icon/arrow-left.svg',
-                  colorFilter: ColorFilter.mode(
-                    ColorTokens.getColor('text.body'),
-                    BlendMode.srcIn,
-                  ),
-                ),
-                onPressed: () => Navigator.pop(context),
-              ),
-              titleSpacing: 0,
-              title: Row(
-                children: [
-                  Text(
-                    widget.note.title,
-                    style: TypographyTokens.getStyle('heading.h1').copyWith(
-                      color: ColorTokens.getColor('text.body'),
-                    ),
-                  ),
-                ],
-              ),
-              actions: [
-                // 페이지 숫자 표시
-                Text(
-                  '${_currentPageIndex + 1}/${widget.note.pages.length} pages',
-                  style: TypographyTokens.getStyle('body.small').copyWith(
-                    color: ColorTokens.getColor('base.400'),
-                  ),
-                ),
-                const SizedBox(width: 8),  // 8px 간격
-                // 플래시카드 카운터 업데이트
-                FlashcardCounter(
-                  flashCards: _note.flashCards,
-                  noteTitle: _note.title,
-                  alwaysShow: true,
-                ),
-                const SizedBox(width: 8),  // 우측 여백
-              ],
-            ),
-            // Progress bar
-            Stack(
-              children: [
-                // 배경 바
-                Container(
-                  width: double.infinity,
-                  height: 4,
-                  color: ColorTokens.getColor('base.200'),
-                ),
-                // 진행률 바
-                Container(
-                  width: MediaQuery.of(context).size.width * 
-                    (widget.note.pages.isEmpty ? 0 : (_currentPageIndex + 1) / widget.note.pages.length),
-                  height: 4,
-                  color: ColorTokens.getColor('primary.400'),
-                ),
-              ],
-            ),
-            // 페이지 컨텐츠
-            Expanded(
-              child: PageView.builder(
-                itemCount: widget.note.pages.length,
-                onPageChanged: (index) {
-                  setState(() {
-                    _currentPageIndex = index;
-                  });
-                },
-                itemBuilder: (context, index) {
-                  final page = widget.note.pages[index];
-                  return NotePage(
-                    page: page,
-                    displayMode: _displayMode,
-                    isHighlightMode: isHighlightMode,
-                    highlightedTexts: _highlightedTexts,
-                    onHighlighted: _onTextSelected,
-                    onSpeak: (text) {
-                      setState(() {
-                        _currentPlayingIndex = index;
-                      });
-                      _speak(text);
-                    },
-                    currentPlayingIndex: _currentPlayingIndex,
-                    onDeletePage: () => _deletePage(index),
-                    onEditText: (text) => _showEditDialog(index, text),
-                  );
-                },
-              ),
-            ),
-
-            // 하단 컨트롤 바
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Theme.of(context).scaffoldBackgroundColor,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    offset: const Offset(0, -1),
-                    blurRadius: 8,
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  // 이전 페이지 버튼
-                  IconButton(
-                    onPressed: _currentPageIndex > 0
-                        ? () {
-                            setState(() {
-                              _currentPageIndex--;
-                            });
-                          }
-                        : null,
-                    icon: Icon(
-                      Icons.arrow_back_ios,
-                      color: _currentPageIndex > 0
-                          ? Theme.of(context).iconTheme.color
-                          : Theme.of(context).disabledColor,
-                    ),
-                  ),
-                  
-                  // 모드 토글 버튼들
-                  Row(
-                    children: [
-                      // 원문만 보기
-                      IconButton(
-                        onPressed: () {
-                          setState(() {
-                            _displayMode = TextDisplayMode.originalOnly;
-                          });
-                        },
-                        icon: Icon(
-                          Icons.subject,
-                          color: _displayMode == TextDisplayMode.originalOnly
-                              ? ColorTokens.getColor('primary.400')
-                              : ColorTokens.getColor('text.body'),
-                        ),
-                      ),
-                      // 번역만 보기
-                      IconButton(
-                        onPressed: () {
-                          setState(() {
-                            _displayMode = TextDisplayMode.translationOnly;
-                          });
-                        },
-                        icon: Icon(
-                          Icons.translate,
-                          color: _displayMode == TextDisplayMode.translationOnly
-                              ? ColorTokens.getColor('primary.400')
-                              : ColorTokens.getColor('text.body'),
-                        ),
-                      ),
-                      // 둘 다 보기
-                      IconButton(
-                        onPressed: () {
-                          setState(() {
-                            _displayMode = TextDisplayMode.both;
-                          });
-                        },
-                        icon: Icon(
-                          Icons.view_agenda,
-                          color: _displayMode == TextDisplayMode.both
-                              ? ColorTokens.getColor('primary.400')
-                              : ColorTokens.getColor('text.body'),
-                        ),
-                      ),
-                      // TTS 버튼
-                      IconButton(
-                        onPressed: () {
-                          if (widget.note.pages.isNotEmpty) {
-                            _speak(widget.note.pages[_currentPageIndex].extractedText);
-                          }
-                        },
-                        icon: Icon(
-                          Icons.volume_up,
-                          color: _currentPlayingIndex == _currentPageIndex
-                              ? ColorTokens.getColor('primary.400')
-                              : ColorTokens.getColor('text.body'),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  // 다음 페이지 버튼
-                  IconButton(
-                    onPressed: _currentPageIndex < widget.note.pages.length - 1
-                        ? () {
-                            setState(() {
-                              _currentPageIndex++;
-                            });
-                          }
-                        : null,
-                    icon: Icon(
-                      Icons.arrow_forward_ios,
-                      color: _currentPageIndex < widget.note.pages.length - 1
-                          ? Theme.of(context).iconTheme.color
-                          : Theme.of(context).disabledColor,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _showImageSourceActionSheet(BuildContext context) async {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Wrap(
-          children: <Widget>[
-            ListTile(
-              leading: const Icon(Icons.photo_library),
-              title: const Text('갤러리에서 선택'),
-              onTap: () {
-                Navigator.of(context).pop();
-                _addNewPage(ImageSource.gallery);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.camera_alt),
-              title: const Text('카메라로 촬영'),
-              onTap: () {
-                Navigator.of(context).pop();
-                _addNewPage(ImageSource.camera);
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Future<void> _addNewPage(ImageSource source) async {
     try {
       final XFile? pickedFile = await ImagePicker().pickImage(
@@ -602,43 +386,35 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
         throw Exception('선택된 이미지 파일이 존재하지 않습니다');
       }
 
-      // Save the image locally
-      final imagePath = await _saveImageLocally(imageFile);
-      
-      // Extract text from the image
-      final extractedText = await _extractTextFromImage(await imageFile.readAsBytes());
-      
-      // Translate the extracted text
-      String translatedText = '';
-      if (extractedText.isNotEmpty) {
-        translatedText = await translatorService.translate(extractedText, from: 'zh', to: 'ko');
-      }
+      // 이미지 처리 서비스 사용
+      final imagePath = await _imageProcessingService.saveImageLocally(imageFile);
+      final extractedText = await _imageProcessingService.extractTextFromImage(await imageFile.readAsBytes());
+      final translatedText = await _imageProcessingService.translateText(extractedText);
 
-      // Create a new page
+      // 새 페이지 생성
       final newPage = note_model.Page(
         imageUrl: imagePath,
         extractedText: extractedText,
         translatedText: translatedText,
       );
 
-      // Update the note with the new page
-      final updatedNote = widget.note.copyWith(
-        pages: [...widget.note.pages, newPage],
+      // 노트 업데이트
+      final updatedNote = _note.copyWith(
+        pages: [..._note.pages, newPage],
         updatedAt: DateTime.now(),
       );
 
-      // Update in Firestore
-      await firestore.collection('notes').doc(widget.note.id).update(updatedNote.toFirestore());
+      // Firestore 업데이트
+      await firestore.collection('notes').doc(_note.id).update(updatedNote.toFirestore());
 
       if (mounted) {
         setState(() {
-          widget.note.pages.add(newPage);
+          _note = updatedNote;
         });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('새로운 페이지가 추가되었습니다')),
         );
       }
-
     } catch (e) {
       print('Error adding new page: $e');
       if (mounted) {
@@ -649,59 +425,210 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     }
   }
 
-  Future<String> _saveImageLocally(File image) async {
-    try {
-      final directory = await getApplicationDocumentsDirectory();
-      final fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final savedImage = await image.copy('${directory.path}/$fileName');
-      return savedImage.path;
-    } catch (e) {
-      print('Error saving image: $e');
-      rethrow;
-    }
+  @override
+  Widget build(BuildContext context) {
+    return WillPopScope(
+      onWillPop: () async {
+        Navigator.pop(context, true);
+        return false;
+      },
+      child: Scaffold(
+        body: SafeArea(
+          child: Column(
+            children: [
+              _buildAppBar(),
+              Expanded(
+                child: _note.pages.isEmpty
+                  ? Center(
+                      child: Text(
+                        '페이지가 없습니다. 새 페이지를 추가하세요.',
+                        style: TextStyle(
+                          color: ColorTokens.semantic['text']['body'],
+                        ),
+                      ),
+                    )
+                  : NotePage(
+                      page: _note.pages[_currentPageIndex],
+                      displayMode: _displayMode,
+                      isHighlightMode: _isHighlightMode,
+                      highlightedTexts: _highlightedTexts,
+                      onHighlighted: _handleTextSelection,
+                      onSpeak: (text) {
+                        setState(() {
+                          _currentPlayingIndex = _currentPageIndex;
+                        });
+                        _speak(text);
+                      },
+                      currentPlayingIndex: _currentPlayingIndex,
+                      onDeletePage: () => _deletePage(_currentPageIndex),
+                      onEditText: (text) => _showEditDialog(_currentPageIndex, text),
+                    ),
+              ),
+              _buildPageControls(),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
-  Future<String> _extractTextFromImage(List<int> imageBytes) async {
-    try {
-      final keyJson = await rootBundle.loadString('assets/service-account-key.json');
-      final credentials = ServiceAccountCredentials.fromJson(keyJson);
-      final client = await clientViaServiceAccount(credentials, [vision.VisionApi.cloudVisionScope]);
-      final api = vision.VisionApi(client);
-
-      try {
-        final request = vision.BatchAnnotateImagesRequest(requests: [
-          vision.AnnotateImageRequest(
-            image: vision.Image(content: base64Encode(imageBytes)),
-            features: [vision.Feature(type: 'TEXT_DETECTION')],
-            imageContext: vision.ImageContext(languageHints: ['zh']),
+  Widget _buildAppBar() {
+    return AppBar(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back, color: Colors.black),
+        onPressed: _handleBackPress,
+      ),
+      titleSpacing: 0,
+      title: Row(
+        children: [
+          Text(
+            _note.title,
+            style: TypographyTokens.getStyle('heading.h1').copyWith(
+              color: ColorTokens.getColor('text.body'),
+            ),
           ),
-        ]);
-        
-        final response = await api.images.annotate(request)
-          .timeout(const Duration(seconds: 30));
+        ],
+      ),
+      actions: [
+        // 페이지 숫자 표시
+        Text(
+          '${_currentPageIndex + 1}/${_note.pages.length} pages',
+          style: TypographyTokens.getStyle('body.small').copyWith(
+            color: ColorTokens.getColor('base.400'),
+          ),
+        ),
+        const SizedBox(width: 8),  // 8px 간격
+        // 플래시카드 카운터 업데이트
+        FlashcardCounter(
+          flashCards: _note.flashCards,
+          noteTitle: _note.title,
+          noteId: _note.id,
+          alwaysShow: true,
+        ),
+        const SizedBox(width: 8),  // 우측 여백
+        // 하이라이트 모드 상태 확인 버튼
+        IconButton(
+          icon: Icon(
+            _isHighlightMode ? Icons.highlight : Icons.highlight_off,
+            color: _isHighlightMode ? Colors.amber : Colors.grey,
+          ),
+          onPressed: () {
+            setState(() {
+              _isHighlightMode = !_isHighlightMode;
+              print('Highlight mode toggled: $_isHighlightMode');
+            });
+          },
+        ),
+      ],
+    );
+  }
 
-        if (response.responses == null || response.responses!.isEmpty) {
-          return '';
-        }
+  Widget _buildPageControls() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // 이전 페이지 버튼
+          IconButton(
+            onPressed: _currentPageIndex > 0
+                ? () {
+                    setState(() {
+                      _currentPageIndex--;
+                    });
+                  }
+                : null,
+            icon: Icon(
+              Icons.arrow_back_ios,
+              color: _currentPageIndex > 0
+                  ? Theme.of(context).iconTheme.color
+                  : Theme.of(context).disabledColor,
+            ),
+          ),
+          
+          // 모드 토글 버튼들
+          Row(
+            children: [
+              // 원문만 보기
+              IconButton(
+                onPressed: () {
+                  setState(() {
+                    _displayMode = TextDisplayMode.originalOnly;
+                  });
+                },
+                icon: Icon(
+                  Icons.subject,
+                  color: _displayMode == TextDisplayMode.originalOnly
+                      ? ColorTokens.getColor('primary.400')
+                      : ColorTokens.getColor('text.body'),
+                ),
+              ),
+              // 번역만 보기
+              IconButton(
+                onPressed: () {
+                  setState(() {
+                    _displayMode = TextDisplayMode.translationOnly;
+                  });
+                },
+                icon: Icon(
+                  Icons.translate,
+                  color: _displayMode == TextDisplayMode.translationOnly
+                      ? ColorTokens.getColor('primary.400')
+                      : ColorTokens.getColor('text.body'),
+                ),
+              ),
+              // 둘 다 보기
+              IconButton(
+                onPressed: () {
+                  setState(() {
+                    _displayMode = TextDisplayMode.both;
+                  });
+                },
+                icon: Icon(
+                  Icons.view_agenda,
+                  color: _displayMode == TextDisplayMode.both
+                      ? ColorTokens.getColor('primary.400')
+                      : ColorTokens.getColor('text.body'),
+                ),
+              ),
+              // TTS 버튼
+              IconButton(
+                onPressed: () {
+                  if (_note.pages.isNotEmpty) {
+                    _speak(_note.pages[_currentPageIndex].extractedText);
+                  }
+                },
+                icon: Icon(
+                  Icons.volume_up,
+                  color: _currentPlayingIndex == _currentPageIndex
+                      ? ColorTokens.getColor('primary.400')
+                      : ColorTokens.getColor('text.body'),
+                ),
+              ),
+            ],
+          ),
 
-        final texts = response.responses!.first.textAnnotations;
-        if (texts == null || texts.isEmpty) return '';
-
-        final lines = texts.first.description?.split('\n') ?? [];
-        final chineseLines = lines.where((line) {
-          final hasChineseChar = RegExp(r'[\u4e00-\u9fa5]').hasMatch(line);
-          final isOnlyNumbers = RegExp(r'^[0-9\s]*$').hasMatch(line);
-          return hasChineseChar && !isOnlyNumbers;
-        }).toList();
-
-        return chineseLines.join('\n');
-      } finally {
-        client.close();
-      }
-    } catch (e) {
-      print('Vision API error: $e');
-      rethrow;
-    }
+          // 다음 페이지 버튼
+          IconButton(
+            onPressed: _currentPageIndex < _note.pages.length - 1
+                ? () {
+                    setState(() {
+                      _currentPageIndex++;
+                    });
+                  }
+                : null,
+            icon: Icon(
+              Icons.arrow_forward_ios,
+              color: _currentPageIndex < _note.pages.length - 1
+                  ? Theme.of(context).iconTheme.color
+                  : Theme.of(context).disabledColor,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -710,15 +637,9 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     super.dispose();
   }
 
-  void _handleHighlight(String text) {
-    setState(() {
-      if (_highlightedTexts.contains(text)) {
-        _highlightedTexts.remove(text);
-      } else {
-        _highlightedTexts.add(text);
-      }
-      _flashCardCount = _highlightedTexts.length;
-    });
+  void _handleBackPress() {
+    print("Back button pressed, returning to HomeScreen");
+    Navigator.pop(context, true); // true를 반환하여 홈 화면에 새로고침 신호 전달
   }
 }
 
