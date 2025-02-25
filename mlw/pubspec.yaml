@@ -67,6 +67,7 @@ dependencies:
 
   pinyin: ^3.3.0
   firebase_auth: ^5.4.2
+  flutter_open_chinese_convert: ^0.5.1
 
 
 dev_dependencies:

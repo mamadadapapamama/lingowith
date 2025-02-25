@@ -1211,6 +1211,9 @@ PODS:
     - nanopb (~> 3.30910.0)
   - FirebaseSharedSwift (11.8.0)
   - Flutter (1.0.0)
+  - flutter_open_chinese_convert (0.0.1):
+    - Flutter
+    - OpenCC
   - flutter_tts (0.0.1):
     - Flutter
   - GoogleUtilities/AppDelegateSwizzler (8.0.2):
@@ -1333,6 +1336,7 @@ PODS:
     - nanopb/encode (= 3.30910.0)
   - nanopb/decode (3.30910.0)
   - nanopb/encode (3.30910.0)
+  - OpenCC (0.3.3)
   - path_provider_foundation (0.0.1):
     - Flutter
     - FlutterMacOS
@@ -1348,6 +1352,7 @@ DEPENDENCIES:
   - firebase_auth (from `.symlinks/plugins/firebase_auth/ios`)
   - firebase_core (from `.symlinks/plugins/firebase_core/ios`)
   - Flutter (from `Flutter`)
+  - flutter_open_chinese_convert (from `.symlinks/plugins/flutter_open_chinese_convert/ios`)
   - flutter_tts (from `.symlinks/plugins/flutter_tts/ios`)
   - image_picker_ios (from `.symlinks/plugins/image_picker_ios/ios`)
   - path_provider_foundation (from `.symlinks/plugins/path_provider_foundation/darwin`)
@@ -1374,6 +1379,7 @@ SPEC REPOS:
     - GTMSessionFetcher
     - leveldb-library
     - nanopb
+    - OpenCC
     - RecaptchaInterop
 
 EXTERNAL SOURCES:
@@ -1385,6 +1391,8 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/firebase_core/ios"
   Flutter:
     :path: Flutter
+  flutter_open_chinese_convert:
+    :path: ".symlinks/plugins/flutter_open_chinese_convert/ios"
   flutter_tts:
     :path: ".symlinks/plugins/flutter_tts/ios"
   image_picker_ios:
@@ -1413,6 +1421,7 @@ SPEC CHECKSUMS:
   FirebaseFirestoreInternal: 953e31e70db09d928b927b65761171c680d2ea9b
   FirebaseSharedSwift: 672954eac7b141d6954fab9a32d45d6b1d922df8
   Flutter: e0871f40cf51350855a761d2e70bf5af5b9b5de7
+  flutter_open_chinese_convert: 8b440f57a1666d3deb57b3c9da6318685a061812
   flutter_tts: b88dbc8655d3dc961bc4a796e4e16a4cc1795833
   GoogleUtilities: 26a3abef001b6533cf678d3eb38fd3f614b7872d
   "gRPC-C++": 2fa52b3141e7789a28a737f251e0c45b4cb20a87
@@ -1421,6 +1430,7 @@ SPEC CHECKSUMS:
   image_picker_ios: 7fe1ff8e34c1790d6fff70a32484959f563a928a
   leveldb-library: cc8b8f8e013647a295ad3f8cd2ddf49a6f19be19
   nanopb: fad817b59e0457d11a5dfbde799381cd727c1275
+  OpenCC: 290dcf27e18ef926aa4fbc0f0a9c116c36145bc5
   path_provider_foundation: 080d55be775b7414fd5a5ef3ac137b97b097e564
   permission_handler_apple: 4ed2196e43d0651e8ff7ca3483a069d469701f2d
   RecaptchaInterop: 7d1a4a01a6b2cb1610a47ef3f85f0c411434cb21

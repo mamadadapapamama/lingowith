@@ -1,23 +1,25 @@
-import 'package:chinese_converter/chinese_converter.dart';
 import 'package:pinyin/pinyin.dart';
+import 'package:flutter_open_chinese_convert/flutter_open_chinese_convert.dart';
 
 class PinyinService {
-  // 핀인 생성
+  // 핀인 변환
   Future<String> getPinyin(String text) async {
-    // 실제 구현은 필요할 때 추가
-    return "핀인 텍스트";
+    return PinyinHelper.getPinyin(text, separator: ' ');
   }
   
-  // 간체자 변환
-  Future<String> toSimplified(String text) async {
-    // 실제 구현은 필요할 때 추가
-    return text;
+  // 간체자 → 번체자 변환
+  Future<String> convertToTraditional(String text) async {
+    return await ChineseConverter.convert(text, S2T());
   }
   
-  // 번체자 변환
-  Future<String> toTraditional(String text) async {
-    // 실제 구현은 필요할 때 추가
-    return text;
+  // 번체자 → 간체자 변환
+  Future<String> convertToSimplified(String text) async {
+    return await ChineseConverter.convert(text, T2S());
+  }
+  
+  // 간체자 → 대만식 번체자 변환 (대만 관용어 포함)
+  Future<String> convertToTaiwanese(String text) async {
+    return await ChineseConverter.convert(text, S2TWp());
   }
 
   // 여러 텍스트에서 핀인 일괄 생성
