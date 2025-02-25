@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mlw/models/note.dart';
+import 'package:mlw/data/models/note.dart';
+import 'package:mlw/data/models/page.dart';
+import 'package:mlw/data/models/flash_card.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 
@@ -26,6 +28,8 @@ void main() {
         ),
       ],
       flashCards: [],
+      highlightedTexts: [],
+      knownFlashCards: [],
       createdAt: now,
       updatedAt: now,
     );
@@ -38,6 +42,10 @@ void main() {
         userId: 'user1',
         title: 'Test Note',
         content: '',
+        pages: [],
+        flashCards: [],
+        highlightedTexts: [],
+        knownFlashCards: [],
         createdAt: now,
         updatedAt: now,
       );
@@ -60,6 +68,10 @@ void main() {
         userId: 'user1',
         title: 'Test Note',
         content: '',
+        pages: [],
+        flashCards: [],
+        highlightedTexts: [],
+        knownFlashCards: [],
         createdAt: now,
         updatedAt: now,
       );
@@ -67,6 +79,7 @@ void main() {
       final flashCard = FlashCard(
         front: '你好',
         back: '안녕하세요',
+        pinyin: 'nǐ hǎo',
       );
 
       final page = Page(
@@ -110,6 +123,8 @@ void main() {
           }
         ],
         'flashCards': [],
+        'highlightedTexts': [],
+        'knownFlashCards': [],
       };
 
       // fake_cloud_firestore를 사용하여 실제 문서 생성
@@ -133,6 +148,7 @@ void main() {
       final flashCard = FlashCard(
         front: '你好',
         back: '안녕하세요',
+        pinyin: 'nǐ hǎo',
       );
 
       final page = Page(
@@ -151,6 +167,8 @@ void main() {
         updatedAt: now,
         flashCards: [flashCard],
         pages: [page],
+        highlightedTexts: [],
+        knownFlashCards: [],
       );
 
       final data = note.toFirestore();

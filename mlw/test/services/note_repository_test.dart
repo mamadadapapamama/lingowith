@@ -1,16 +1,17 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:mlw/models/note.dart';
-import 'package:mlw/services/note_repository.dart';
+import 'package:mlw/data/models/note.dart';
+import 'package:mlw/data/repositories/note_repository.dart';
+import 'package:mlw/data/datasources/remote/firebase_data_source.dart';
 
 void main() {
-  late FirebaseFirestore firestore;
+  late FirebaseDataSource dataSource;
   late NoteRepository repository;
   
   setUp(() {
-    firestore = FakeFirebaseFirestore();
-    repository = NoteRepository(firestore: firestore);
+    final firestore = FakeFirebaseFirestore();
+    dataSource = FirebaseDataSource(firestore: firestore);
+    repository = NoteRepository(remoteDataSource: dataSource);
   });
   
   group('NoteRepository', () {
@@ -22,6 +23,10 @@ void main() {
         userId: 'user1',
         title: 'Test Note',
         content: '',
+        pages: [],
+        flashCards: [],
+        highlightedTexts: [],
+        knownFlashCards: [],
         createdAt: now,
         updatedAt: now,
       );
@@ -41,13 +46,17 @@ void main() {
         userId: 'user1',
         title: 'Note 1',
         content: '',
+        pages: [],
+        flashCards: [],
+        highlightedTexts: [],
+        knownFlashCards: [],
         createdAt: now,
         updatedAt: now,
       );
       
       await repository.createNote(note1);
       
-      final notes = await repository.getNotes('user1', 'default_space').first;
+      final notes = await repository.getNotesByUserId('user1');
       
       expect(notes.length, 1);
       expect(notes.first.title, 'Note 1');
@@ -61,6 +70,10 @@ void main() {
         userId: 'user1',
         title: 'Original Title',
         content: '',
+        pages: [],
+        flashCards: [],
+        highlightedTexts: [],
+        knownFlashCards: [],
         createdAt: now,
         updatedAt: now,
       );
@@ -69,7 +82,7 @@ void main() {
       final updatedNote = createdNote.copyWith(title: 'Updated Title');
       
       await repository.updateNote(updatedNote);
-      final fetchedNote = await repository.getNote(createdNote.id);
+      final fetchedNote = await repository.getNoteById(createdNote.id);
       
       expect(fetchedNote?.title, 'Updated Title');
     });
@@ -82,6 +95,10 @@ void main() {
         userId: 'user1',
         title: 'Test Note',
         content: '',
+        pages: [],
+        flashCards: [],
+        highlightedTexts: [],
+        knownFlashCards: [],
         createdAt: now,
         updatedAt: now,
       );
@@ -89,7 +106,7 @@ void main() {
       final createdNote = await repository.createNote(note);
       await repository.deleteNote(createdNote.id);
       
-      final fetchedNote = await repository.getNote(createdNote.id);
+      final fetchedNote = await repository.getNoteById(createdNote.id);
       expect(fetchedNote, null);
     });
   });

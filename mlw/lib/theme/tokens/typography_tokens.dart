@@ -68,7 +68,7 @@ class TypographyTokens {
           letterSpacing: 0,
         );
       
-      
+    
       
       case 'body.small':
         return GoogleFonts.poppins(

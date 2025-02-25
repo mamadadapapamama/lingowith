@@ -64,9 +64,9 @@ class ColorTokens {
       'base': Color(0xFFFFFFFF),
       'button': {
         'primary': Color(0xFFFE6A15),
-        'primary-hover': Color(0xFFCB5511),
+        'primary-on': Color(0xFFCB5511),
         'secondary': Color(0xFF226357),
-        'secondary-hover': Color(0xFF143B34),
+        'secondary-on': Color(0xFF143B34),
         'disabled': Color(0xFFB2B2B2),
       }
     },
