@@ -17,7 +17,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:mlw/services/image_processing_service.dart';
-import 'package:mlw/utils/app_constants.dart';
+import 'package:mlw/constants/app_constants.dart';
 
 class HomeScreen extends StatefulWidget {
   final String? spaceId;
@@ -763,4 +763,9 @@ class _HomeScreenState extends State<HomeScreen> {
       _loadNotes();
     }
   }
+}
+
+class _Constants {
+  static const defaultSpaceName = 'Chinese book';
+  static const defaultLanguage = 'zh';
 }
