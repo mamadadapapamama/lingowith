@@ -28,7 +28,7 @@ class _FlashCardScreenState extends State<FlashCardScreen> {
   @override
   void initState() {
     super.initState();
-    _viewModel = serviceLocator.getFactory<FlashCardViewModel>();
+    _viewModel = serviceLocator.get<FlashCardViewModel>();
     _loadFlashCards();
   }
   

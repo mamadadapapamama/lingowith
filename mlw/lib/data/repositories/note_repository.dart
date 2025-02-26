@@ -3,68 +3,143 @@ import 'package:mlw/data/models/note.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class NoteRepository {
-  final FirebaseDataSource _remoteDataSource;
-  static const String _notesCollection = 'notes';
+  final FirebaseDataSource remoteDataSource;
+  static const String _collection = 'notes';
 
   NoteRepository({
-    required FirebaseDataSource remoteDataSource,
-  }) : _remoteDataSource = remoteDataSource;
+    required this.remoteDataSource,
+  });
 
   // 사용자 노트 목록 가져오기
   Future<List<Note>> getNotesByUserId(String userId) async {
-    final querySnapshot = await _remoteDataSource.getDocuments(
-      _notesCollection,
-      where: [
-        {'field': 'userId', 'operator': '==', 'value': userId}
-      ],
-      orderBy: [
-        {'field': 'updatedAt', 'direction': 'desc'}
-      ],
-    );
-    
-    return querySnapshot.docs.map((doc) => Note.fromFirestore(doc)).toList();
+    try {
+      final snapshot = await remoteDataSource.getDocuments(
+        _collection,
+        [
+          ['userId', '==', userId],
+        ],
+      );
+      
+      return snapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        return Note.fromMap({...data, 'id': doc.id});
+      }).toList();
+    } catch (e) {
+      throw Exception('노트 목록을 가져오는 중 오류가 발생했습니다: $e');
+    }
   }
 
   // 노트 상세 가져오기
-  Future<Note?> getNoteById(String noteId) async {
-    final doc = await _remoteDataSource.getDocument(_notesCollection, noteId);
-    if (doc.exists) {
-      return Note.fromFirestore(doc);
+  Future<Note?> getNoteById(String id) async {
+    try {
+      final doc = await remoteDataSource.getDocument(_collection, id);
+      if (!doc.exists) {
+        return null;
+      }
+      
+      final data = doc.data() as Map<String, dynamic>;
+      return Note.fromMap({...data, 'id': doc.id});
+    } catch (e) {
+      throw Exception('노트를 가져오는 중 오류가 발생했습니다: $e');
     }
-    return null;
   }
 
   // 노트 생성
   Future<Note> createNote(Note note) async {
-    final docRef = await _remoteDataSource.addDocument(_notesCollection, note.toFirestore());
-    return note.copyWith(id: docRef.id);
+    try {
+      final docRef = await remoteDataSource.addDocument(_collection, note.toMap());
+      return note.copyWith(id: docRef.id);
+    } catch (e) {
+      throw Exception('노트를 생성하는 중 오류가 발생했습니다: $e');
+    }
   }
 
   // 노트 업데이트
   Future<void> updateNote(Note note) async {
-    await _remoteDataSource.updateDocument(
-      _notesCollection,
-      note.id,
-      note.toFirestore(),
-    );
+    try {
+      await remoteDataSource.updateDocument(
+        _collection,
+        note.id,
+        note.toMap(),
+      );
+    } catch (e) {
+      throw Exception('노트를 업데이트하는 중 오류가 발생했습니다: $e');
+    }
   }
 
   // 노트 삭제
-  Future<void> deleteNote(String noteId) async {
-    await _remoteDataSource.deleteDocument(_notesCollection, noteId);
+  Future<void> deleteNote(String id) async {
+    try {
+      await remoteDataSource.deleteDocument(_collection, id);
+    } catch (e) {
+      throw Exception('노트를 삭제하는 중 오류가 발생했습니다: $e');
+    }
   }
 
   // 노트 검색
   Future<List<Note>> searchNotes(String userId, String query) async {
-    // 실제 구현에서는 Firestore의 전문 검색 기능 또는 Algolia 같은 서비스 사용
-    // 여기서는 간단한 클라이언트 측 필터링으로 구현
-    
-    final notes = await getNotesByUserId(userId);
-    final lowerQuery = query.toLowerCase();
-    
-    return notes.where((note) => 
-      note.title.toLowerCase().contains(lowerQuery) || 
-      note.content.toLowerCase().contains(lowerQuery)
-    ).toList();
+    try {
+      final notes = await getNotesByUserId(userId);
+      final lowerQuery = query.toLowerCase();
+      
+      return notes.where((note) => 
+        note.title.toLowerCase().contains(lowerQuery)
+      ).toList();
+    } catch (e) {
+      throw Exception('노트를 검색하는 중 오류가 발생했습니다: $e');
+    }
+  }
+
+  // 노트에 페이지 추가
+  Future<void> addPageToNote(String noteId, String pageId) async {
+    try {
+      final note = await getNoteById(noteId);
+      if (note == null) {
+        throw Exception('노트를 찾을 수 없습니다');
+      }
+      
+      final updatedPageIds = List<String>.from(note.pageIds)..add(pageId);
+      await updateNote(note.copyWith(
+        pageIds: updatedPageIds,
+        updatedAt: DateTime.now(),
+      ));
+    } catch (e) {
+      throw Exception('노트에 페이지를 추가하는 중 오류가 발생했습니다: $e');
+    }
+  }
+
+  // 노트에서 페이지 제거
+  Future<void> removePageFromNote(String noteId, String pageId) async {
+    try {
+      final note = await getNoteById(noteId);
+      if (note == null) {
+        throw Exception('노트를 찾을 수 없습니다');
+      }
+      
+      final updatedPageIds = List<String>.from(note.pageIds)..remove(pageId);
+      await updateNote(note.copyWith(
+        pageIds: updatedPageIds,
+        updatedAt: DateTime.now(),
+      ));
+    } catch (e) {
+      throw Exception('노트에서 페이지를 제거하는 중 오류가 발생했습니다: $e');
+    }
+  }
+
+  // 플래시카드 수 업데이트
+  Future<void> updateFlashCardCount(String noteId, int count) async {
+    try {
+      final note = await getNoteById(noteId);
+      if (note == null) {
+        throw Exception('노트를 찾을 수 없습니다');
+      }
+      
+      await updateNote(note.copyWith(
+        flashCardCount: count,
+        updatedAt: DateTime.now(),
+      ));
+    } catch (e) {
+      throw Exception('플래시카드 수를 업데이트하는 중 오류가 발생했습니다: $e');
+    }
   }
 } 

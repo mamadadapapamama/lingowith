@@ -125,45 +125,22 @@ class TranslatorService {
   }) : _httpClient = httpClient ?? http.Client();
   
   // 텍스트 번역
-  Future<String> translate(String text, {required String from, required String to}) async {
-    if (text.isEmpty) return '';
+  Future<String> translate(String text, String from, String to) async {
+    // 실제 구현은 외부 번역 API를 사용할 수 있습니다
+    // 여기서는 간단한 예시로 구현
     
-    // 캐시에서 번역 확인
-    final cachedTranslation = await TranslationCache.getTranslation(text, from, to);
-    if (cachedTranslation != null) {
-      return cachedTranslation;
-    }
+    // 간단한 중국어-한국어 번역 매핑 (일부 예시)
+    final Map<String, String> translations = {
+      '你好': '안녕하세요',
+      '谢谢': '감사합니다',
+      '再见': '안녕히 가세요',
+      '学习': '공부하다',
+      '中国': '중국',
+      // 더 많은 번역 추가 가능
+    };
     
-    try {
-      // 실제 구현에서는 Google Translate API 또는 다른 번역 API 사용
-      // 여기서는 간단한 구현으로 대체
-      
-      // 예시: 중국어 -> 한국어 간단한 사전
-      final Map<String, String> zhToKo = {
-        '你好': '안녕하세요',
-        '谢谢': '감사합니다',
-        '再见': '안녕히 가세요',
-        '学习': '공부하다',
-        '中文': '중국어',
-      };
-      
-      // 간단한 번역 로직
-      String translation = '';
-      
-      if (from == 'zh-CN' && to == 'ko') {
-        translation = zhToKo[text] ?? '번역 없음';
-      } else {
-        // 실제 API 호출 대신 텍스트 변환
-        translation = '[$from -> $to] $text';
-      }
-      
-      // 번역 결과 캐시에 저장
-      await TranslationCache.cacheTranslation(text, from, to, translation);
-      
-      return translation;
-    } catch (e) {
-      throw Exception('번역 중 오류가 발생했습니다: $e');
-    }
+    // 매핑된 번역이 있으면 반환, 없으면 원본 텍스트 반환
+    return translations[text] ?? text;
   }
   
   // 여러 텍스트 일괄 번역
@@ -171,7 +148,7 @@ class TranslatorService {
     final results = <String>[];
     
     for (final text in texts) {
-      final translation = await translate(text, from: from, to: to);
+      final translation = await translate(text, from, to);
       results.add(translation);
     }
     

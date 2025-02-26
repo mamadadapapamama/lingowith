@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:mlw/data/repositories/note_repository.dart';
 import 'package:mlw/data/models/note.dart';
+import 'package:mlw/data/models/flash_card.dart';
 import 'package:mlw/domain/services/image_processing_service.dart';
 import 'package:mlw/services/translator.dart';
 import 'package:mlw/services/pinyin_service.dart';
@@ -32,14 +33,10 @@ class NoteService {
     
     final note = Note(
       id: '',
-      spaceId: 'default_space',
+      noteSpaceId: 'default_space',
       userId: userId,
       title: title,
       content: content,
-      pages: [],
-      flashCards: [],
-      highlightedTexts: [],
-      knownFlashCards: [],
       createdAt: now,
       updatedAt: now,
     );
@@ -75,19 +72,15 @@ class NoteService {
   // 이미지에서 텍스트 추출하여 노트 생성
   Future<Note> createNoteFromImage(String userId, File imageFile) async {
     // 이미지에서 텍스트 추출
-    final extractedText = await _imageProcessingService.extractTextFromImage(imageFile.path);
+    final extractedText = await _imageProcessingService.extractTextFromImage(imageFile);
     
     // 노트 생성
     final note = Note(
       id: '', // 저장 시 자동 생성
-      spaceId: 'default_space',
+      noteSpaceId: 'default_space',
       userId: userId,
       title: '이미지에서 추출된 텍스트',
       content: extractedText,
-      pages: [],
-      flashCards: [],
-      highlightedTexts: [],
-      knownFlashCards: [],
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
     );
@@ -114,16 +107,49 @@ class NoteService {
   
   // 이미지에서 텍스트 추출
   Future<String> extractTextFromImage(String imagePath) async {
-    return await _imageProcessingService.extractTextFromImage(imagePath);
+    final file = File(imagePath);
+    return await _imageProcessingService.extractTextFromImage(file);
   }
   
   // 텍스트 번역
   Future<String> translateText(String text, String from, String to) async {
-    return await _translatorService.translate(text, from: from, to: to);
+    return await _translatorService.translate(text, from, to);
   }
   
   // 핀인 생성
   Future<String> getPinyin(String text) async {
     return await _pinyinService.getPinyin(text);
+  }
+  
+  // 플래시카드 추가 메서드
+  Future<Note> addFlashCard(Note note, String text) async {
+    final translatedText = await _translatorService.translate(text, 'zh', 'ko');
+    final pinyin = await _pinyinService.getPinyin(text);
+    
+    final newFlashCard = FlashCard(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      noteId: note.id,
+      pageId: '',
+      userId: note.userId,
+      front: text,
+      back: translatedText,
+      pinyin: pinyin,
+      known: false,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+    
+    final updatedFlashCards = [
+      ...note.flashCards.where((card) => (card as Map)['front'] != text),
+      newFlashCard.toMap(),
+    ];
+    
+    final updatedNote = note.copyWith(
+      flashCards: updatedFlashCards,
+      highlightedTexts: List<String>.from(note.highlightedTexts)..add(text),
+      updatedAt: DateTime.now(),
+    );
+    
+    return await updateNote(updatedNote);
   }
 } 

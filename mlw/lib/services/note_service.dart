@@ -27,7 +27,7 @@ class NoteService {
   
   // 플래시카드 추가 메서드
   Future<Note> addFlashCard(Note note, String text) async {
-    final translatedText = await _translatorService.translate(text, from: 'zh', to: 'ko');
+    final translatedText = await _translatorService.translate('zh', 'ko', text);
     final pinyin = await _pinyinService.getPinyin(text);
     
     final newFlashCard = FlashCard(

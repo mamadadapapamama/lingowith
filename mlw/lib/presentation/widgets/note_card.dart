@@ -5,24 +5,25 @@ import 'package:intl/intl.dart';
 class NoteCard extends StatelessWidget {
   final Note note;
   final VoidCallback onTap;
-  final VoidCallback? onLongPress;
+  final VoidCallback onDelete;
   
   const NoteCard({
     Key? key,
     required this.note,
     required this.onTap,
-    this.onLongPress,
+    required this.onDelete,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    final dateFormat = DateFormat('yyyy-MM-dd');
+    final dateFormat = DateFormat('yyyy-MM-dd HH:mm');
+    final updatedAt = dateFormat.format(note.updatedAt);
     
     return Card(
-      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+      margin: const EdgeInsets.only(bottom: 16),
+      elevation: 2,
       child: InkWell(
         onTap: onTap,
-        onLongPress: onLongPress,
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -35,55 +36,44 @@ class NoteCard extends StatelessWidget {
                     child: Text(
                       note.title,
                       style: const TextStyle(
-                        fontSize: 16,
+                        fontSize: 18,
                         fontWeight: FontWeight.bold,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  Text(
-                    dateFormat.format(note.updatedAt),
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[600],
-                    ),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline),
+                    onPressed: onDelete,
+                    splashRadius: 24,
                   ),
                 ],
               ),
-              if (note.content.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Text(
-                  note.content,
-                  style: const TextStyle(fontSize: 14),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+              const SizedBox(height: 8),
+              Text(
+                note.content,
+                style: const TextStyle(fontSize: 14),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
               const SizedBox(height: 8),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // 플래시카드 개수 표시
-                  if (note.flashCards.isNotEmpty)
-                    Wrap(
-                      spacing: 8,
-                      children: [
-                        Chip(
-                          label: Text('${note.flashCards.length}개의 플래시카드'),
-                          padding: const EdgeInsets.all(0),
-                          labelStyle: const TextStyle(fontSize: 12),
-                          backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
-                        ),
-                      ],
+                  Text(
+                    '수정: $updatedAt',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade600,
                     ),
-                  // 하이라이트된 텍스트 개수 표시
-                  if (note.highlightedTexts.isNotEmpty)
+                  ),
+                  if (note.flashCards.isNotEmpty)
                     Text(
-                      '${note.highlightedTexts.length}개의 하이라이트',
+                      '플래시카드: ${note.flashCards.length}개',
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.grey[600],
+                        color: Colors.blue.shade700,
                       ),
                     ),
                 ],

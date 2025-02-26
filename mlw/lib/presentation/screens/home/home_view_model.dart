@@ -4,7 +4,7 @@ import 'package:mlw/domain/services/note_service.dart';
 import 'package:mlw/domain/services/user_service.dart';
 import 'package:mlw/data/models/user_settings.dart';
 
-class HomeViewModel with ChangeNotifier {
+class HomeViewModel extends ChangeNotifier {
   final NoteService _noteService;
   final UserService _userService;
   
@@ -12,82 +12,77 @@ class HomeViewModel with ChangeNotifier {
   UserSettings? _userSettings;
   bool _isLoading = false;
   String _error = '';
+  String _userId = '';
   
   HomeViewModel({
-    required NoteService noteService,
     required UserService userService,
+    required NoteService noteService,
   }) : 
-    _noteService = noteService,
-    _userService = userService;
+    _userService = userService,
+    _noteService = noteService;
   
   List<Note> get notes => _notes;
   UserSettings? get userSettings => _userSettings;
   bool get isLoading => _isLoading;
   String get error => _error;
   
-  // 노트 목록 가져오기
-  Future<List<Note>> getNotes(String userId) async {
-    try {
-      _setLoading(true);
-      _notes = await _noteService.getNotesByUserId(userId);
-      _setLoading(false);
-      return _notes;
-    } catch (e) {
-      _setError('노트를 가져오는 중 오류가 발생했습니다: $e');
-      _setLoading(false);
-      return [];
-    }
+  set userId(String value) {
+    _userId = value;
   }
   
-  // 노트 생성
-  Future<Note> createNote({
-    required String userId,
-    required String title,
-    String content = '',
-  }) async {
-    try {
-      final note = await _noteService.createNote(
-        userId: userId,
-        title: title,
-        content: content,
-      );
-      _notes = [note, ..._notes];
-      return note;
-    } catch (e) {
-      _setError('노트를 생성하는 중 오류가 발생했습니다: $e');
-      rethrow;
+  Future<void> loadNotes() async {
+    if (_userId.isEmpty) {
+      _error = '사용자 ID가 없습니다';
+      notifyListeners();
+      return;
     }
-  }
-  
-  // 데이터 로드
-  Future<void> loadData(String userId) async {
+    
     _isLoading = true;
     _error = '';
     notifyListeners();
     
     try {
-      _notes = await _noteService.getNotesByUserId(userId);
-      _userSettings = await _userService.getUserSettings(userId);
-    } catch (e) {
-      _error = e.toString();
-    } finally {
+      _notes = await _noteService.getNotesByUserId(_userId);
+      _userSettings = await _userService.getUserSettings(_userId);
       _isLoading = false;
+      notifyListeners();
+    } catch (e) {
+      _isLoading = false;
+      _error = e.toString();
       notifyListeners();
     }
   }
   
-  // 노트 삭제
-  Future<void> deleteNote(String noteId) async {
-    _isLoading = true;
-    notifyListeners();
+  Future<Note?> createNote({required String title, String content = ''}) async {
+    if (_userId.isEmpty) {
+      _error = '사용자 ID가 없습니다';
+      notifyListeners();
+      return null;
+    }
     
     try {
-      await _noteService.deleteNote(noteId);
-      _notes = _notes.where((note) => note.id != noteId).toList();
+      final note = await _noteService.createNote(
+        userId: _userId,
+        title: title,
+        content: content,
+      );
+      
+      await loadNotes(); // 노트 목록 새로고침
+      return note;
     } catch (e) {
-      _error = '노트 삭제 중 오류가 발생했습니다: $e';
-    } finally {
-      _isLoading = false;
+      _error = e.toString();
+      notifyListeners();
+      return null;
+    }
+  }
+  
+  Future<void> deleteNote(String noteId) async {
+    try {
+      await _noteService.deleteNote(noteId);
+      _notes.removeWhere((note) => note.id == noteId);
+      notifyListeners();
+    } catch (e) {
+      _error = e.toString();
       notifyListeners();
     }
   }
@@ -95,7 +90,7 @@ class HomeViewModel with ChangeNotifier {
   // 노트 검색
   Future<void> searchNotes(String userId, String query) async {
     if (query.isEmpty) {
-      loadData(userId);
+      loadNotes();
       return;
     }
     
@@ -110,15 +105,5 @@ class HomeViewModel with ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
-  }
-  
-  void _setLoading(bool loading) {
-    _isLoading = loading;
-    notifyListeners();
-  }
-  
-  void _setError(String errorMessage) {
-    _error = errorMessage;
-    notifyListeners();
   }
 } 

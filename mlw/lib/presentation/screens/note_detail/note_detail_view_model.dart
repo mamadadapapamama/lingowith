@@ -31,6 +31,7 @@ class NoteDetailViewModel with ChangeNotifier {
   bool get isLoading => _isLoading;
   String get error => _error;
   int get flashCardCount => _flashCardCount;
+  String get pageId => _note?.pageIds.isNotEmpty == true ? _note!.pageIds.first : '';
   
   // 노트 가져오기
   Future<Note?> getNote(String noteId) async {
@@ -123,6 +124,7 @@ class NoteDetailViewModel with ChangeNotifier {
       await _flashCardService.createFlashCardsFromText(
         userId: userId,
         noteId: noteId,
+        pageId: pageId,
         text: text,
         sourceLanguage: sourceLanguage,
         targetLanguage: targetLanguage,
@@ -144,8 +146,8 @@ class NoteDetailViewModel with ChangeNotifier {
       // 번역
       final translation = await _translatorService.translate(
         selectedText,
-        from: 'zh-CN',
-        to: 'ko',
+        'zh-CN',
+        'ko',
       );
       
       // 핀인 생성
@@ -155,6 +157,7 @@ class NoteDetailViewModel with ChangeNotifier {
       await _flashCardService.createFlashCard(
         userId: _note!.userId,
         noteId: _note!.id,
+        pageId: pageId,
         front: selectedText,
         back: translation,
         pinyin: pinyin,
@@ -189,7 +192,7 @@ class NoteDetailViewModel with ChangeNotifier {
   // 텍스트 번역
   Future<String> translateText(String text, String from, String to) async {
     try {
-      return await _translatorService.translate(text, from: from, to: to);
+      return await _translatorService.translate(text, from, to);
     } catch (e) {
       _setError('텍스트를 번역하는 중 오류가 발생했습니다: $e');
       return '';

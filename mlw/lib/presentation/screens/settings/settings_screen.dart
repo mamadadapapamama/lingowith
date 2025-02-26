@@ -23,7 +23,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void initState() {
     super.initState();
-    _viewModel = serviceLocator.getFactory<SettingsViewModel>();
+    _viewModel = serviceLocator.get<SettingsViewModel>();
     _loadSettings();
   }
   

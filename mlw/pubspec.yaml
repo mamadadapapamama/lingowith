@@ -69,6 +69,9 @@ dependencies:
   firebase_auth: ^5.4.2
   flutter_open_chinese_convert: ^0.5.1
 
+  get_it: ^7.6.7
+
+  flutter_local_notifications: ^16.0.0
 
 dev_dependencies:
   flutter_test:

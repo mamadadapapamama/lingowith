@@ -16,20 +16,10 @@ void main() {
     final now = DateTime.now();
     final testNote = Note(
       id: 'test_id',
-      spaceId: 'test_space',
+      noteSpaceId: 'test_space',
       userId: 'test_user',
       title: 'Test Note',
       content: 'Test Content',
-      pages: [
-        Page(
-          imageUrl: 'test_image.jpg',
-          extractedText: '测试文本',
-          translatedText: '테스트 텍스트',
-        ),
-      ],
-      flashCards: [],
-      highlightedTexts: [],
-      knownFlashCards: [],
       createdAt: now,
       updatedAt: now,
     );
@@ -77,15 +67,26 @@ void main() {
       );
 
       final flashCard = FlashCard(
+        id: 'test_card_id',
+        noteId: 'test_note_id',
+        pageId: 'test_page_id',
+        userId: 'test_user_id',
         front: '你好',
         back: '안녕하세요',
         pinyin: 'nǐ hǎo',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
       );
 
       final page = Page(
+        id: 'test_page_id',
+        noteId: 'test_note_id',
+        userId: 'test_user_id',
         imageUrl: 'test_image.jpg',
-        extractedText: 'Extracted text',
+        originalText: 'Extracted text',
         translatedText: 'Translated text',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
       );
 
       final updated = note.copyWith(
@@ -146,15 +147,26 @@ void main() {
     test('should convert Note to Firestore data', () {
       final now = DateTime.now();
       final flashCard = FlashCard(
+        id: 'test_card_id',
+        noteId: 'test_note_id',
+        pageId: 'test_page_id',
+        userId: 'test_user_id',
         front: '你好',
         back: '안녕하세요',
         pinyin: 'nǐ hǎo',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
       );
 
       final page = Page(
+        id: 'test_page_id',
+        noteId: 'test_note_id',
+        userId: 'test_user_id',
         imageUrl: 'test_image.jpg',
-        extractedText: 'Extracted Text',
-        translatedText: 'Translated Text',
+        originalText: 'Extracted text',
+        translatedText: 'Translated text',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
       );
 
       final note = Note(
@@ -180,8 +192,8 @@ void main() {
       expect(data['updatedAt'], isA<Timestamp>());
       expect(data['flashCards'].length, 1);
       expect(data['flashCards'].first['front'], '你好');
-      expect(data['pages'].first['extractedText'], 'Extracted Text');
-      expect(data['pages'].first['translatedText'], 'Translated Text');
+      expect(data['pages'].first['extractedText'], 'Extracted text');
+      expect(data['pages'].first['translatedText'], 'Translated text');
     });
 
     test('toFirestore converts Note to Map correctly', () {

@@ -28,7 +28,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   @override
   void initState() {
     super.initState();
-    _viewModel = serviceLocator.getFactory<NoteDetailViewModel>();
+    _viewModel = serviceLocator.get<NoteDetailViewModel>();
     _contentController = TextEditingController();
     _loadNote();
   }

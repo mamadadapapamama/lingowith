@@ -1,9 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:mlw/data/models/flash_card.dart';
 import 'package:mlw/domain/services/flash_card_service.dart';
+import 'package:mlw/domain/services/tts_service.dart';
 
 class FlashCardViewModel with ChangeNotifier {
   final FlashCardService _flashCardService;
+  final TtsService _ttsService;
   
   List<FlashCard> _flashCards = [];
   bool _isLoading = false;
@@ -13,7 +15,10 @@ class FlashCardViewModel with ChangeNotifier {
   
   FlashCardViewModel({
     required FlashCardService flashCardService,
-  }) : _flashCardService = flashCardService;
+    required TtsService ttsService,
+  }) : 
+    _flashCardService = flashCardService,
+    _ttsService = ttsService;
   
   List<FlashCard> get flashCards => _flashCards;
   bool get isLoading => _isLoading;

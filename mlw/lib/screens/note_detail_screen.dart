@@ -133,7 +133,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   }
 
   Future<void> _addHighlight(String text) async {
-    final translatedText = await translatorService.translate(text, from: 'zh', to: 'ko');
+    final translatedText = await translatorService.translate(text, 'zh', 'ko');
     final pinyin = await pinyinService.getPinyin(text);
     
     final newFlashCard = note_model.FlashCard(
@@ -198,7 +198,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
 
   void _addToFlashcards(String text) async {
     try {
-      final translatedText = await translatorService.translate(text, from: 'zh', to: 'ko');
+      final translatedText = await translatorService.translate(text, 'zh', 'ko');
       final pinyin = await pinyinService.getPinyin(text);
       
       final newFlashCard = note_model.FlashCard(
@@ -243,7 +243,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
 
   Future<void> _editPageText(int pageIndex, String newText) async {
     try {
-      final translatedText = await translatorService.translate(newText, from: 'zh', to: 'ko');
+      final translatedText = await translatorService.translate(newText, 'zh', 'ko');
       
       final updatedPage = note_model.Page(
         imageUrl: _note.pages[pageIndex].imageUrl,

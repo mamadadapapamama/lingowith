@@ -1,20 +1,20 @@
 import 'package:flutter/material.dart';
 
 class ColorTokens {
-  static const Color primary = Color(0xFF4CAF50);
-  static const Color secondary = Color(0xFF2196F3);
-  static const Color error = Color(0xFFE53935);
+  static const Color primary = Color(0xFFFE6A15);
+  static const Color secondary = Color(0xFF226357);
+  static const Color error = Color(0xFFD22E2B);
   static const Color warning = Color(0xFFFFC107);
-  static const Color success = Color(0xFF4CAF50);
-  static const Color info = Color(0xFF2196F3);
+  static const Color success = Color(0xFF7ED29E);
+  static const Color info = Color(0xFF07437B);
   
   // 텍스트 색상
-  static const Color textPrimary = Color(0xFF212121);
-  static const Color textSecondary = Color(0xFF757575);
+  static const Color textPrimary = Color(0xFF0E2823);
+  static const Color textSecondary = Color(0xFF226357);
   static const Color textDisabled = Color(0xFFBDBDBD);
   
   // 배경 색상
-  static const Color background = Color(0xFFF5F5F5);
+  static const Color background = Color(0xFFFFF9F1);
   static const Color surface = Color(0xFFFFFFFF);
   
   // 다크 모드 색상
