@@ -35,7 +35,7 @@ class NoteRepository {
       return notes;
     } catch (e) {
       print("Repository error: $e");
-      throw e;
+      rethrow;
     }
   }
 

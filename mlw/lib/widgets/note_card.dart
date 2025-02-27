@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:mlw/models/note.dart' as note_model;
-import 'package:google_fonts/google_fonts.dart';
 import 'dart:io';
 import 'package:mlw/theme/tokens/color_tokens.dart';
-import 'package:intl/intl.dart';
 import 'package:mlw/screens/note_detail_screen.dart';
 import 'package:mlw/widgets/flashcard_counter.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:mlw/theme/tokens/typography_tokens.dart';
 import 'package:mlw/screens/home_screen.dart';
 import 'package:mlw/utils/date_formatter.dart';

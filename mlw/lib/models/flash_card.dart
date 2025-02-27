@@ -58,8 +58,8 @@ class FlashCard {
       front: front ?? this.front,
       back: back ?? this.back,
       pinyin: pinyin ?? this.pinyin,
-      noteId: this.noteId,
-      createdAt: this.createdAt,
+      noteId: noteId,
+      createdAt: createdAt,
       reviewCount: reviewCount ?? this.reviewCount,
       lastReviewedAt: lastReviewedAt ?? this.lastReviewedAt,
     );

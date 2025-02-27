@@ -6,12 +6,8 @@ import 'package:mlw/theme/tokens/typography_tokens.dart';
 import 'dart:io';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:mlw/screens/image_viewer_screen.dart';
-import 'package:mlw/screens/note_detail_screen.dart';
 import 'package:mlw/models/text_display_mode.dart';
-import 'package:flutter/rendering.dart';
-import 'package:flutter/services.dart';
 import 'package:mlw/widgets/dictionary_lookup_sheet.dart';
-import 'package:flutter/widgets.dart' show EditableTextState;
 
 class NotePage extends StatefulWidget {
   final note_model.Page page;
@@ -223,7 +219,7 @@ class _NotePageState extends State<NotePage> {
         tempSentence += (tempSentence.isEmpty ? "" : ' ') + sentence.trim();
       } else {
         if (tempSentence.isNotEmpty) {
-          mergedSentences.add(tempSentence + ' ' + sentence.trim());
+          mergedSentences.add('$tempSentence ${sentence.trim()}');
           tempSentence = "";
         } else {
           mergedSentences.add(sentence.trim());
@@ -430,7 +426,7 @@ class _NotePageState extends State<NotePage> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: RoundedRectangleBorder(
+      shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (context) => DraggableScrollableSheet(

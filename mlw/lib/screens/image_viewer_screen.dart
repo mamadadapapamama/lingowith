@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
-import 'package:mlw/theme/tokens/color_tokens.dart';
-import 'package:mlw/theme/tokens/typography_tokens.dart';
 
 class ImageViewerScreen extends StatelessWidget {
   final String imageUrl;
@@ -42,9 +40,9 @@ class ImageViewerScreen extends StatelessWidget {
                       color: Colors.white.withOpacity(0.7),
                     ),
                     const SizedBox(height: 16),
-                    Text(
+                    const Text(
                       'Image not found',
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: Colors.white,
                         fontSize: 18,
                       ),
@@ -79,9 +77,9 @@ class ImageViewerScreen extends StatelessWidget {
                           color: Colors.white.withOpacity(0.7),
                         ),
                         const SizedBox(height: 16),
-                        Text(
+                        const Text(
                           'Failed to load image',
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: Colors.white,
                             fontSize: 18,
                           ),
@@ -111,9 +109,9 @@ class ImageViewerScreen extends StatelessWidget {
                     color: Colors.white.withOpacity(0.7),
                   ),
                   const SizedBox(height: 16),
-                  Text(
+                  const Text(
                     'Error loading image',
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: Colors.white,
                       fontSize: 18,
                     ),

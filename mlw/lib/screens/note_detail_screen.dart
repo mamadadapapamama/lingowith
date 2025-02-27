@@ -1,22 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:mlw/models/note.dart' as note_model;
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:mlw/widgets/note_page.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:mlw/services/translator.dart';
-import 'package:googleapis/vision/v1.dart' as vision;
-import 'package:googleapis_auth/auth_io.dart';
-import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:mlw/screens/flash_card_screen.dart';
 import 'package:mlw/theme/tokens/color_tokens.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:mlw/theme/tokens/typography_tokens.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:mlw/models/text_display_mode.dart';
-import 'package:mlw/models/flash_card.dart' as flash_card_model;
 import 'package:mlw/services/pinyin_service.dart';
 import 'package:mlw/widgets/flashcard_counter.dart';
 import 'package:mlw/services/image_processing_service.dart';
@@ -133,7 +125,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   }
 
   Future<void> _addHighlight(String text) async {
-    final translatedText = await translatorService.translate(text, from: 'zh', to: 'ko');
+    final translatedText = await translatorService.translate(text, 'zh', 'ko');
     final pinyin = await pinyinService.getPinyin(text);
     
     final newFlashCard = note_model.FlashCard(
@@ -198,7 +190,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
 
   void _addToFlashcards(String text) async {
     try {
-      final translatedText = await translatorService.translate(text, from: 'zh', to: 'ko');
+      final translatedText = await translatorService.translate(text, 'zh', 'ko');
       final pinyin = await pinyinService.getPinyin(text);
       
       final newFlashCard = note_model.FlashCard(
@@ -243,7 +235,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
 
   Future<void> _editPageText(int pageIndex, String newText) async {
     try {
-      final translatedText = await translatorService.translate(newText, from: 'zh', to: 'ko');
+      final translatedText = await translatorService.translate(newText, 'zh', 'ko');
       
       final updatedPage = note_model.Page(
         imageUrl: _note.pages[pageIndex].imageUrl,

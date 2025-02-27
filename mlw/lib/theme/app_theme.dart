@@ -3,7 +3,7 @@ import 'package:mlw/theme/tokens/color_tokens.dart';
 
 class AppTheme {
   // 현재 사용중인 색상을 우선 정의
-  static final colors = ColorTokens.semantic;
+  static const colors = ColorTokens.semantic;
   
   // Primary 색상 접근을 위한 헬퍼 메서드
   static Color getPrimaryColor(int strength) {

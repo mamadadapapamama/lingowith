@@ -1,108 +1,129 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'; // kIsWeb 사용을 위해 추가
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:mlw/screens/home_screen.dart';
-import 'package:mlw/theme/app_theme.dart';
-import 'package:mlw/theme/tokens/color_tokens.dart';
-import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
-import 'dart:io' show Platform;
-import 'package:mlw/theme/tokens/typography_tokens.dart';
-import 'package:mlw/services/translator.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:mlw/core/di/service_locator.dart';
+import 'package:mlw/presentation/screens/home/home_screen.dart';
+import 'package:mlw/presentation/screens/onboarding/onboarding_screen.dart';
+import 'package:mlw/presentation/screens/settings/settings_screen.dart';
+import 'package:mlw/presentation/theme/app_theme.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:mlw/presentation/screens/home/home_view_model.dart';
+import 'package:mlw/firebase_options.dart';
+import 'package:mlw/presentation/app.dart';
+
+// 테스트 모드 플래그
+bool useEmulator = false;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  await _initializeFirebase();
+  print('Flutter 바인딩 초기화 완료');
   
-  // Initialize Services
-  await TranslatorService.initialize();
-
-  runApp(const MyApp());
-
-  // 🔥 runApp 이후에 System UI 스타일 적용 (더 확실하게 반영)
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent, // ✅ 완전 투명하게 만들기
-      statusBarIconBrightness: Brightness.dark, // ✅ 상태바 아이콘 검정색으로 (light이면 흰색)
-      systemNavigationBarColor: Colors.white, // ✅ 네비게이션 바 색상 조정
-      systemNavigationBarIconBrightness: Brightness.dark,
-      statusBarBrightness: Brightness.light,
-    ));
-  });
-}
-
-Future<void> _initializeFirebase() async {
+  // Firebase 초기화: 모바일(iOS/Android)는 plist/json 파일에서 자동 로드되고,
+  // 웹에서는 DefaultFirebaseOptions.currentPlatform 옵션을 사용합니다.
   try {
-    if (Firebase.apps.isNotEmpty) {
-      await FirebaseFirestore.instance.enablePersistence();
-      return;
+    print('Firebase 초기화 시작');
+    if (kIsWeb) {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    } else {
+      await Firebase.initializeApp();
     }
-
-    final options = Platform.isIOS
-        ? const FirebaseOptions(
-            apiKey: 'AIzaSyBid3pr9pUgXowZiVo4ZRuP0C-AFuGeC38',
-            appId: '1:1113863334:ios:a912bd2d8a4d2014353067',
-            messagingSenderId: '1113863334',
-            projectId: 'mylingowith',
-            storageBucket: 'mylingowith.appspot.com',
-            iosClientId: '1113863334-ios',
-          )
-        : const FirebaseOptions(
-            apiKey: 'AIzaSyBid3pr9pUgXowZiVo4ZRuP0C-AFuGeC38',
-            appId: '1:1113863334:android:YOUR_ANDROID_APP_ID',
-            messagingSenderId: '1113863334',
-            projectId: 'mylingowith',
-            storageBucket: 'mylingowith.appspot.com',
-          );
-
-    await Firebase.initializeApp(options: options);
-    await FirebaseFirestore.instance.enablePersistence();
-    
-    FirebaseFirestore.instance.settings = const Settings(
-      persistenceEnabled: true,
-      cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
-    );
+    // 기본 앱 객체를 강제로 로드하여 구성이 끝났는지 확인합니다.
+    final app = Firebase.app();
+    print('Firebase 초기화 완료: ${app.name}');
   } catch (e) {
-    if (kDebugMode) {
-      print('Firebase initialization error: $e');
+    if (e.toString().contains("duplicate-app")) {
+      print("Firebase 이미 초기화 되어 있음");
+    } else {
+      print('Firebase 초기화 오류: $e');
     }
   }
+  
+  try {
+    print('서비스 로케이터 설정 시작');
+    await setupServiceLocator();
+    print('서비스 로케이터 설정 완료');
+  } catch (e) {
+    print('서비스 로케이터 설정 오류: $e');
+  }
+  
+  print('앱 실행');
+  runApp(const App());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class MyApp extends StatefulWidget {
+  const MyApp({Key? key}) : super(key: key);
 
-  static const String defaultUserId = 'test_user';
-  static const String defaultSpaceId = 'default_space';
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  final String _userId = 'test_user_id'; // 실제 앱에서는 인증 서비스에서 가져옴
+  bool _initialized = false;
+  bool _onboardingCompleted = false;
+  
+  @override
+  void initState() {
+    super.initState();
+    _checkOnboarding();
+  }
+  
+  Future<void> _checkOnboarding() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _onboardingCompleted = prefs.getBool('onboarding_completed') ?? false;
+      _initialized = true;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'MLW',
-      theme: AppTheme.lightTheme.copyWith(
-        scaffoldBackgroundColor: ColorTokens.semantic['surface']?['background'],
-      ),
-      debugShowCheckedModeBanner: false,
-      home: HomeScreenWrapper(),
+      title: 'MLW - 중국어 학습 도우미',
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: ThemeMode.system,
+      home: _buildHomeScreen(),
+      routes: {
+        '/settings': (context) => SettingsScreen(userId: _userId),
+      },
     );
+  }
+  
+  Widget _buildHomeScreen() {
+    if (!_initialized) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+    
+    return _onboardingCompleted
+        ? HomeScreen(userId: _userId)
+        : const OnboardingScreen();
   }
 }
 
-class HomeScreenWrapper extends StatelessWidget {
-  const HomeScreenWrapper({super.key});
+final homeViewModel = serviceLocator.get<HomeViewModel>();
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      extendBodyBehindAppBar: true, // ✅ 상태바 뒤까지 확장
-      body: Container(
-        color: ColorTokens.semantic['surface']?['background'] ?? Colors.white, // ✅ 배경색 확실히 적용
-        child: HomeScreen(
-          userId: MyApp.defaultUserId,
-          spaceId: MyApp.defaultSpaceId,
-        ),
-      ),
-    );
-  }
+// Firebase 에뮬레이터 설정
+void setupFirebaseEmulators() async {
+  await Firebase.initializeApp();
+  
+  // Firestore 에뮬레이터 설정
+  FirebaseFirestore.instance.settings = const Settings(
+    host: '127.0.0.1:8080',
+    sslEnabled: false,
+    persistenceEnabled: false,
+  );
+  
+  // Auth 에뮬레이터 설정 (필요한 경우)
+  await FirebaseAuth.instance.useAuthEmulator('127.0.0.1', 9099);
+  
+  print('Firebase 에뮬레이터 설정 완료');
 }

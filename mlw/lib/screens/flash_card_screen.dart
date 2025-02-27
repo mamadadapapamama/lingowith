@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:mlw/models/note.dart' as note_model;
 import 'package:mlw/theme/tokens/color_tokens.dart';
 import 'package:mlw/theme/tokens/typography_tokens.dart';
@@ -133,11 +132,11 @@ class _FlashCardScreenState extends State<FlashCardScreen> {
           children: [
             SvgPicture.asset('assets/icon/flashcard.svg'),
             const SizedBox(width: 8),
-            Text('Flashcards'),
+            const Text('Flashcards'),
           ],
         ),
         actions: [
-          Text('${_currentIndex + 1}/${_remainingCards}'),
+          Text('${_currentIndex + 1}/$_remainingCards'),
           const SizedBox(width: 16),
         ],
       ),
