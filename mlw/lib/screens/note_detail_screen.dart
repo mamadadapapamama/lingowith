@@ -4,7 +4,6 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:mlw/widgets/note_page.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
-import 'package:mlw/services/translator.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mlw/theme/tokens/color_tokens.dart';
 import 'package:mlw/theme/tokens/typography_tokens.dart';
@@ -12,6 +11,8 @@ import 'package:mlw/models/text_display_mode.dart';
 import 'package:mlw/services/pinyin_service.dart';
 import 'package:mlw/widgets/flashcard_counter.dart';
 import 'package:mlw/services/image_processing_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:mlw/services/translator_service.dart';
 
 
 class NoteDetailScreen extends StatefulWidget {
@@ -35,6 +36,8 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   int _flashCardCount = 0;
   late note_model.Note _note;
   late ImageProcessingService _imageProcessingService;
+  bool _isTranslating = false;
+  String _translatedText = '';
 
   @override
   void initState() {
@@ -45,7 +48,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     _flashCardCount = _highlightedTexts.length;
     _initTTS();
     _imageProcessingService = ImageProcessingService(
-      translatorService: TranslatorService(),
+      translatorService: translatorService,
     );
   }
 
@@ -125,7 +128,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   }
 
   Future<void> _addHighlight(String text) async {
-    final translatedText = await translatorService.translate(text, 'zh', 'ko');
+    final translatedText = await translatorService.translate(text, 'zh', sourceLanguage: 'ko');
     final pinyin = await pinyinService.getPinyin(text);
     
     final newFlashCard = note_model.FlashCard(
@@ -190,7 +193,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
 
   void _addToFlashcards(String text) async {
     try {
-      final translatedText = await translatorService.translate(text, 'zh', 'ko');
+      final translatedText = await translatorService.translate(text, 'zh', sourceLanguage: 'ko');
       final pinyin = await pinyinService.getPinyin(text);
       
       final newFlashCard = note_model.FlashCard(
@@ -235,7 +238,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
 
   Future<void> _editPageText(int pageIndex, String newText) async {
     try {
-      final translatedText = await translatorService.translate(newText, 'zh', 'ko');
+      final translatedText = await translatorService.translate(newText, 'zh', sourceLanguage: 'ko');
       
       final updatedPage = note_model.Page(
         imageUrl: _note.pages[pageIndex].imageUrl,
@@ -414,6 +417,32 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
           SnackBar(content: Text('페이지 추가 중 오류가 발생했습니다: $e')),
         );
       }
+    }
+  }
+
+  Future<void> _translateText(String text) async {
+    setState(() {
+      _isTranslating = true;
+      _translatedText = '번역 중...';  // 로딩 표시
+    });
+    
+    try {
+      // 사용자 설정에서 대상 언어 가져오기
+      final prefs = await SharedPreferences.getInstance();
+      final targetLanguage = prefs.getString('target_language') ?? '한국어';
+      // 번역 서비스 호출
+      final translatedText = await translatorService.translate(text, targetLanguage, sourceLanguage: 'auto');
+      
+      setState(() {
+        _translatedText = translatedText;
+        _isTranslating = false;
+      });
+    } catch (e) {
+      print('번역 오류: $e');
+      setState(() {
+        _translatedText = 'Sorry, an error occurred during translation. Please try again later.';
+        _isTranslating = false;
+      });
     }
   }
 

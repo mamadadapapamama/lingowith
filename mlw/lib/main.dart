@@ -3,15 +3,13 @@ import 'package:flutter/foundation.dart'; // kIsWeb 사용을 위해 추가
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:mlw/core/di/service_locator.dart';
-import 'package:mlw/presentation/screens/home/home_screen.dart';
-import 'package:mlw/presentation/screens/onboarding/onboarding_screen.dart';
-import 'package:mlw/presentation/screens/settings/settings_screen.dart';
-import 'package:mlw/presentation/theme/app_theme.dart';
+import 'package:mlw/screens/home_screen.dart';
+import 'package:mlw/screens/onboarding_screen.dart';
+import 'package:mlw/screens/settings_screen.dart';
+import 'package:mlw/theme/app_theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:mlw/presentation/screens/home/home_view_model.dart';
-import 'package:mlw/firebase_options.dart';
-import 'package:mlw/presentation/app.dart';
+// import 'package:mlw/view_models/home_view_model.dart'; // 필요한 경우 주석 해제
+// import 'package:mlw/firebase_options.dart'; // 필요한 경우 주석 해제
 
 // 테스트 모드 플래그
 bool useEmulator = false;
@@ -25,9 +23,9 @@ void main() async {
   try {
     print('Firebase 초기화 시작');
     if (kIsWeb) {
-      await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
-      );
+      await Firebase.initializeApp();
+      // 웹 설정이 필요하면 아래 주석 해제
+      // await Firebase.initializeApp(options: FirebaseOptions(...));
     } else {
       await Firebase.initializeApp();
     }
@@ -42,16 +40,8 @@ void main() async {
     }
   }
   
-  try {
-    print('서비스 로케이터 설정 시작');
-    await setupServiceLocator();
-    print('서비스 로케이터 설정 완료');
-  } catch (e) {
-    print('서비스 로케이터 설정 오류: $e');
-  }
-  
   print('앱 실행');
-  runApp(const App());
+  runApp(const MyApp());
 }
 
 class MyApp extends StatefulWidget {
@@ -85,8 +75,6 @@ class _MyAppState extends State<MyApp> {
     return MaterialApp(
       title: 'MLW - 중국어 학습 도우미',
       theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
-      themeMode: ThemeMode.system,
       home: _buildHomeScreen(),
       routes: {
         '/settings': (context) => SettingsScreen(userId: _userId),
@@ -108,8 +96,6 @@ class _MyAppState extends State<MyApp> {
         : const OnboardingScreen();
   }
 }
-
-final homeViewModel = serviceLocator.get<HomeViewModel>();
 
 // Firebase 에뮬레이터 설정
 void setupFirebaseEmulators() async {

@@ -10,7 +10,7 @@ import 'package:mlw/theme/tokens/typography_tokens.dart';
 import 'package:mlw/widgets/custom_button.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
-import 'package:mlw/services/translator.dart';
+import 'package:mlw/services/translator_service.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:mlw/screens/note_detail_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -105,14 +105,17 @@ class _HomeScreenState extends State<HomeScreen> {
   final ValueNotifier<String> _loadingMessage = ValueNotifier('');
   
   // 서비스 인스턴스 생성
-  final ImageProcessingService _imageProcessingService = ImageProcessingService(
-    translatorService: TranslatorService(),
-  );
+  late ImageProcessingService _imageProcessingService;
   
   @override
   void initState() {
     super.initState();
     print("HomeScreen initState called");
+    
+    // 이미지 처리 서비스 초기화
+    _imageProcessingService = ImageProcessingService(
+      translatorService: translatorService,
+    );
     
     // 약간의 지연 후 로드 (UI가 먼저 그려지도록)
     Future.delayed(Duration.zero, () {
@@ -316,55 +319,93 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _duplicateNote(note_model.Note note) async {
-    try {
-      final newNote = note_model.Note(
-        id: '',
-        spaceId: note.spaceId,
-        userId: note.userId,
-        title: '${note.title} (복사본)',
-        content: note.content,
-        pages: note.pages,
-        flashCards: note.flashCards,
-        highlightedTexts: note.highlightedTexts,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-        knownFlashCards: note.knownFlashCards,
-      );
-
-      await _noteRepository.createNote(newNote);
-      // 실시간 리스너가 자동으로 UI를 업데이트합니다
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('노트 복제 중 오류가 발생했습니다: $e')),
-      );
-    }
-  }
-
   Future<void> _deleteNote(note_model.Note note) async {
     try {
+      // 디버깅 정보 출력
+      print('노트 삭제 시작: ${note.id}');
+      
+      // 노트 삭제
       await _noteRepository.deleteNote(note.id);
-      // 실시간 리스너가 자동으로 UI를 업데이트합니다
+      
+      // 상태 업데이트 - 중요: 삭제된 노트를 목록에서 제거
+      setState(() {
+        _notes.removeWhere((item) => item.id == note.id);
+      });
+      
+      print('노트 삭제 완료: ${note.id}');
+      
+      // 성공 메시지는 NoteCard에서 이미 표시됨
     } catch (e) {
+      print('노트 삭제 오류: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('노트 삭제 중 오류가 발생했습니다: $e')),
       );
     }
   }
 
-  Future<void> _updateNoteTitle(note_model.Note note, String newTitle) async {
+  Future<void> _editNoteTitle(note_model.Note note, String currentTitle) async {
+    final TextEditingController titleController = TextEditingController(text: currentTitle);
+    
+    // 다이얼로그 표시
+    final newTitle = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('노트 제목 변경'),
+        content: TextField(
+          controller: titleController,
+          decoration: const InputDecoration(
+            hintText: '새 제목을 입력하세요',
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, titleController.text),
+            child: const Text('저장'),
+          ),
+        ],
+      ),
+    );
+    
+    // 새 제목이 없거나 기존 제목과 같으면 무시
+    if (newTitle == null || newTitle.isEmpty || newTitle == currentTitle) {
+      return;
+    }
+    
     try {
-      final updatedNote = note.copyWith(
-        title: newTitle,
-        updatedAt: DateTime.now(),
+      // 로딩 표시
+      setState(() {
+        _isLoading = true;
+      });
+      
+      // 디버깅 정보 출력
+      print('노트 ID: ${note.id}');
+      print('현재 제목: $currentTitle');
+      print('새 제목: $newTitle');
+      
+      // 노트 제목 업데이트
+      await _noteRepository.updateNoteTitle(note.id, newTitle);
+      
+      // 성공 메시지
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('노트 제목이 변경되었습니다')),
       );
       
-      await _noteRepository.updateNote(updatedNote);
-      // 실시간 리스너가 자동으로 UI를 업데이트합니다
+      // 노트 목록 새로고침
+      _loadNotes();
     } catch (e) {
+      print('노트 제목 변경 오류: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('노트 제목 변경 중 오류가 발생했습니다: $e')),
+        SnackBar(content: Text('노트 제목 변경중 에러가 발생했습니다: $e')),
       );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 
@@ -507,9 +548,8 @@ class _HomeScreenState extends State<HomeScreen> {
           padding: const EdgeInsets.only(bottom: 16),
           child: NoteCard(
             note: note,
-            onDuplicate: _duplicateNote,
             onDelete: _deleteNote,
-            onTitleEdit: _updateNoteTitle,
+            onTitleEdit: _editNoteTitle,
           ),
         );
       },

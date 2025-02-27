@@ -8,25 +8,28 @@ import 'package:mlw/theme/tokens/typography_tokens.dart';
 import 'package:mlw/screens/home_screen.dart';
 import 'package:mlw/utils/date_formatter.dart';
 
-class NoteCard extends StatelessWidget {
+class NoteCard extends StatefulWidget {
   final note_model.Note note;
-  final Function(note_model.Note) onDuplicate;
   final Function(note_model.Note) onDelete;
   final Function(note_model.Note, String) onTitleEdit;
 
   const NoteCard({
     Key? key,
     required this.note,
-    required this.onDuplicate,
     required this.onDelete,
     required this.onTitleEdit,
   }) : super(key: key);
 
   @override
+  _NoteCardState createState() => _NoteCardState();
+}
+
+class _NoteCardState extends State<NoteCard> {
+  @override
   Widget build(BuildContext context) {
     // 디버그 모드에서만 출력
     assert(() {
-      print("Building NoteCard for note: ${note.id}, title: ${note.title}");
+      print("Building NoteCard for note: ${widget.note.id}, title: ${widget.note.title}");
       return true;
     }());
     
@@ -40,7 +43,7 @@ class NoteCard extends StatelessWidget {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => NoteDetailScreen(note: note),
+              builder: (context) => NoteDetailScreen(note: widget.note),
             ),
           ).then((_) {
             // 홈 화면 새로고침 요청
@@ -63,7 +66,7 @@ class NoteCard extends StatelessWidget {
   }
 
   Widget _buildImageSection() {
-    if (note.pages.isEmpty) {
+    if (widget.note.pages.isEmpty) {
       // 페이지가 없는 경우 기본 이미지 표시
       return Container(
         height: 120,
@@ -87,7 +90,7 @@ class NoteCard extends StatelessWidget {
 
     // 첫 번째 페이지의 이미지 표시
     try {
-      final File imageFile = File(note.pages.first.imageUrl);
+      final File imageFile = File(widget.note.pages.first.imageUrl);
       if (!imageFile.existsSync()) {
         // 파일이 존재하지 않는 경우 기본 이미지 표시
         return Container(
@@ -211,7 +214,7 @@ class NoteCard extends StatelessWidget {
         children: [
           // 제목
           Text(
-            note.title,
+            widget.note.title,
             style: TypographyTokens.getStyle('title.medium'),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -219,18 +222,18 @@ class NoteCard extends StatelessWidget {
           const SizedBox(height: 4),
           // 날짜
           Text(
-            _formatDate(note.updatedAt),
+            _formatDate(widget.note.updatedAt),
             style: TypographyTokens.getStyle('body.small').copyWith(
               color: ColorTokens.getColor('text.secondary'),
             ),
           ),
           const SizedBox(height: 8),
           // 플래시카드 카운터
-          if (note.flashCards.isNotEmpty) ...[
+          if (widget.note.flashCards.isNotEmpty) ...[
             FlashcardCounter(
-              flashCards: note.flashCards,
-              noteTitle: note.title,
-              noteId: note.id,
+              flashCards: widget.note.flashCards,
+              noteTitle: widget.note.title,
+              noteId: widget.note.id,
             ),
           ],
           // 액션 버튼
@@ -239,15 +242,16 @@ class NoteCard extends StatelessWidget {
             children: [
               IconButton(
                 icon: const Icon(Icons.edit, size: 18),
-                onPressed: () => onTitleEdit(note, note.title),
-              ),
-              IconButton(
-                icon: const Icon(Icons.copy, size: 18),
-                onPressed: () => onDuplicate(note),
+                onPressed: () {
+                  widget.onTitleEdit(widget.note, widget.note.title);
+                },
               ),
               IconButton(
                 icon: const Icon(Icons.delete, size: 18),
-                onPressed: () => onDelete(note),
+                onPressed: () {
+                  final ctx = context;
+                  _handleDelete(ctx);
+                },
               ),
             ],
           ),
@@ -258,5 +262,49 @@ class NoteCard extends StatelessWidget {
 
   String _formatDate(DateTime date) {
     return DateFormatter.formatDate(date);
+  }
+
+  void _handleDelete(BuildContext context) async {
+    try {
+      // 사용자 확인 다이얼로그 표시
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('노트 삭제'),
+          content: const Text('이 노트를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('취소'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('삭제'),
+            ),
+          ],
+        ),
+      );
+      
+      if (confirmed != true) return;
+      
+      // 로딩 표시
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('노트를 삭제하는 중...'))
+      );
+      
+      // 노트 삭제 요청
+      await widget.onDelete(widget.note);
+      
+      // 성공 메시지
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('노트가 삭제되었습니다'))
+      );
+    } catch (e) {
+      // 오류 처리
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('노트 삭제 중 오류가 발생했습니다: $e'))
+      );
+      print('노트 삭제 오류: $e');
+    }
   }
 }

@@ -8,6 +8,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:mlw/screens/image_viewer_screen.dart';
 import 'package:mlw/models/text_display_mode.dart';
 import 'package:mlw/widgets/dictionary_lookup_sheet.dart';
+import 'package:mlw/services/translator_service.dart';
 
 class NotePage extends StatefulWidget {
   final note_model.Page page;

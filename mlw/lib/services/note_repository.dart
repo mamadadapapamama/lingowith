@@ -94,4 +94,26 @@ class NoteRepository {
     
     await batch.commit();
   }
+
+  Future<void> updateNoteTitle(String noteId, String newTitle) async {
+    try {
+      // 문서 존재 여부 먼저 확인
+      final docSnapshot = await _notes.doc(noteId).get();
+      
+      if (!docSnapshot.exists) {
+        throw Exception('노트를 찾을 수 없습니다: $noteId');
+      }
+      
+      // 문서가 존재하면 업데이트
+      await _notes.doc(noteId).update({
+        'title': newTitle,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      
+      print('노트 제목 업데이트 성공: $noteId');
+    } catch (e) {
+      print('노트 제목 업데이트 오류: $e');
+      rethrow;
+    }
+  }
 } 

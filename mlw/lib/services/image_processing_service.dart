@@ -4,7 +4,7 @@ import 'package:googleapis/vision/v1.dart' as vision;
 import 'package:googleapis_auth/auth_io.dart';
 import 'dart:convert';
 import 'package:path_provider/path_provider.dart';
-import 'package:mlw/services/translator.dart';
+import 'package:mlw/services/translator_service.dart';
 
 class ImageProcessingService {
   final TranslatorService translatorService;
@@ -71,7 +71,7 @@ class ImageProcessingService {
     
     final lines = text.split('\n').where((s) => s.trim().isNotEmpty).toList();
     final translatedLines = await Future.wait(
-      lines.map((line) => translatorService.translate(line, from: from, to: to))
+      lines.map((line) => translatorService.translate(line, to, sourceLanguage: from))
     );
     return translatedLines.join('\n');
   }

@@ -122,22 +122,34 @@ class TranslatorService {
   }) : _httpClient = httpClient ?? http.Client();
   
   // 텍스트 번역
-  Future<String> translate(String text, String from, String to) async {
+  Future<String> translate(String text, String sourceLanguage, String targetLanguage) async {
     // 실제 구현은 외부 번역 API를 사용할 수 있습니다
     // 여기서는 간단한 예시로 구현
     
-    // 간단한 중국어-한국어 번역 매핑 (일부 예시)
-    final Map<String, String> translations = {
+    // 중국어 -> 한국어 간단한 사전
+    final Map<String, String> zhToKo = {
       '你好': '안녕하세요',
       '谢谢': '감사합니다',
       '再见': '안녕히 가세요',
-      '学习': '공부하다',
-      '中国': '중국',
       // 더 많은 번역 추가 가능
     };
     
-    // 매핑된 번역이 있으면 반환, 없으면 원본 텍스트 반환
-    return translations[text] ?? text;
+    // 한국어 -> 중국어 간단한 사전
+    final Map<String, String> koToZh = {
+      '안녕하세요': '你好',
+      '감사합니다': '谢谢',
+      '안녕히 가세요': '再见',
+      // 더 많은 번역 추가 가능
+    };
+    
+    // 간단한 번역 로직
+    if (sourceLanguage == 'zh' && targetLanguage == 'ko') {
+      return zhToKo[text] ?? '(번역 없음)';
+    } else if (sourceLanguage == 'ko' && targetLanguage == 'zh') {
+      return koToZh[text] ?? '(无翻译)';
+    } else {
+      return '(지원되지 않는 언어 조합)';
+    }
   }
   
   // 여러 텍스트 일괄 번역
