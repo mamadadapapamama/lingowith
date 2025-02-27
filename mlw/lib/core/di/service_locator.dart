@@ -5,11 +5,14 @@ import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'dart:io';
+import 'package:firebase_core/firebase_core.dart';
 // firebase_storage 패키지 임시 대체
 // import 'package:firebase_storage/firebase_storage.dart';
 
 // 데이터 소스
 import 'package:mlw/data/datasources/remote/firebase_data_source.dart';
+import 'package:mlw/data/datasources/remote/mock_firebase_data_source.dart';
+import 'package:mlw/data/datasources/remote/firebase_data_source_impl.dart';
 import 'package:mlw/data/datasources/local/shared_preferences_data_source.dart';
 
 // 리포지토리
@@ -92,6 +95,20 @@ class AuthViewModel {
 }
 
 Future<void> setupServiceLocator() async {
+  // Check if Firebase is initialized
+  final bool firebaseInitialized = Firebase.apps.isNotEmpty;
+  
+  // Register the appropriate data source based on Firebase initialization
+  if (!firebaseInitialized) {
+    serviceLocator.registerLazySingleton<FirebaseDataSource>(
+      () => MockFirebaseDataSource(),
+    );
+  } else {
+    serviceLocator.registerLazySingleton<FirebaseDataSource>(
+      () => FirebaseDataSourceImpl(firestore: FirebaseFirestore.instance),
+    );
+  }
+  
   // Firebase (테스트 모드에 따라 다르게 등록)
   if (useEmulator) {
     // 테스트 모드: 가짜 Firestore 사용
@@ -127,11 +144,8 @@ Future<void> setupServiceLocator() async {
   );
   
   // 데이터 소스 등록
-  serviceLocator.registerLazySingleton<FirebaseDataSource>(
-    () => FirebaseDataSource(
-      firestore: serviceLocator<FirebaseFirestore>(),
-    ),
-  );
+  // NOTE: Duplicate registration of FirebaseDataSource removed.
+  // The appropriate FirebaseDataSource is already registered above based on Firebase initialization.
   
   serviceLocator.registerLazySingleton<SharedPreferencesDataSource>(
     () => SharedPreferencesDataSource(
@@ -172,18 +186,16 @@ Future<void> setupServiceLocator() async {
   );
   
   // 서비스 등록
+  serviceLocator.registerLazySingleton<UserService>(
+    () => UserService(repository: serviceLocator<UserRepository>()),
+  );
+  
   serviceLocator.registerLazySingleton<TranslatorService>(
-    () => TranslatorService(),
+    () => TranslatorService(apiKey: 'YOUR_API_KEY_HERE'),
   );
   
   serviceLocator.registerLazySingleton<PinyinService>(
     () => PinyinService(),
-  );
-  
-  serviceLocator.registerLazySingleton<UserService>(
-    () => UserService(
-      repository: serviceLocator<UserRepository>(),
-    ),
   );
   
   serviceLocator.registerLazySingleton<ImageProcessingService>(

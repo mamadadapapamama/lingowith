@@ -1,10 +1,9 @@
 import 'dart:io';
 import 'package:mlw/data/repositories/note_repository.dart';
-import 'package:mlw/data/models/note.dart';
-import 'package:mlw/data/models/flash_card.dart';
+import 'package:mlw/domain/models/note.dart';
 import 'package:mlw/domain/services/image_processing_service.dart';
-import 'package:mlw/services/translator.dart';
-import 'package:mlw/services/pinyin_service.dart';
+import 'package:mlw/domain/services/pinyin_service.dart';
+import 'package:mlw/domain/services/translator_service.dart';
 
 class NoteService {
   final NoteRepository _repository;
@@ -29,11 +28,10 @@ class NoteService {
     required String title,
     String content = '',
   }) async {
-    final now = DateTime.now();
+    final now = DateTime.now().toIso8601String();
     
     final note = Note(
       id: '',
-      noteSpaceId: 'default_space',
       userId: userId,
       title: title,
       content: content,
@@ -57,7 +55,7 @@ class NoteService {
   // 노트 업데이트
   Future<Note> updateNote(Note note) async {
     final updatedNote = note.copyWith(
-      updatedAt: DateTime.now(),
+      updatedAt: DateTime.now().toIso8601String(),
     );
     
     await _repository.updateNote(updatedNote);
@@ -76,13 +74,12 @@ class NoteService {
     
     // 노트 생성
     final note = Note(
-      id: '', // 저장 시 자동 생성
-      noteSpaceId: 'default_space',
+      id: '',
       userId: userId,
       title: '이미지에서 추출된 텍스트',
       content: extractedText,
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
+      createdAt: DateTime.now().toIso8601String(),
+      updatedAt: DateTime.now().toIso8601String(),
     );
     
     return await _repository.createNote(note);
@@ -105,20 +102,14 @@ class NoteService {
     return await _repository.searchNotes(userId, query);
   }
   
-  // 이미지에서 텍스트 추출
-  Future<String> extractTextFromImage(String imagePath) async {
-    final file = File(imagePath);
-    return await _imageProcessingService.extractTextFromImage(file);
-  }
-  
   // 텍스트 번역
-  Future<String> translateText(String text, String from, String to) async {
-    return await _translatorService.translate(text, from, to);
+  Future<String> translateText(String text, String fromLanguage, String toLanguage) async {
+    return await _translatorService.translate(text, fromLanguage, toLanguage);
   }
   
-  // 핀인 생성
-  Future<String> getPinyin(String text) async {
-    return await _pinyinService.getPinyin(text);
+  // 중국어 텍스트에서 병음 추출
+  Future<String> getPinyin(String chineseText) async {
+    return await _pinyinService.getPinyin(chineseText);
   }
   
   // 플래시카드 추가 메서드
@@ -126,30 +117,16 @@ class NoteService {
     final translatedText = await _translatorService.translate(text, 'zh', 'ko');
     final pinyin = await _pinyinService.getPinyin(text);
     
-    final newFlashCard = FlashCard(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      noteId: note.id,
-      pageId: '',
-      userId: note.userId,
-      front: text,
-      back: translatedText,
-      pinyin: pinyin,
-      known: false,
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-    );
-    
-    final updatedFlashCards = [
-      ...note.flashCards.where((card) => (card as Map)['front'] != text),
-      newFlashCard.toMap(),
-    ];
+    // 여기서는 플래시카드 추가 로직을 구현해야 하지만,
+    // 현재 Note 모델에 flashCards 필드가 없으므로 임시로 content에 추가
+    final updatedContent = '${note.content}\n\n플래시카드: $text ($pinyin) - $translatedText';
     
     final updatedNote = note.copyWith(
-      flashCards: updatedFlashCards,
-      highlightedTexts: List<String>.from(note.highlightedTexts)..add(text),
-      updatedAt: DateTime.now(),
+      content: updatedContent,
+      updatedAt: DateTime.now().toIso8601String(),
     );
     
-    return await updateNote(updatedNote);
+    await _repository.updateNote(updatedNote);
+    return updatedNote;
   }
 } 

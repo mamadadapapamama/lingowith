@@ -3,6 +3,7 @@ import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:mlw/data/models/note.dart';
 import 'package:mlw/data/repositories/note_repository.dart';
 import 'package:mlw/data/datasources/remote/firebase_data_source.dart';
+import 'package:mlw/data/datasources/remote/mock_firebase_data_source.dart';
 
 void main() {
   late FirebaseDataSource dataSource;
@@ -10,7 +11,7 @@ void main() {
   
   setUp(() {
     final firestore = FakeFirebaseFirestore();
-    dataSource = FirebaseDataSource(firestore: firestore);
+    dataSource = MockFirebaseDataSource();
     repository = NoteRepository(remoteDataSource: dataSource);
   });
   
@@ -19,7 +20,7 @@ void main() {
       final now = DateTime.now();
       final note = Note(
         id: '',
-        spaceId: 'default_space',
+        noteSpaceId: 'default_space',
         userId: 'user1',
         title: 'Test Note',
         content: '',
@@ -42,7 +43,7 @@ void main() {
       final now = DateTime.now();
       final note1 = Note(
         id: '',
-        spaceId: 'default_space',
+        noteSpaceId: 'default_space',
         userId: 'user1',
         title: 'Note 1',
         content: '',
@@ -66,7 +67,7 @@ void main() {
       final now = DateTime.now();
       final note = Note(
         id: '',
-        spaceId: 'default_space',
+        noteSpaceId: 'default_space',
         userId: 'user1',
         title: 'Original Title',
         content: '',
@@ -91,7 +92,7 @@ void main() {
       final now = DateTime.now();
       final note = Note(
         id: '',
-        spaceId: 'default_space',
+        noteSpaceId: 'default_space',
         userId: 'user1',
         title: 'Test Note',
         content: '',

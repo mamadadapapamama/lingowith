@@ -1,81 +1,55 @@
 import 'package:flutter/material.dart';
-import 'package:mlw/data/models/note.dart';
-import 'package:intl/intl.dart';
+import 'package:mlw/domain/models/note.dart';
 
 class NoteCard extends StatelessWidget {
   final Note note;
-  final VoidCallback onTap;
-  final VoidCallback onDelete;
+  final VoidCallback? onTap;
   
   const NoteCard({
     Key? key,
     required this.note,
-    required this.onTap,
-    required this.onDelete,
+    this.onTap,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    final dateFormat = DateFormat('yyyy-MM-dd HH:mm');
-    final updatedAt = dateFormat.format(note.updatedAt);
-    
     return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      elevation: 2,
+      margin: const EdgeInsets.only(bottom: 16.0),
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(16.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Text(
-                      note.title,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.delete_outline),
-                    onPressed: onDelete,
-                    splashRadius: 24,
-                  ),
-                ],
+              Text(
+                note.title,
+                style: Theme.of(context).textTheme.titleLarge,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 8.0),
               Text(
                 note.content,
-                style: const TextStyle(fontSize: 14),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodyMedium,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 8.0),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
+                  if (note.tags != null && note.tags!.isNotEmpty)
+                    Wrap(
+                      spacing: 4.0,
+                      children: note.tags!.map((tag) => Chip(
+                        label: Text(tag),
+                        padding: const EdgeInsets.all(0),
+                        labelStyle: const TextStyle(fontSize: 10),
+                      )).toList(),
+                    ),
                   Text(
-                    '수정: $updatedAt',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey.shade600,
-                    ),
+                    '수정: ${_formatDate(note.updatedAt)}',
+                    style: Theme.of(context).textTheme.bodySmall,
                   ),
-                  if (note.flashCards.isNotEmpty)
-                    Text(
-                      '플래시카드: ${note.flashCards.length}개',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.blue.shade700,
-                      ),
-                    ),
                 ],
               ),
             ],
@@ -83,5 +57,16 @@ class NoteCard extends StatelessWidget {
         ),
       ),
     );
+  }
+  
+  String _formatDate(String? dateString) {
+    if (dateString == null) return '날짜 없음';
+    
+    try {
+      final date = DateTime.parse(dateString);
+      return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    } catch (e) {
+      return '날짜 형식 오류';
+    }
   }
 } 

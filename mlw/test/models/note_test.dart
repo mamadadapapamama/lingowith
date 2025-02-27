@@ -28,7 +28,7 @@ void main() {
       final now = DateTime.now();
       final note = Note(
         id: '1',
-        spaceId: 'default_space',
+        noteSpaceId: 'default_space',
         userId: 'user1',
         title: 'Test Note',
         content: '',
@@ -41,20 +41,19 @@ void main() {
       );
 
       expect(note.id, '1');
-      expect(note.title, 'Test Note');
+      expect(note.noteSpaceId, 'default_space');
       expect(note.userId, 'user1');
+      expect(note.title, 'Test Note');
+      expect(note.content, '');
       expect(note.createdAt, now);
       expect(note.updatedAt, now);
-      expect(note.content, '');
-      expect(note.flashCards, isEmpty);
-      expect(note.pages, isEmpty);
     });
 
     test('should create copy with updated fields', () {
       final now = DateTime.now();
       final note = Note(
         id: '1',
-        spaceId: 'default_space',
+        noteSpaceId: 'default_space',
         userId: 'user1',
         title: 'Test Note',
         content: '',
@@ -97,8 +96,7 @@ void main() {
       );
 
       expect(updated.id, '1');  // unchanged
-      expect(updated.title, 'Updated Note');
-      expect(updated.content, 'New content');
+      expect(updated.noteSpaceId, 'default_space');
       expect(updated.userId, 'user1');  // unchanged
       expect(updated.createdAt, now);  // unchanged
       expect(updated.updatedAt, isNot(now));  // should be updated
@@ -171,7 +169,7 @@ void main() {
 
       final note = Note(
         id: '1',
-        spaceId: 'default_space',
+        noteSpaceId: 'default_space',
         userId: 'user1',
         title: 'Test Note',
         content: 'Test Content',

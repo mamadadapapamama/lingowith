@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:mlw/presentation/screens/home/home_view_model.dart';
 import 'package:mlw/presentation/widgets/note_card.dart';
 import 'package:mlw/presentation/screens/note_detail/note_detail_screen.dart';
 import 'package:mlw/core/di/service_locator.dart';
-import 'package:mlw/data/models/note.dart';
+import 'package:mlw/domain/models/note.dart';
 import 'package:mlw/presentation/widgets/custom_app_bar.dart';
 import 'package:mlw/presentation/widgets/loading_indicator.dart';
 
@@ -21,18 +20,36 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  late final HomeViewModel _viewModel;
+  final HomeViewModel _viewModel = serviceLocator<HomeViewModel>();
+  bool _isLoading = true;
+  String? _errorMessage;
   
   @override
   void initState() {
     super.initState();
-    _viewModel = serviceLocator<HomeViewModel>();
-    _viewModel.userId = widget.userId;
-    _loadNotes();
+    _loadData();
   }
   
-  Future<void> _loadNotes() async {
-    await _viewModel.loadNotes();
+  Future<void> _loadData() async {
+    try {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+      
+      await _viewModel.loadUserData(widget.userId);
+      await _viewModel.loadNotes(widget.userId);
+      
+      setState(() {
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Error loading data: $e');
+      setState(() {
+        _isLoading = false;
+        _errorMessage = '데이터를 불러오는 중 오류가 발생했습니다.\n$e';
+      });
+    }
   }
   
   @override
@@ -58,67 +75,74 @@ class _HomeScreenState extends State<HomeScreen> {
   }
   
   Widget _buildBody() {
-    return AnimatedBuilder(
-      animation: _viewModel,
-      builder: (context, child) {
-        if (_viewModel.isLoading) {
-          return const LoadingIndicator();
-        }
-        
-        if (_viewModel.error.isNotEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  '오류가 발생했습니다: ${_viewModel.error}',
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: _loadNotes,
-                  child: const Text('다시 시도'),
-                ),
-              ],
+    if (_isLoading) {
+      return const LoadingIndicator();
+    }
+    
+    if (_errorMessage != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              _errorMessage!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.red),
             ),
-          );
-        }
-        
-        if (_viewModel.notes.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text(
-                  '노트가 없습니다.\n새 노트를 추가해보세요!',
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: _showAddNoteDialog,
-                  child: const Text('노트 추가'),
-                ),
-              ],
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _loadData,
+              child: const Text('다시 시도'),
             ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () {
+                _viewModel.loadMockData();
+                setState(() {
+                  _errorMessage = null;
+                });
+              },
+              child: const Text('임시 데이터로 계속'),
+            ),
+          ],
+        ),
+      );
+    }
+    
+    final notes = _viewModel.notes;
+    
+    if (notes.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text(
+              '노트가 없습니다.\n새 노트를 추가해보세요!',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _showAddNoteDialog,
+              child: const Text('노트 추가'),
+            ),
+          ],
+        ),
+      );
+    }
+    
+    return RefreshIndicator(
+      onRefresh: _loadData,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: notes.length,
+        itemBuilder: (context, index) {
+          final note = notes[index];
+          return NoteCard(
+            note: note,
+            onTap: () => _navigateToNoteDetail(note),
           );
-        }
-        
-        return RefreshIndicator(
-          onRefresh: _loadNotes,
-          child: ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: _viewModel.notes.length,
-            itemBuilder: (context, index) {
-              final note = _viewModel.notes[index];
-              return NoteCard(
-                note: note,
-                onTap: () => _navigateToNoteDetail(note),
-                onDelete: () => _deleteNote(note),
-              );
-            },
-          ),
-        );
-      },
+        },
+      ),
     );
   }
   
@@ -131,8 +155,9 @@ class _HomeScreenState extends State<HomeScreen> {
           userId: widget.userId,
         ),
       ),
-    ).then((_) => _loadNotes());
+    ).then((_) => _loadData());
   }
+  
   Future<void> _deleteNote(Note note) async {
     final confirmed = await showDialog<bool>(
       context: context,

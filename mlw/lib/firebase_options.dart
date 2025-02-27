@@ -1,34 +1,22 @@
 import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
-import 'dart:io' show Platform;
 
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
-    // 환경 변수나 안전한 저장소에서 키 가져오기
-    final apiKey = const String.fromEnvironment('FIREBASE_API_KEY');
-    final appId = const String.fromEnvironment('FIREBASE_APP_ID');
-    final projectId = const String.fromEnvironment('FIREBASE_PROJECT_ID');
-    final messagingSenderId = const String.fromEnvironment('FIREBASE_MESSAGING_SENDER_ID');
-    
     if (kIsWeb) {
-      return FirebaseOptions(
-        apiKey: apiKey,
-        appId: appId,
-        messagingSenderId: messagingSenderId,
-        projectId: projectId,
-      );
+      return web;
     }
-    
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
+        return android;
       case TargetPlatform.iOS:
+        return ios;
+      case TargetPlatform.macOS:
+        return macos;
       default:
-        return FirebaseOptions(
-          apiKey: apiKey,
-          appId: appId,
-          messagingSenderId: messagingSenderId,
-          projectId: projectId,
+        throw UnsupportedError(
+          'DefaultFirebaseOptions are not supported for this platform.',
         );
     }
   }
@@ -37,36 +25,40 @@ class DefaultFirebaseOptions {
     apiKey: 'YOUR_WEB_API_KEY',
     appId: 'YOUR_WEB_APP_ID',
     messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
-    projectId: 'YOUR_PROJECT_ID',
-    authDomain: 'YOUR_AUTH_DOMAIN',
-    storageBucket: 'YOUR_STORAGE_BUCKET',
+    projectId: 'mylingowith',
+    authDomain: 'your-project.firebaseapp.com',
+    storageBucket: 'mylingowith.appspot.com',
+    measurementId: 'YOUR_MEASUREMENT_ID',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'YOUR_ANDROID_API_KEY',
-    appId: 'YOUR_ANDROID_APP_ID',
+    appId: '1:YOUR_ANDROID_APP_ID:android:YOUR_HASH',
     messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
-    projectId: 'YOUR_PROJECT_ID',
-    storageBucket: 'YOUR_STORAGE_BUCKET',
+    projectId: 'mylingowith',
+    storageBucket: 'mylingowith.appspot.com',
+    databaseURL: 'https://mylingowith.firebaseio.com',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'YOUR_IOS_API_KEY',
     appId: 'YOUR_IOS_APP_ID',
     messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
-    projectId: 'YOUR_PROJECT_ID',
-    storageBucket: 'YOUR_STORAGE_BUCKET',
+    projectId: 'mylingowith',
+    storageBucket: 'mylingowith.appspot.com',
+    databaseURL: 'https://mylingowith.firebaseio.com',
     iosClientId: 'YOUR_IOS_CLIENT_ID',
-    iosBundleId: 'YOUR_IOS_BUNDLE_ID',
+    iosBundleId: 'com.example.mlwab',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'YOUR_MACOS_API_KEY',
-    appId: 'YOUR_MACOS_APP_ID',
-    messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
-    projectId: 'YOUR_PROJECT_ID',
-    storageBucket: 'YOUR_STORAGE_BUCKET',
-    iosClientId: 'YOUR_MACOS_CLIENT_ID',
-    iosBundleId: 'YOUR_MACOS_BUNDLE_ID',
+    apiKey: 'AIzaSyAHAsf51D0A407EklG1bs-5wA7EbyfNFg0',
+    appId: '1:448618578101:ios:0b259f8a7c5d9b1aac3efc',
+    messagingSenderId: '448618578101',
+    projectId: 'react-native-firebase-testing',
+    databaseURL: 'https://react-native-firebase-testing.firebaseio.com',
+    storageBucket: 'react-native-firebase-testing.appspot.com',
+    iosClientId: '448618578101-m53gtqfnqipj12pts10590l37npccd2r.apps.googleusercontent.com',
+    iosBundleId: 'io.flutter.plugins.firebasecoreexample',
   );
 } 

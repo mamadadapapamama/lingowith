@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'; // kIsWeb 사용을 위해 추가
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -18,13 +19,39 @@ bool useEmulator = false;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  print('Flutter 바인딩 초기화 완료');
   
-  // Firebase 초기화
-  await Firebase.initializeApp();
+  // Firebase 초기화: 모바일(iOS/Android)는 plist/json 파일에서 자동 로드되고,
+  // 웹에서는 DefaultFirebaseOptions.currentPlatform 옵션을 사용합니다.
+  try {
+    print('Firebase 초기화 시작');
+    if (kIsWeb) {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    } else {
+      await Firebase.initializeApp();
+    }
+    // 기본 앱 객체를 강제로 로드하여 구성이 끝났는지 확인합니다.
+    final app = Firebase.app();
+    print('Firebase 초기화 완료: ${app.name}');
+  } catch (e) {
+    if (e.toString().contains("duplicate-app")) {
+      print("Firebase 이미 초기화 되어 있음");
+    } else {
+      print('Firebase 초기화 오류: $e');
+    }
+  }
   
-  // 서비스 로케이터 설정
-  await setupServiceLocator();
+  try {
+    print('서비스 로케이터 설정 시작');
+    await setupServiceLocator();
+    print('서비스 로케이터 설정 완료');
+  } catch (e) {
+    print('서비스 로케이터 설정 오류: $e');
+  }
   
+  print('앱 실행');
   runApp(const App());
 }
 
@@ -90,7 +117,7 @@ void setupFirebaseEmulators() async {
   await Firebase.initializeApp();
   
   // Firestore 에뮬레이터 설정
-  FirebaseFirestore.instance.settings = Settings(
+  FirebaseFirestore.instance.settings = const Settings(
     host: '127.0.0.1:8080',
     sslEnabled: false,
     persistenceEnabled: false,

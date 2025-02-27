@@ -1,109 +1,132 @@
 import 'package:flutter/foundation.dart';
-import 'package:mlw/data/models/note.dart';
+import 'package:mlw/domain/models/note.dart';
+import 'package:mlw/domain/models/user.dart';
 import 'package:mlw/domain/services/note_service.dart';
 import 'package:mlw/domain/services/user_service.dart';
-import 'package:mlw/data/models/user_settings.dart';
 
 class HomeViewModel extends ChangeNotifier {
-  final NoteService _noteService;
-  final UserService _userService;
+  final UserService userService;
+  final NoteService noteService;
   
+  User? _user;
   List<Note> _notes = [];
-  UserSettings? _userSettings;
   bool _isLoading = false;
-  String _error = '';
-  String _userId = '';
+  String? _errorMessage;
   
   HomeViewModel({
-    required UserService userService,
-    required NoteService noteService,
-  }) : 
-    _userService = userService,
-    _noteService = noteService;
+    required this.userService,
+    required this.noteService,
+  });
   
+  User? get user => _user;
   List<Note> get notes => _notes;
-  UserSettings? get userSettings => _userSettings;
   bool get isLoading => _isLoading;
-  String get error => _error;
+  String? get errorMessage => _errorMessage;
   
-  set userId(String value) {
-    _userId = value;
-  }
-  
-  Future<void> loadNotes() async {
-    if (_userId.isEmpty) {
-      _error = '사용자 ID가 없습니다';
-      notifyListeners();
-      return;
-    }
-    
-    _isLoading = true;
-    _error = '';
-    notifyListeners();
-    
+  Future<void> loadUserData(String userId) async {
     try {
-      _notes = await _noteService.getNotesByUserId(_userId);
-      _userSettings = await _userService.getUserSettings(_userId);
-      _isLoading = false;
+      _isLoading = true;
+      _errorMessage = null;
       notifyListeners();
-    } catch (e) {
-      _isLoading = false;
-      _error = e.toString();
-      notifyListeners();
-    }
-  }
-  
-  Future<Note?> createNote({required String title, String content = ''}) async {
-    if (_userId.isEmpty) {
-      _error = '사용자 ID가 없습니다';
-      notifyListeners();
-      return null;
-    }
-    
-    try {
-      final note = await _noteService.createNote(
-        userId: _userId,
-        title: title,
-        content: content,
-      );
       
-      await loadNotes(); // 노트 목록 새로고침
-      return note;
-    } catch (e) {
-      _error = e.toString();
+      _user = await userService.getUser(userId);
+      
+      _isLoading = false;
       notifyListeners();
-      return null;
+    } catch (e) {
+      _isLoading = false;
+      _errorMessage = '사용자 정보를 불러오는 중 오류가 발생했습니다: $e';
+      notifyListeners();
+      rethrow;
+    }
+  }
+  
+  Future<void> loadNotes(String userId) async {
+    try {
+      _isLoading = true;
+      _errorMessage = null;
+      notifyListeners();
+      
+      _notes = await noteService.getNotesByUserId(userId);
+      
+      _isLoading = false;
+      notifyListeners();
+    } catch (e) {
+      _isLoading = false;
+      _errorMessage = '노트를 불러오는 중 오류가 발생했습니다: $e';
+      notifyListeners();
+      rethrow;
     }
   }
   
   Future<void> deleteNote(String noteId) async {
     try {
-      await _noteService.deleteNote(noteId);
+      await noteService.deleteNote(noteId);
       _notes.removeWhere((note) => note.id == noteId);
       notifyListeners();
     } catch (e) {
-      _error = e.toString();
+      _errorMessage = '노트를 삭제하는 중 오류가 발생했습니다: $e';
       notifyListeners();
+      rethrow;
     }
   }
   
-  // 노트 검색
-  Future<void> searchNotes(String userId, String query) async {
-    if (query.isEmpty) {
-      loadNotes();
-      return;
-    }
-    
-    _isLoading = true;
-    notifyListeners();
-    
+  Future<Note?> createNote({required String title, String content = ''}) async {
     try {
-      _notes = await _noteService.searchNotesByText(userId, query);
+      if (_user == null) throw Exception('사용자 정보가 없습니다');
+      
+      final newNote = await noteService.createNote(
+        userId: _user!.id,
+        title: title,
+        content: content,
+      );
+      
+      await loadNotes(_user!.id);
+      return newNote;
     } catch (e) {
-      _error = '노트 검색 중 오류가 발생했습니다: $e';
-    } finally {
-      _isLoading = false;
+      _errorMessage = '노트를 생성하는 중 오류가 발생했습니다: $e';
       notifyListeners();
+      rethrow;
     }
+  }
+  
+  void loadMockData() {
+    // Mock 사용자 데이터
+    _user = User(
+      id: 'mock_user_id',
+      name: '테스트 사용자',
+      email: 'test@example.com',
+      createdAt: DateTime.now().toIso8601String(),
+    );
+    
+    // Mock 노트 데이터
+    _notes = [
+      Note(
+        id: 'mock_note_1',
+        title: '중국어 기초 회화',
+        content: '안녕하세요 = 你好 (nǐ hǎo)',
+        userId: 'mock_user_id',
+        createdAt: DateTime.now().subtract(const Duration(days: 5)).toIso8601String(),
+        updatedAt: DateTime.now().toIso8601String(),
+      ),
+      Note(
+        id: 'mock_note_2',
+        title: '중국어 숫자',
+        content: '1 = 一 (yī)\n2 = 二 (èr)\n3 = 三 (sān)',
+        userId: 'mock_user_id',
+        createdAt: DateTime.now().subtract(const Duration(days: 3)).toIso8601String(),
+        updatedAt: DateTime.now().toIso8601String(),
+      ),
+      Note(
+        id: 'mock_note_3',
+        title: '중국어 음식',
+        content: '밥 = 饭 (fàn)\n물 = 水 (shuǐ)',
+        userId: 'mock_user_id',
+        createdAt: DateTime.now().subtract(const Duration(days: 1)).toIso8601String(),
+        updatedAt: DateTime.now().toIso8601String(),
+      ),
+    ];
+    
+    notifyListeners();
   }
 } 

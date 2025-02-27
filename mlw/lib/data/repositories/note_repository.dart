@@ -1,28 +1,26 @@
-import 'package:mlw/data/datasources/remote/firebase_data_source.dart';
-import 'package:mlw/data/models/note.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:mlw/data/datasources/remote/remote_data_source.dart';
+import 'package:mlw/domain/models/note.dart';
 
 class NoteRepository {
-  final FirebaseDataSource remoteDataSource;
-  static const String _collection = 'notes';
-
-  NoteRepository({
-    required this.remoteDataSource,
-  });
+  final RemoteDataSource remoteDataSource;
+  final String _collection = 'notes';
+  
+  NoteRepository({required this.remoteDataSource});
 
   // 사용자 노트 목록 가져오기
   Future<List<Note>> getNotesByUserId(String userId) async {
     try {
       final snapshot = await remoteDataSource.getDocuments(
         _collection,
-        [
-          ['userId', '==', userId],
-        ],
+        where: 'userId',
+        isEqualTo: userId,
+        orderBy: 'updatedAt',
+        descending: true,
       );
       
       return snapshot.docs.map((doc) {
         final data = doc.data() as Map<String, dynamic>;
-        return Note.fromMap({...data, 'id': doc.id});
+        return Note.fromJson({...data, 'id': doc.id});
       }).toList();
     } catch (e) {
       throw Exception('노트 목록을 가져오는 중 오류가 발생했습니다: $e');
@@ -38,7 +36,7 @@ class NoteRepository {
       }
       
       final data = doc.data() as Map<String, dynamic>;
-      return Note.fromMap({...data, 'id': doc.id});
+      return Note.fromJson({...data, 'id': doc.id});
     } catch (e) {
       throw Exception('노트를 가져오는 중 오류가 발생했습니다: $e');
     }
@@ -47,7 +45,7 @@ class NoteRepository {
   // 노트 생성
   Future<Note> createNote(Note note) async {
     try {
-      final docRef = await remoteDataSource.addDocument(_collection, note.toMap());
+      final docRef = await remoteDataSource.addDocument(_collection, note.toJson());
       return note.copyWith(id: docRef.id);
     } catch (e) {
       throw Exception('노트를 생성하는 중 오류가 발생했습니다: $e');
@@ -60,7 +58,7 @@ class NoteRepository {
       await remoteDataSource.updateDocument(
         _collection,
         note.id,
-        note.toMap(),
+        note.toJson(),
       );
     } catch (e) {
       throw Exception('노트를 업데이트하는 중 오류가 발생했습니다: $e');
@@ -82,9 +80,11 @@ class NoteRepository {
       final notes = await getNotesByUserId(userId);
       final lowerQuery = query.toLowerCase();
       
-      return notes.where((note) => 
-        note.title.toLowerCase().contains(lowerQuery)
-      ).toList();
+      return notes.where((note) {
+        final lowerTitle = note.title.toLowerCase();
+        final lowerContent = note.content.toLowerCase();
+        return lowerTitle.contains(lowerQuery) || lowerContent.contains(lowerQuery);
+      }).toList();
     } catch (e) {
       throw Exception('노트를 검색하는 중 오류가 발생했습니다: $e');
     }

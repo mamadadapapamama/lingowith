@@ -1,6 +1,7 @@
 import 'package:mlw/data/repositories/user_repository.dart';
 import 'package:mlw/data/models/user_settings.dart';
 import 'package:mlw/data/models/text_display_mode.dart';
+import 'package:mlw/domain/models/user.dart';
 
 class UserService {
   final UserRepository _repository;
@@ -102,5 +103,9 @@ class UserService {
   // 온보딩 완료 상태 확인
   Future<bool> isOnboardingCompleted() async {
     return await _repository.isOnboardingCompleted();
+  }
+
+  Future<User?> getUser(String userId) async {
+    return await _repository.getUser(userId);
   }
 } 

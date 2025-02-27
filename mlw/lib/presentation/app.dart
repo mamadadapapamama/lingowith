@@ -24,11 +24,27 @@ class _AppState extends State<App> {
   }
   
   Future<void> _checkOnboarding() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _onboardingCompleted = prefs.getBool('onboarding_completed') ?? false;
-      _initialized = true;
-    });
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final completed = prefs.getBool('onboarding_completed') ?? false;
+      
+      // 디버깅을 위한 로그 추가
+      print('Onboarding completed: $completed');
+      
+      if (mounted) {
+        setState(() {
+          _onboardingCompleted = completed;
+          _initialized = true;
+        });
+      }
+    } catch (e) {
+      print('Error checking onboarding status: $e');
+      if (mounted) {
+        setState(() {
+          _initialized = true; // 오류가 발생해도 앱은 계속 진행
+        });
+      }
+    }
   }
 
   @override
@@ -38,17 +54,31 @@ class _AppState extends State<App> {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.system,
-      initialRoute: _initialized 
-          ? (_onboardingCompleted ? '/home' : '/onboarding')
-          : '/loading',
+      home: _buildHomeScreen(),
       routes: {
-        '/loading': (context) => const Scaffold(
-          body: Center(child: CircularProgressIndicator()),
-        ),
-        '/onboarding': (context) => const OnboardingScreen(),
-        '/home': (context) => HomeScreen(userId: _userId),
         '/settings': (context) => SettingsScreen(userId: _userId),
       },
     );
+  }
+  
+  Widget _buildHomeScreen() {
+    if (!_initialized) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+    
+    // 디버깅을 위한 로그 추가
+    print('Building home screen. Onboarding completed: $_onboardingCompleted');
+    
+    // 임시 해결책: 항상 홈 화면으로 이동
+    return HomeScreen(userId: _userId);
+    
+    // 원래 코드:
+    // return _onboardingCompleted
+    //     ? HomeScreen(userId: _userId)
+    //     : const OnboardingScreen();
   }
 } 

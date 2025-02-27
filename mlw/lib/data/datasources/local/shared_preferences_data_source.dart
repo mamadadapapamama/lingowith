@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:mlw/domain/models/user.dart';
 
 class SharedPreferencesDataSource {
   final SharedPreferences sharedPreferences;
@@ -45,5 +47,23 @@ class SharedPreferencesDataSource {
   // 모든 데이터 삭제
   Future<bool> clear() async {
     return await sharedPreferences.clear();
+  }
+  
+  // User 객체 저장
+  Future<bool> saveUser(User user) async {
+    return await sharedPreferences.setString('user_${user.id}', user.toJsonString());
+  }
+  
+  // User 객체 가져오기
+  User? getUser(String userId) {
+    final userJson = sharedPreferences.getString('user_$userId');
+    if (userJson == null) return null;
+    
+    try {
+      return User.fromJsonString(userJson);
+    } catch (e) {
+      print('Error parsing user data: $e');
+      return null;
+    }
   }
 } 

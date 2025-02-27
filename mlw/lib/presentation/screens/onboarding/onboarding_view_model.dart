@@ -111,12 +111,12 @@ class OnboardingViewModel with ChangeNotifier {
     notifyListeners();
   }
   
-  void set data(OnboardingData value) {
+  set data(OnboardingData value) {
     _data = value;
     notifyListeners();
   }
   
-  void set currentPage(int value) {
+  set currentPage(int value) {
     _currentPage = value;
     notifyListeners();
   }

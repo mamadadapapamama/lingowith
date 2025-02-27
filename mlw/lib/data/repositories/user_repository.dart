@@ -1,11 +1,11 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:mlw/data/models/user_settings.dart';
 import 'package:mlw/data/models/text_display_mode.dart';
 import 'package:mlw/data/datasources/remote/firebase_data_source.dart';
 import 'package:mlw/data/datasources/local/shared_preferences_data_source.dart';
 import 'package:mlw/data/models/onboarding_data.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:mlw/domain/models/user.dart';
 
 class UserRepository {
   final FirebaseDataSource remoteDataSource;
@@ -148,6 +148,57 @@ class UserRepository {
       return data[key];
     } catch (e) {
       throw Exception('사용자 설정을 가져오는 중 오류가 발생했습니다: $e');
+    }
+  }
+
+  Future<User?> getUser(String userId) async {
+    try {
+      final doc = await remoteDataSource.getDocument('users', userId);
+      if (!doc.exists) {
+        return null;
+      }
+      
+      // Firestore 데이터를 Map으로 변환
+      final data = doc.data() as Map<String, dynamic>;
+      
+      // Timestamp 객체를 DateTime으로 변환
+      if (data.containsKey('createdAt') && data['createdAt'] is Timestamp) {
+        data['createdAt'] = (data['createdAt'] as Timestamp).toDate().toIso8601String();
+      }
+      
+      if (data.containsKey('updatedAt') && data['updatedAt'] is Timestamp) {
+        data['updatedAt'] = (data['updatedAt'] as Timestamp).toDate().toIso8601String();
+      }
+      
+      // 변환된 데이터로 User 객체 생성
+      return User.fromJson(data);
+    } catch (e) {
+      print('사용자 설정을 가져오는중 오류가 발생했습니다: $e');
+      throw Exception('사용자 설정을 가져오는중 오류가 발생했습니다: $e');
+    }
+  }
+  
+  Future<void> saveUser(User user) async {
+    try {
+      // User 객체를 Map으로 변환
+      final userData = user.toJson();
+      
+      // ISO8601 문자열을 Timestamp로 변환 (필요한 경우)
+      if (userData.containsKey('createdAt') && userData['createdAt'] is String) {
+        userData['createdAt'] = Timestamp.fromDate(DateTime.parse(userData['createdAt']));
+      }
+      
+      if (userData.containsKey('updatedAt') && userData['updatedAt'] is String) {
+        userData['updatedAt'] = Timestamp.fromDate(DateTime.parse(userData['updatedAt']));
+      }
+      
+      await remoteDataSource.setDocument('users', user.id, userData);
+      
+      // 로컬 저장소에도 저장 (필요한 경우)
+      await localDataSource.saveUser(user);
+    } catch (e) {
+      print('사용자 설정을 저장하는중 오류가 발생했습니다: $e');
+      throw Exception('사용자 설정을 저장하는중 오류가 발생했습니다: $e');
     }
   }
 } 
