@@ -36,7 +36,7 @@ class _FlashcardWidgetState extends State<FlashcardWidget> {
     await _flutterTts.setVolume(1.0);
     await _flutterTts.setPitch(1.0);
     
-    if (defaultTargetPlatform == TargetPlatform.iOS) {
+    if (Platform.isIOS) {
       try {
         await _flutterTts.setIosAudioCategory(
           IosTextToSpeechAudioCategory.playAndRecord,

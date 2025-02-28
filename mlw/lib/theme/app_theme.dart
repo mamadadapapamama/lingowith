@@ -140,8 +140,8 @@ class AppTheme {
     
     // 체크박스 테마
     checkboxTheme: CheckboxThemeData(
-      fillColor: MaterialStateProperty.resolveWith<Color>((states) {
-        if (states.contains(MaterialState.selected)) {
+      fillColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.selected)) {
           return ColorTokens.getColor('primary.500');
         }
         return ColorTokens.getColor('neutral.300');
@@ -153,8 +153,8 @@ class AppTheme {
     
     // 라디오 버튼 테마
     radioTheme: RadioThemeData(
-      fillColor: MaterialStateProperty.resolveWith<Color>((states) {
-        if (states.contains(MaterialState.selected)) {
+      fillColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.selected)) {
           return ColorTokens.getColor('primary.500');
         }
         return ColorTokens.getColor('neutral.300');
@@ -163,14 +163,14 @@ class AppTheme {
     
     // 스위치 테마
     switchTheme: SwitchThemeData(
-      thumbColor: MaterialStateProperty.resolveWith<Color>((states) {
-        if (states.contains(MaterialState.selected)) {
+      thumbColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.selected)) {
           return ColorTokens.getColor('primary.500');
         }
         return ColorTokens.getColor('neutral.300');
       }),
-      trackColor: MaterialStateProperty.resolveWith<Color>((states) {
-        if (states.contains(MaterialState.selected)) {
+      trackColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.selected)) {
           return ColorTokens.getColor('primary.200');
         }
         return ColorTokens.getColor('neutral.200');
@@ -187,7 +187,6 @@ class AppTheme {
       primary: ColorTokens.getColor('primary.500'),
       secondary: ColorTokens.getColor('secondary.500'),
       error: ColorTokens.getColor('error.500'),
-      background: ColorTokens.getColor('base.0'),
       surface: ColorTokens.getColor('base.0'),
     ),
   );

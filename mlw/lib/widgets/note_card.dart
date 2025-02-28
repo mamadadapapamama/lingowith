@@ -7,17 +7,20 @@ import 'package:mlw/widgets/flashcard_counter.dart';
 import 'package:mlw/theme/tokens/typography_tokens.dart';
 import 'package:mlw/screens/home_screen.dart';
 import 'package:mlw/utils/date_formatter.dart';
+import 'package:mlw/screens/flashcard_screen.dart';
 
 class NoteCard extends StatefulWidget {
   final note_model.Note note;
   final Function(note_model.Note) onDelete;
   final Function(note_model.Note, String) onTitleEdit;
+  final Function()? onRefresh;
 
   const NoteCard({
     Key? key,
     required this.note,
     required this.onDelete,
     required this.onTitleEdit,
+    this.onRefresh,
   }) : super(key: key);
 
   @override
@@ -305,6 +308,28 @@ class _NoteCardState extends State<NoteCard> {
         SnackBar(content: Text('노트 삭제 중 오류가 발생했습니다: $e'))
       );
       print('노트 삭제 오류: $e');
+    }
+  }
+
+  void _navigateToFlashcards() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => FlashcardScreen.fromParts(
+          flashCards: widget.note.flashCards,
+          title: widget.note.title,
+          noteId: widget.note.id,
+        ),
+      ),
+    );
+    
+    // 플래시카드 화면에서 true를 반환받으면 홈 화면 새로고침
+    if (result == true) {
+      // 홈 화면의 노트 목록 새로고침 로직 호출
+      // 예: Provider, Bloc 등을 통해 상태 업데이트
+      if (widget.onRefresh != null) {
+        widget.onRefresh!();
+      }
     }
   }
 }

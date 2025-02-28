@@ -108,17 +108,38 @@ class NoteRepository {
 
   // 노트 스페이스의 모든 노트 가져오기
   Stream<List<Note>> getNotes(String spaceId) {
+    print('getNotes 호출됨: spaceId=$spaceId');
     return _firestore
         .collection('notes')
         .where('spaceId', isEqualTo: spaceId)
+        .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) {
-          return snapshot.docs.map((doc) => Note.fromFirestore(doc)).toList();
+          print('Firestore 쿼리 결과: ${snapshot.docs.length}개');
+          return snapshot.docs
+              .map((doc) => Note.fromFirestore(doc))
+              .where((note) => !(note.isDeleted ?? false))
+              .toList();
         });
   }
-  
+
   // 노트 스페이스의 모든 노트 관찰하기 (getNotes와 동일한 기능)
   Stream<List<Note>> watchNotes(String spaceId) {
     return getNotes(spaceId);
+  }
+
+  // 모든 노트 가져오기 (필터링 없이)
+  Future<void> _loadAllNotes() async {
+    try {
+      final snapshot = await FirebaseFirestore.instance.collection('notes').get();
+      print('Firebase에 총 ${snapshot.docs.length}개의 노트가 있습니다.');
+      
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        print('노트 ID: ${doc.id}, 제목: ${data['title']}, 사용자: ${data['userId']}, 스페이스: ${data['spaceId']}');
+      }
+    } catch (e) {
+      print('모든 노트 로드 오류: $e');
+    }
   }
 } 

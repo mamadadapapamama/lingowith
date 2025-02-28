@@ -93,6 +93,9 @@ class Note {
   
   /// 노트의 업데이트 시간
   final DateTime updatedAt;
+  
+  /// 노트의 삭제 여부
+  final bool? isDeleted;
 
   Note({
     required this.id,
@@ -106,6 +109,7 @@ class Note {
     this.knownFlashCards = const {},
     DateTime? createdAt,
     DateTime? updatedAt,
+    this.isDeleted,
   }) : 
     this.createdAt = createdAt ?? DateTime.now(),
     this.updatedAt = updatedAt ?? DateTime.now();
@@ -122,11 +126,15 @@ class Note {
       'title': title,
       'content': content,
       'pages': pages.map((page) => page.toJson()).toList(),
-      'flashCards': flashCards.map((card) => card.toJson()).toList(),
+      'flashCards': flashCards
+          .where((card) => !knownFlashCards.contains(card.front))
+          .map((card) => card.toJson())
+          .toList(),
       'highlightedTexts': highlightedTexts.toList(),
       'knownFlashCards': knownFlashCards.toList(),
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
+      'isDeleted': isDeleted,
     };
   }
 
@@ -209,6 +217,7 @@ class Note {
         knownFlashCards: knownFlashCards,
         createdAt: createdAtTimestamp?.toDate() ?? DateTime.now(),
         updatedAt: updatedAtTimestamp?.toDate() ?? DateTime.now(),
+        isDeleted: data['isDeleted'] as bool?,
       );
     } catch (e) {
       print('노트 파싱 오류 (${doc.id}): $e');
@@ -229,6 +238,9 @@ class Note {
       flashCards: [],
       highlightedTexts: {},
       knownFlashCards: {},
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+      isDeleted: false,
     );
   }
 
@@ -244,7 +256,21 @@ class Note {
     Set<String>? knownFlashCards,
     DateTime? createdAt,
     DateTime? updatedAt,
+    bool? isDeleted,
   }) {
+    // 알려진 플래시카드 목록 (기존 + 새로 추가된)
+    final Set<String> allKnownCards = {...this.knownFlashCards, ...(knownFlashCards ?? {})};
+    
+    // 알려진 카드를 제외한 플래시카드 목록 (flashCards가 명시적으로 제공된 경우에만 필터링)
+    final List<FlashCard> effectiveCards;
+    if (flashCards != null) {
+      // 명시적으로 제공된 카드 목록 사용
+      effectiveCards = flashCards;
+    } else {
+      // 기존 카드에서 알려진 카드 제외
+      effectiveCards = this.flashCards.where((card) => !allKnownCards.contains(card.front)).toList();
+    }
+    
     return Note(
       id: id ?? this.id,
       spaceId: spaceId ?? this.spaceId,
@@ -252,12 +278,12 @@ class Note {
       title: title ?? this.title,
       content: content ?? this.content,
       pages: pages ?? this.pages,
-      flashCards: flashCards ?? this.flashCards.where((card) => 
-        !knownFlashCards!.contains(card.front)).toList(),
+      flashCards: effectiveCards,
       highlightedTexts: highlightedTexts ?? this.highlightedTexts,
-      knownFlashCards: knownFlashCards ?? this.knownFlashCards,
+      knownFlashCards: allKnownCards,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      isDeleted: isDeleted ?? this.isDeleted,
     );
   }
 

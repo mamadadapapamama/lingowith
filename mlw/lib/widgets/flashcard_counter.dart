@@ -12,6 +12,7 @@ class FlashcardCounter extends StatelessWidget {
   final int knownCount;
   final bool isInteractive;
   final bool alwaysShow;
+  final VoidCallback? onTap;
 
   const FlashcardCounter({
     Key? key,
@@ -21,6 +22,7 @@ class FlashcardCounter extends StatelessWidget {
     this.knownCount = 0,
     this.isInteractive = true,
     this.alwaysShow = false,
+    this.onTap,
   }) : super(key: key);
 
   @override
@@ -74,7 +76,7 @@ class FlashcardCounter extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(100),
-        onTap: () {
+        onTap: onTap ?? () {
           Navigator.push(
             context,
             MaterialPageRoute(

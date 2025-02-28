@@ -15,6 +15,8 @@ class NoteRepository {
   CollectionReference<Map<String, dynamic>> get _spaces => 
       _firestore.collection('note_spaces');
   
+  final Map<String, Note> _cache = {};
+  
   // 노트 생성
   Future<Note> createNote(Note note) async {
     final docRef = await _notes.add(note.toFirestore());
@@ -54,9 +56,19 @@ class NoteRepository {
   
   // 특정 노트 조회
   Future<Note?> getNote(String noteId) async {
-    final doc = await _notes.doc(noteId).get();
-    if (!doc.exists) return null;
-    return Note.fromFirestore(doc);
+    // 캐시에 있으면 반환
+    if (_cache.containsKey(noteId)) {
+      return _cache[noteId]!;
+    }
+    
+    // 없으면 Firestore에서 가져오기
+    final docSnapshot = await _firestore.collection('notes').doc(noteId).get();
+    final note = Note.fromFirestore(docSnapshot);
+    
+    // 캐시에 저장
+    _cache[noteId] = note;
+    
+    return note;
   }
   
   // 노트 수정
@@ -114,6 +126,47 @@ class NoteRepository {
     } catch (e) {
       print('노트 제목 업데이트 오류: $e');
       rethrow;
+    }
+  }
+
+  Future<void> ensureDataConsistency(String noteId) async {
+    final docSnapshot = await _firestore.collection('notes').doc(noteId).get();
+    if (docSnapshot.exists) {
+      final note = Note.fromFirestore(docSnapshot);
+      
+      // 플래시카드와 knownFlashCards 간의 일관성 확인
+      final updatedFlashCards = note.flashCards
+          .where((card) => !note.knownFlashCards.contains(card.front))
+          .toList();
+      
+      // 데이터가 일관되지 않으면 업데이트
+      if (updatedFlashCards.length != note.flashCards.length) {
+        await _firestore.collection('notes').doc(noteId).update({
+          'flashCards': updatedFlashCards.map((card) => card.toJson()).toList(),
+        });
+      }
+    }
+  }
+
+  // 캐시 무효화
+  void invalidateCache(String noteId) {
+    _cache.remove(noteId);
+  }
+
+  Future<List<Note>> getNotesSafely(String spaceId) async {
+    try {
+      final snapshot = await _firestore
+          .collection('notes')
+          .where('spaceId', isEqualTo: spaceId)
+          .get();
+      
+      return snapshot.docs
+          .map((doc) => Note.fromFirestore(doc))
+          .toList();
+    } catch (e) {
+      print('노트 목록 가져오기 오류: $e');
+      // 오류 발생 시 캐시된 데이터 반환 또는 빈 목록 반환
+      return [];
     }
   }
 } 

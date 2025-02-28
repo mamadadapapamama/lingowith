@@ -13,6 +13,7 @@ import 'package:mlw/widgets/flashcard_counter.dart';
 import 'package:mlw/services/image_processing_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mlw/services/translator_service.dart';
+import 'package:mlw/screens/flashcard_screen.dart';
 
 
 class NoteDetailScreen extends StatefulWidget {
@@ -486,6 +487,11 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 알고 있는 카드를 제외한 활성 플래시카드만 필터링
+    final activeFlashCards = _note.flashCards.where(
+      (card) => !_note.knownFlashCards.contains(card.front)
+    ).toList();
+
     return WillPopScope(
       onWillPop: () async {
         Navigator.pop(context, true);
@@ -524,6 +530,19 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                     ),
               ),
               _buildPageControls(),
+              if (activeFlashCards.isNotEmpty) ...[
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: FlashcardCounter(
+                    flashCards: activeFlashCards,
+                    noteTitle: _note.title,
+                    noteId: _note.id,
+                    knownCount: 0, // 이미 필터링했으므로 0으로 설정
+                    onTap: _navigateToFlashcards,
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
             ],
           ),
         ),
@@ -700,6 +719,47 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   void _handleBackPress() {
     print("Back button pressed, returning to HomeScreen");
     Navigator.pop(context, true); // true를 반환하여 홈 화면에 새로고침 신호 전달
+  }
+
+  Future<void> _navigateToFlashcards() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => FlashcardScreen(note: _note),
+      ),
+    );
+    
+    if (result == true) {
+      print('플래시카드 화면에서 돌아옴: 노트 데이터 새로고침');
+      _refreshNoteData();
+    }
+  }
+
+  Future<void> _refreshNoteData() async {
+    try {
+      final docSnapshot = await FirebaseFirestore.instance
+          .collection('notes')
+          .doc(_note.id)
+          .get();
+      
+      if (docSnapshot.exists) {
+        final refreshedNote = note_model.Note.fromFirestore(docSnapshot);
+        print('새로고침된 노트: 플래시카드 ${refreshedNote.flashCards.length}개, 알고 있는 카드 ${refreshedNote.knownFlashCards.length}개');
+        
+        setState(() {
+          _note = refreshedNote;
+          _highlightedTexts = refreshedNote.highlightedTexts;
+          _flashCardCount = _highlightedTexts.length;
+        });
+      }
+    } catch (e) {
+      print('노트 데이터 새로고침 오류: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('노트 데이터 새로고침 중 오류가 발생했습니다: $e')),
+        );
+      }
+    }
   }
 }
 

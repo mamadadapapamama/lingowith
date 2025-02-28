@@ -58,49 +58,70 @@ class _FlashcardScreenState extends State<FlashcardScreen> {
   }
 
   Future<void> _markAsDone(FlashCard card) async {
-    // 노트에서 플래시카드 제거
-    final updatedFlashCards = List<FlashCard>.from(_flashCards);
-    updatedFlashCards.removeAt(_currentIndex);
-    
-    // 노트 업데이트
-    final updatedNote = widget.note.copyWith(
-      flashCards: updatedFlashCards,
-      knownFlashCards: {...widget.note.knownFlashCards, card.front},
-      updatedAt: DateTime.now(),
-    );
-    
-    // Firestore 업데이트
-    await _firestore.collection('notes').doc(widget.note.id).update(updatedNote.toFirestore());
-    
-    // UI 업데이트
-    setState(() {
-      _flashCards = updatedFlashCards;
-      if (_currentIndex >= _flashCards.length) {
-        _currentIndex = _flashCards.length - 1;
-      }
-      if (_currentIndex < 0) {
-        _currentIndex = 0;
-      }
-    });
-    
-    // 완료 메시지 표시
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('이제 이 단어를 마스터했어요!'),
-          duration: Duration(seconds: 1),
-          backgroundColor: Colors.green,
-        ),
+    try {
+      print('플래시카드 완료 처리 시작: ${card.front}');
+      // 노트에서 플래시카드 제거
+      final updatedFlashCards = List<FlashCard>.from(_flashCards);
+      updatedFlashCards.removeAt(_currentIndex);
+      
+      // 노트 업데이트
+      final updatedNote = widget.note.copyWith(
+        flashCards: updatedFlashCards.where(
+          (c) => !widget.note.knownFlashCards.contains(c.front) && c.front != card.front
+        ).toList(),
+        knownFlashCards: {...widget.note.knownFlashCards, card.front},
+        updatedAt: DateTime.now(),
       );
-    }
-    
-    // 모든 카드를 완료했을 때
-    if (_flashCards.isEmpty) {
+      
+      print('업데이트된 노트: 플래시카드 ${updatedNote.flashCards.length}개, 알고 있는 카드 ${updatedNote.knownFlashCards.length}개');
+      
+      // Firestore 업데이트
+      await _firestore.collection('notes').doc(widget.note.id).update(updatedNote.toFirestore());
+      
+      // 저장 확인
+      final docSnapshot = await _firestore.collection('notes').doc(widget.note.id).get();
+      if (docSnapshot.exists) {
+        final savedNote = Note.fromFirestore(docSnapshot);
+        print('저장된 노트: 플래시카드 ${savedNote.flashCards.length}개, 알고 있는 카드 ${savedNote.knownFlashCards.length}개');
+      }
+      
+      // UI 업데이트
+      setState(() {
+        _flashCards = updatedFlashCards;
+        if (_currentIndex >= _flashCards.length) {
+          _currentIndex = _flashCards.length - 1;
+        }
+        if (_currentIndex < 0) {
+          _currentIndex = 0;
+        }
+      });
+      
+      // 완료 메시지 표시
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('모든 플래시카드를 완료했습니다!')),
+          const SnackBar(
+            content: Text('이제 이 단어를 마스터했어요!'),
+            duration: Duration(seconds: 1),
+            backgroundColor: Colors.green,
+          ),
         );
-        Navigator.pop(context);
+      }
+      
+      // 모든 카드를 완료했을 때
+      if (_flashCards.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('모든 플래시카드를 완료했습니다!')),
+          );
+          Navigator.pop(context, true);  // true를 반환하여 홈 화면에 새로고침 신호 전달
+        }
+      }
+    } catch (e) {
+      print('플래시카드 완료 처리 오류: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('플래시카드 완료 처리 중 오류가 발생했습니다: $e')),
+        );
       }
     }
   }
