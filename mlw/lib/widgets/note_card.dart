@@ -5,19 +5,21 @@ import 'package:mlw/theme/tokens/color_tokens.dart';
 import 'package:mlw/screens/note_detail_screen.dart';
 import 'package:mlw/widgets/flashcard_counter.dart';
 import 'package:mlw/theme/tokens/typography_tokens.dart';
-import 'package:mlw/screens/home_screen.dart';
+import 'package:mlw/screens/home/home_screen.dart';
 import 'package:mlw/utils/date_formatter.dart';
 import 'package:mlw/screens/flashcard_screen.dart';
 
 class NoteCard extends StatefulWidget {
   final note_model.Note note;
-  final Function(note_model.Note) onDelete;
-  final Function(note_model.Note, String) onTitleEdit;
-  final Function()? onRefresh;
+  final VoidCallback onPressed;
+  final Function(String) onDelete;
+  final Function(String, String) onTitleEdit;
+  final VoidCallback? onRefresh;
 
   const NoteCard({
     Key? key,
     required this.note,
+    required this.onPressed,
     required this.onDelete,
     required this.onTitleEdit,
     this.onRefresh,
@@ -36,27 +38,13 @@ class _NoteCardState extends State<NoteCard> {
       return true;
     }());
     
-    return Card(
-      elevation: 2.0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: InkWell(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => NoteDetailScreen(note: widget.note),
-            ),
-          ).then((_) {
-            // 홈 화면 새로고침 요청
-            final homeScreen = context.findAncestorWidgetOfExactType<HomeScreen>();
-            if (homeScreen != null) {
-              // 홈 화면의 _loadNotes 메서드 직접 호출
-              (homeScreen as dynamic)._loadNotes();
-            }
-          });
-        },
+    return GestureDetector(
+      onTap: widget.onPressed,
+      child: Card(
+        elevation: 2.0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -246,7 +234,7 @@ class _NoteCardState extends State<NoteCard> {
               IconButton(
                 icon: const Icon(Icons.edit, size: 18),
                 onPressed: () {
-                  widget.onTitleEdit(widget.note, widget.note.title);
+                  widget.onTitleEdit(widget.note.id, widget.note.title);
                 },
               ),
               IconButton(
@@ -296,7 +284,7 @@ class _NoteCardState extends State<NoteCard> {
       );
       
       // 노트 삭제 요청
-      await widget.onDelete(widget.note);
+      await widget.onDelete(widget.note.id);
       
       // 성공 메시지
       ScaffoldMessenger.of(context).showSnackBar(
@@ -325,8 +313,7 @@ class _NoteCardState extends State<NoteCard> {
     
     // 플래시카드 화면에서 true를 반환받으면 홈 화면 새로고침
     if (result == true) {
-      // 홈 화면의 노트 목록 새로고침 로직 호출
-      // 예: Provider, Bloc 등을 통해 상태 업데이트
+      // 홈 화면 새로고침 요청 - 콜백 사용
       if (widget.onRefresh != null) {
         widget.onRefresh!();
       }

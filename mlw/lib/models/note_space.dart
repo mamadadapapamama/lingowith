@@ -25,12 +25,20 @@ class NoteSpace {
 
   factory NoteSpace.fromJson(Map<String, dynamic> json) {
     return NoteSpace(
-      id: json['id'] as String,
-      userId: json['userId'] as String,
-      name: json['name'] as String,
-      language: json['language'] as String,
-      createdAt: (json['createdAt'] as Timestamp).toDate(),
-      updatedAt: (json['updatedAt'] as Timestamp).toDate(),
+      id: json['id'],
+      userId: json['userId'],
+      name: json['name'],
+      language: json['language'],
+      createdAt: json['createdAt'] is Timestamp 
+          ? (json['createdAt'] as Timestamp).toDate()
+          : (json['createdAt'] is String 
+              ? DateTime.parse(json['createdAt'])
+              : DateTime.now()),
+      updatedAt: json['updatedAt'] is Timestamp
+          ? (json['updatedAt'] as Timestamp).toDate()
+          : (json['updatedAt'] is String
+              ? DateTime.parse(json['updatedAt'])
+              : DateTime.now()),
     );
   }
 
@@ -63,14 +71,19 @@ class NoteSpace {
     final data = doc.data() as Map<String, dynamic>;
     return NoteSpace(
       id: doc.id,
-      userId: data['userId'],
-      name: data['name'],
-      language: data['language'],
-      isFlashcardEnabled: data['isFlashcardEnabled'] ?? true,
-      isTTSEnabled: data['isTTSEnabled'] ?? true,
-      isPinyinEnabled: data['isPinyinEnabled'] ?? true,
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
-      updatedAt: (data['updatedAt'] as Timestamp).toDate(),
+      userId: data['userId'] as String,
+      name: data['name'] as String,
+      language: data['language'] as String,
+      createdAt: data['createdAt'] is Timestamp 
+          ? (data['createdAt'] as Timestamp).toDate()
+          : (data['createdAt'] is String 
+              ? DateTime.parse(data['createdAt'])
+              : DateTime.now()),
+      updatedAt: data['updatedAt'] is Timestamp
+          ? (data['updatedAt'] as Timestamp).toDate()
+          : (data['updatedAt'] is String
+              ? DateTime.parse(data['updatedAt'])
+              : DateTime.now()),
     );
   }
 

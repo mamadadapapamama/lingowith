@@ -152,7 +152,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       updatedAt: DateTime.now(),
     );
     
-    await firestore.collection('notes').doc(_note.id).update(updatedNote.toFirestore());
+    await firestore.collection('notes').doc(_note.id).update(updatedNote.toJson());
     
     setState(() {
       _note = updatedNote;
@@ -184,7 +184,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     );
 
     // Firestore 업데이트
-    await firestore.collection('notes').doc(_note.id).update(updatedNote.toFirestore());
+    await firestore.collection('notes').doc(_note.id).update(updatedNote.toJson());
 
     // UI 업데이트
     setState(() {
@@ -247,7 +247,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       );
       
       // Firestore 업데이트
-      await firestore.collection('notes').doc(_note.id).update(updatedNote.toFirestore());
+      await firestore.collection('notes').doc(_note.id).update(updatedNote.toJson());
       
       // UI 업데이트
       setState(() {
@@ -288,7 +288,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
         updatedAt: DateTime.now(),
       );
       
-      await firestore.collection('notes').doc(_note.id).update(updatedNote.toFirestore());
+      await firestore.collection('notes').doc(_note.id).update(updatedNote.toJson());
       
       setState(() {
         _note = updatedNote;
@@ -319,7 +319,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
         updatedAt: DateTime.now(),
       );
       
-      await firestore.collection('notes').doc(_note.id).update(updatedNote.toFirestore());
+      await firestore.collection('notes').doc(_note.id).update(updatedNote.toJson());
       
       setState(() {
         _note = updatedNote;
@@ -434,7 +434,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       );
 
       // Firestore 업데이트
-      await firestore.collection('notes').doc(_note.id).update(updatedNote.toFirestore());
+      await firestore.collection('notes').doc(_note.id).update(updatedNote.toJson());
 
       if (mounted) {
         setState(() {
@@ -494,7 +494,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       await FirebaseFirestore.instance
           .collection('notes')
           .doc(_note.id)
-          .update(updatedNote.toFirestore());
+          .update(updatedNote.toJson());
       
       print('플래시카드 저장 완료: ${_note.id}');
       
@@ -796,7 +796,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       await FirebaseFirestore.instance
           .collection('notes')
           .doc(_note.id)
-          .update(updatedNote.toFirestore());
+          .update(updatedNote.toJson());
       
       print('노트 저장 완료: ${_note.id}');
       

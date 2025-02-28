@@ -169,7 +169,7 @@ void main() {
     });
 
     test('toFirestore converts Note to Map correctly', () {
-      final map = testNote.toFirestore();
+      final map = testNote.toJson();
       expect(map['spaceId'], 'test_space');
       expect(map['userId'], 'test_user');
     });

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mlw/models/note.dart' as note_model;
 import 'package:mlw/repositories/note_repository.dart';
+import 'package:mlw/screens/note_detail_screen.dart';
 
 class CreateNoteScreen extends StatefulWidget {
   final String spaceId;
@@ -44,33 +45,41 @@ class _CreateNoteScreenState extends State<CreateNoteScreen> {
     
     try {
       // 노트 생성
-      final note = note_model.Note(
+      final newNote = note_model.Note(
         id: '',
         spaceId: widget.spaceId,
         userId: widget.userId,
         title: _titleController.text.isNotEmpty ? _titleController.text : 'New Note',
-        pages: [
-          note_model.Page(
-            imageUrl: widget.imageUrl,
-            extractedText: widget.extractedText,
-            translatedText: widget.translatedText,
-          ),
-        ],
+        content: '',
+        imageUrl: widget.imageUrl,
+        extractedText: widget.extractedText,
+        translatedText: widget.translatedText,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
+        isDeleted: false,
+        flashcardCount: 0,
+        reviewCount: 0,
+        lastReviewedAt: null,
       );
       
       print('노트 생성 중...');
-      final createdNote = await _noteRepository.createNote(note);
-      print('노트 생성 완료: ${createdNote.id}');
+      final createdNote = await _noteRepository.createNote(newNote);
+      print('노트 생성 완료: ${createdNote?.id}');
       
       // 생성된 노트가 Firestore에 확실히 저장되었는지 확인
       await Future.delayed(const Duration(milliseconds: 500));
-      final verifyNote = await _noteRepository.getNote(createdNote.id);
+      final verifyNote = await _noteRepository.getNote(createdNote?.id ?? '');
       print('노트 확인: ${verifyNote.id}, 제목: ${verifyNote.title}');
       
-      if (mounted) {
-        Navigator.pop(context, {'success': true, 'noteId': createdNote.id});
+      if (createdNote != null && mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => NoteDetailScreen(note: createdNote),
+          ),
+        );
+      } else {
+        print('노트 생성 실패: createdNote는 null입니다.');
       }
     } catch (e) {
       print('노트 생성 오류: $e');

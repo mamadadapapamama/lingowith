@@ -5,6 +5,19 @@ import 'package:googleapis_auth/auth_io.dart';
 import 'dart:convert';
 import 'package:path_provider/path_provider.dart';
 import 'package:mlw/services/translator_service.dart';
+import 'package:image_picker/image_picker.dart';
+
+class ImageProcessingResult {
+  final String imageUrl;
+  final String extractedText;
+  final String translatedText;
+  
+  ImageProcessingResult({
+    required this.imageUrl,
+    required this.extractedText,
+    required this.translatedText,
+  });
+}
 
 class ImageProcessingService {
   final TranslatorService translatorService;
@@ -74,5 +87,97 @@ class ImageProcessingService {
       lines.map((line) => translatorService.translate(line, to, sourceLanguage: from))
     );
     return translatedLines.join('\n');
+  }
+
+  Future<ImageProcessingResult?> processImage(ImageSource source) async {
+    try {
+      // 이미지 선택
+      final picker = ImagePicker();
+      final pickedFile = await picker.pickImage(source: source);
+      
+      if (pickedFile == null) {
+        print('이미지를 선택하지 않았습니다.');
+        return null;
+      }
+      
+      // 이미지 파일 저장
+      final imageFile = File(pickedFile.path);
+      final appDir = await getApplicationDocumentsDirectory();
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final savedImage = await imageFile.copy('${appDir.path}/$fileName');
+      // 텍스트 추출: read image file as bytes before processing
+      final imageBytes = await savedImage.readAsBytes();
+      final extractedText = await extractTextFromImage(imageBytes);
+      if (extractedText.isEmpty) {
+        print('이미지에서 텍스트를 추출할 수 없습니다.');
+        return null;
+      }
+      
+      // 텍스트 번역
+      final translatedText = await translateText(extractedText);
+      
+      return ImageProcessingResult(
+        imageUrl: savedImage.path,
+        extractedText: extractedText,
+        translatedText: translatedText,
+      );
+    } catch (e) {
+      print('이미지 처리 오류: $e');
+      return null;
+    }
+  }
+
+  Future<List<ImageProcessingResult>> processMultipleImages() async {
+    final ImagePicker picker = ImagePicker();
+    final List<XFile> images = await picker.pickMultiImage();
+    
+    if (images.isEmpty) {
+      return [];
+    }
+    
+    List<ImageProcessingResult> results = [];
+    
+    for (var image in images) {
+      try {
+        // Create a File from XFile path and process it
+        final result = await _processImageFile(File(image.path));
+        if (result != null) {
+          results.add(result);
+        }
+      } catch (e) {
+        print('이미지 처리 오류: $e');
+      }
+    }
+    
+    return results;
+  }
+
+  Future<ImageProcessingResult?> _processImageFile(File imageFile) async {
+    try {
+      // 이미지 파일 저장
+      final appDir = await getApplicationDocumentsDirectory();
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final savedImage = await imageFile.copy('${appDir.path}/$fileName');
+      
+      // 텍스트 추출
+      final imageBytes = await savedImage.readAsBytes();
+      final extractedText = await extractTextFromImage(imageBytes);
+      if (extractedText.isEmpty) {
+        print('이미지에서 텍스트를 추출할 수 없습니다.');
+        return null;
+      }
+      
+      // 텍스트 번역
+      final translatedText = await translateText(extractedText);
+      
+      return ImageProcessingResult(
+        imageUrl: savedImage.path,
+        extractedText: extractedText,
+        translatedText: translatedText,
+      );
+    } catch (e) {
+      print('이미지 파일 처리 오류: $e');
+      return null;
+    }
   }
 } 

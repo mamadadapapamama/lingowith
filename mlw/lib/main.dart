@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart'; // kIsWeb 사용을 위해 추가
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:mlw/screens/home_screen.dart';
+import 'package:mlw/screens/home/home_screen.dart';
 import 'package:mlw/screens/onboarding_screen.dart';
 import 'package:mlw/screens/settings_screen.dart';
 import 'package:mlw/theme/app_theme.dart';
@@ -16,29 +16,15 @@ bool useEmulator = false;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  print('Flutter 바인딩 초기화 완료');
+  await Firebase.initializeApp();
   
-  // Firebase 초기화: 모바일(iOS/Android)는 plist/json 파일에서 자동 로드되고,
-  // 웹에서는 DefaultFirebaseOptions.currentPlatform 옵션을 사용합니다.
-  try {
-    print('Firebase 초기화 시작');
-    if (kIsWeb) {
-      await Firebase.initializeApp();
-      // 웹 설정이 필요하면 아래 주석 해제
-      // await Firebase.initializeApp(options: FirebaseOptions(...));
-    } else {
-      await Firebase.initializeApp();
-    }
-    // 기본 앱 객체를 강제로 로드하여 구성이 끝났는지 확인합니다.
-    final app = Firebase.app();
-    print('Firebase 초기화 완료: ${app.name}');
-  } catch (e) {
-    if (e.toString().contains("duplicate-app")) {
-      print("Firebase 이미 초기화 되어 있음");
-    } else {
-      print('Firebase 초기화 오류: $e');
-    }
-  }
+  // 에뮬레이터 비활성화
+  // if (kDebugMode) {
+  //   setupFirebaseEmulators();
+  // }
+  
+  // 초기 데이터 생성
+  await createInitialData();
   
   print('앱 실행');
   runApp(const MyApp());
@@ -77,6 +63,7 @@ class _MyAppState extends State<MyApp> {
       theme: AppTheme.lightTheme,
       home: _buildHomeScreen(),
       routes: {
+        '/home': (context) => const HomeScreen(),  // 이제 새 구조의 HomeScreen을 가리킴
         '/settings': (context) => SettingsScreen(userId: _userId),
       },
     );
@@ -98,18 +85,96 @@ class _MyAppState extends State<MyApp> {
 }
 
 // Firebase 에뮬레이터 설정
-void setupFirebaseEmulators() async {
-  await Firebase.initializeApp();
-  
-  // Firestore 에뮬레이터 설정
+void setupFirebaseEmulators() {
   FirebaseFirestore.instance.settings = const Settings(
     host: '127.0.0.1:8080',
     sslEnabled: false,
     persistenceEnabled: false,
   );
   
-  // Auth 에뮬레이터 설정 (필요한 경우)
-  await FirebaseAuth.instance.useAuthEmulator('127.0.0.1', 9099);
-  
   print('Firebase 에뮬레이터 설정 완료');
+}
+
+Future<void> createInitialData() async {
+  try {
+    print('초기 데이터 생성 시작');
+    // 기본 사용자 ID
+    const userId = 'test_user_id';
+    
+    // 노트 스페이스 컬렉션 확인
+    final spaceSnapshot = await FirebaseFirestore.instance
+        .collection('note_spaces')
+        .where('userId', isEqualTo: userId)
+        .get();
+    
+    print('노트 스페이스 쿼리 결과: ${spaceSnapshot.docs.length}개');
+    
+    // 노트 스페이스가 없으면 생성
+    if (spaceSnapshot.docs.isEmpty) {
+      print('기본 노트 스페이스 생성');
+      final spaceRef = await FirebaseFirestore.instance.collection('note_spaces').add({
+        'userId': userId,
+        'name': '기본 스페이스',
+        'language': 'ko',
+        'createdAt': Timestamp.now(),
+        'updatedAt': Timestamp.now(),
+        'isFlashcardEnabled': true,
+        'isTTSEnabled': true,
+        'isPinyinEnabled': true,
+      });
+      
+      print('기본 노트 스페이스 생성 완료: ${spaceRef.id}');
+      
+      // 기본 노트 생성
+      await FirebaseFirestore.instance.collection('notes').add({
+        'spaceId': spaceRef.id,
+        'userId': userId,
+        'title': '샘플 노트',
+        'content': '이것은 샘플 노트입니다.',
+        'imageUrl': '',
+        'extractedText': '샘플 텍스트',
+        'translatedText': '샘플 번역',
+        'createdAt': Timestamp.now(),
+        'updatedAt': Timestamp.now(),
+        'isDeleted': false,
+      });
+      
+      print('기본 노트 생성 완료');
+    } else {
+      print('기존 노트 스페이스 발견: ${spaceSnapshot.docs.length}개');
+      
+      // 기존 노트 확인
+      final spaceId = spaceSnapshot.docs.first.id;
+      final notesSnapshot = await FirebaseFirestore.instance
+          .collection('notes')
+          .where('spaceId', isEqualTo: spaceId)
+          .get();
+      
+      print('기존 노트 발견: ${notesSnapshot.docs.length}개');
+      
+      // 노트가 없으면 샘플 노트 생성
+      if (notesSnapshot.docs.isEmpty) {
+        print('샘플 노트 생성');
+        await FirebaseFirestore.instance.collection('notes').add({
+          'spaceId': spaceId,
+          'userId': userId,
+          'title': '샘플 노트',
+          'content': '이것은 샘플 노트입니다.',
+          'imageUrl': '',
+          'extractedText': '샘플 텍스트',
+          'translatedText': '샘플 번역',
+          'createdAt': Timestamp.now(),
+          'updatedAt': Timestamp.now(),
+          'isDeleted': false,
+        });
+        
+        print('샘플 노트 생성 완료');
+      }
+    }
+    
+    print('초기 데이터 생성 완료');
+  } catch (e) {
+    print('초기 데이터 생성 오류: $e');
+    print('스택 트레이스: ${StackTrace.current}');
+  }
 }

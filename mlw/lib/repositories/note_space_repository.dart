@@ -4,20 +4,25 @@ import 'package:mlw/models/note_space.dart';
 class NoteSpaceRepository {
   final _firestore = FirebaseFirestore.instance;
 
-  Stream<List<NoteSpace>> getNoteSpaces(String userId) {
-    return _firestore
-        .collection('note_spaces')
-        .where('userId', isEqualTo: userId)
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map((snapshot) {
-      return snapshot.docs.map((doc) {
-        return NoteSpace.fromJson({
-          'id': doc.id,
-          ...doc.data(),
-        });
-      }).toList();
-    });
+  Future<List<NoteSpace>> getNoteSpaces(String userId) async {
+    try {
+      print('노트 스페이스 가져오기 시작: $userId');
+      final snapshot = await _firestore
+          .collection('note_spaces')
+          .where('userId', isEqualTo: userId)
+          .get();
+      
+      print('노트 스페이스 쿼리 결과: ${snapshot.docs.length}개');
+      
+      final spaces = snapshot.docs
+          .map((doc) => NoteSpace.fromFirestore(doc))
+          .toList();
+      
+      return spaces;
+    } catch (e) {
+      print('노트 스페이스 가져오기 오류: $e');
+      return [];
+    }
   }
 
   Future<NoteSpace> createNoteSpace(NoteSpace noteSpace) async {

@@ -23,7 +23,16 @@ class FlashcardScreen extends StatefulWidget {
       spaceId: '',
       userId: '',
       title: title,
-      flashCards: flashCards,
+      content: '',
+      imageUrl: '',
+      extractedText: '',
+      translatedText: '',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+      isDeleted: false,
+      flashcardCount: 0,
+      reviewCount: 0,
+      lastReviewedAt: null,
     ),
   );
 
@@ -34,7 +43,6 @@ class FlashcardScreen extends StatefulWidget {
 class _FlashcardScreenState extends State<FlashcardScreen> {
   late List<FlashCard> _flashCards;
   int _currentIndex = 0;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   @override
   void initState() {
@@ -72,7 +80,7 @@ class _FlashcardScreenState extends State<FlashcardScreen> {
       await FirebaseFirestore.instance
           .collection('notes')
           .doc(updatedNote.id)
-          .update(updatedNote.toFirestore());
+          .update(updatedNote.toJson());
       
       // 캐시 업데이트를 위해 NoteRepository 사용
       final noteRepository = NoteRepository();

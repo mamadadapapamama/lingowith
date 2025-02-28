@@ -95,30 +95,42 @@ class Note {
   final DateTime updatedAt;
   
   /// 노트의 삭제 여부
-  final bool? isDeleted;
+  final bool isDeleted;
+
+  final String imageUrl;
+  final String extractedText;
+  final String translatedText;
+
+  final int flashcardCount;
+  final int reviewCount;
+  final DateTime? lastReviewedAt;
 
   Note({
     required this.id,
     required this.spaceId,
     required this.userId,
-    this.title = '',
-    this.content = '',
+    required this.title,
+    required this.content,
+    required this.imageUrl,
+    required this.extractedText,
+    required this.translatedText,
+    required this.createdAt,
+    required this.updatedAt,
+    required this.isDeleted,
+    required this.flashcardCount,
+    required this.reviewCount,
+    this.lastReviewedAt,
     this.pages = const [],
     this.flashCards = const [],
     this.highlightedTexts = const {},
     this.knownFlashCards = const {},
-    DateTime? createdAt,
-    DateTime? updatedAt,
-    this.isDeleted,
-  }) : 
-    this.createdAt = createdAt ?? DateTime.now(),
-    this.updatedAt = updatedAt ?? DateTime.now();
+  });
 
   int get knownFlashCardsCount => knownFlashCards.length;
 
   int get remainingFlashCardsCount => flashCards.length - knownFlashCardsCount;
 
-  Map<String, dynamic> toFirestore() {
+  Map<String, dynamic> toJson() {
     return {
       'id': id,
       'spaceId': spaceId,
@@ -126,15 +138,18 @@ class Note {
       'title': title,
       'content': content,
       'pages': pages.map((page) => page.toJson()).toList(),
-      'flashCards': flashCards
-          .where((card) => !knownFlashCards.contains(card.front))
-          .map((card) => card.toJson())
-          .toList(),
+      'flashCards': flashCards.map((card) => card.toJson()).toList(),
       'highlightedTexts': highlightedTexts.toList(),
       'knownFlashCards': knownFlashCards.toList(),
-      'createdAt': Timestamp.fromDate(createdAt),
-      'updatedAt': Timestamp.fromDate(updatedAt),
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
       'isDeleted': isDeleted,
+      'imageUrl': imageUrl,
+      'extractedText': extractedText,
+      'translatedText': translatedText,
+      'flashcardCount': flashcardCount,
+      'reviewCount': reviewCount,
+      'lastReviewedAt': lastReviewedAt?.toIso8601String(),
     };
   }
 
@@ -143,104 +158,85 @@ class Note {
   /// [doc]은 Firestore 문서 스냅샷입니다.
   /// 문서 데이터가 유효하지 않은 경우 오류를 기록하고 기본값을 사용합니다.
   factory Note.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    
+    // createdAt과 updatedAt 필드 처리
+    DateTime createdAt;
+    DateTime updatedAt;
+    
     try {
-      if (!doc.exists) {
-        print('노트 문서가 존재하지 않음: ${doc.id}');
-        return Note.empty(id: doc.id);
+      // createdAt 처리
+      if (data['createdAt'] is Timestamp) {
+        createdAt = (data['createdAt'] as Timestamp).toDate();
+      } else if (data['createdAt'] is String) {
+        createdAt = DateTime.parse(data['createdAt'] as String);
+      } else {
+        createdAt = DateTime.now();
       }
       
-      final data = doc.data() as Map<String, dynamic>?;
-      
-      if (data == null) {
-        print('노트 데이터가 null임: ${doc.id}');
-        return Note.empty(id: doc.id);
+      // updatedAt 처리
+      if (data['updatedAt'] is Timestamp) {
+        updatedAt = (data['updatedAt'] as Timestamp).toDate();
+      } else if (data['updatedAt'] is String) {
+        updatedAt = DateTime.parse(data['updatedAt'] as String);
+      } else {
+        updatedAt = DateTime.now();
       }
-      
-      print('노트 데이터 로드 시작: ${doc.id}');
-      
-      // 타임스탬프 처리
-      final Timestamp? createdAtTimestamp = data['createdAt'] as Timestamp?;
-      final Timestamp? updatedAtTimestamp = data['updatedAt'] as Timestamp?;
-      
-      // 페이지 처리
-      List<Page> pages = [];
-      try {
-        final List<dynamic>? pagesData = data['pages'] as List<dynamic>?;
-        pages = pagesData?.map((pageData) => 
-          Page.fromJson(pageData as Map<String, dynamic>)
-        ).toList() ?? [];
-      } catch (e) {
-        print('페이지 데이터 파싱 오류: $e');
-      }
-      
-      // 플래시카드 처리
-      List<FlashCard> flashCards = [];
-      try {
-        final List<dynamic>? flashCardsData = data['flashCards'] as List<dynamic>?;
-        flashCards = flashCardsData?.map((cardData) => 
-          FlashCard.fromJson(cardData as Map<String, dynamic>)
-        ).toList() ?? [];
-      } catch (e) {
-        print('플래시카드 데이터 파싱 오류: $e');
-      }
-      
-      // 하이라이트된 텍스트 처리
-      Set<String> highlightedTexts = {};
-      try {
-        final List<dynamic>? highlightedTextsData = data['highlightedTexts'] as List<dynamic>?;
-        highlightedTexts = Set<String>.from(
-          highlightedTextsData?.map((item) => item.toString()) ?? []
-        );
-      } catch (e) {
-        print('하이라이트 텍스트 파싱 오류: $e');
-      }
-      
-      // knownFlashCards 처리
-      Set<String> knownFlashCards = {};
-      try {
-        final List<dynamic>? knownCardsData = data['knownFlashCards'] as List<dynamic>?;
-        knownFlashCards = Set<String>.from(knownCardsData?.map((item) => item.toString()) ?? []);
-      } catch (e) {
-        print('알고 있는 플래시카드 파싱 오류: $e');
-      }
-      
-      print('노트 데이터 로드 완료: ${doc.id}');
-      return Note(
-        id: doc.id,
-        spaceId: data['spaceId'] as String? ?? '',
-        userId: data['userId'] as String? ?? '',
-        title: data['title'] as String? ?? '',
-        content: data['content'] as String? ?? '',
-        pages: pages,
-        flashCards: flashCards,
-        highlightedTexts: highlightedTexts,
-        knownFlashCards: knownFlashCards,
-        createdAt: createdAtTimestamp?.toDate() ?? DateTime.now(),
-        updatedAt: updatedAtTimestamp?.toDate() ?? DateTime.now(),
-        isDeleted: data['isDeleted'] as bool?,
-      );
     } catch (e) {
-      print('노트 파싱 오류 (${doc.id}): $e');
-      print('스택 트레이스: ${StackTrace.current}');
-      return Note.empty(id: doc.id);
+      print('날짜 변환 오류: $e');
+      createdAt = DateTime.now();
+      updatedAt = DateTime.now();
     }
+    
+    return Note(
+      id: doc.id,
+      spaceId: data['spaceId'] as String,
+      userId: data['userId'] as String,
+      title: data['title'] as String? ?? '제목 없음',
+      content: data['content'] as String? ?? '',
+      imageUrl: data['imageUrl'] as String? ?? '',
+      extractedText: data['extractedText'] as String? ?? '',
+      translatedText: data['translatedText'] as String? ?? '',
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      isDeleted: data['isDeleted'] as bool? ?? false,
+      flashcardCount: data['flashcardCount'] as int? ?? 0,
+      reviewCount: data['reviewCount'] as int? ?? 0,
+      lastReviewedAt: data['lastReviewedAt'] is Timestamp 
+          ? (data['lastReviewedAt'] as Timestamp).toDate() 
+          : null,
+      pages: (data['pages'] as List<dynamic>?)
+          ?.map((page) => Page.fromJson(page))
+          .toList() ?? [],
+      flashCards: (data['flashCards'] as List<dynamic>?)
+          ?.map((card) => FlashCard.fromJson(card))
+          .toList() ?? [],
+      highlightedTexts: Set<String>.from(data['highlightedTexts'] ?? []),
+      knownFlashCards: Set<String>.from(data['knownFlashCards'] ?? []),
+    );
   }
 
   // 빈 노트 생성을 위한 팩토리 메서드
-  factory Note.empty({String id = ''}) {
+  factory Note.empty() {
     return Note(
-      id: id,
+      id: '',
       spaceId: '',
       userId: '',
-      title: 'Error loading note',
+      title: '제목 없음',
       content: '',
+      imageUrl: '',
+      extractedText: '',
+      translatedText: '',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+      isDeleted: false,
+      flashcardCount: 0,
+      reviewCount: 0,
+      lastReviewedAt: null,
       pages: [],
       flashCards: [],
       highlightedTexts: {},
       knownFlashCards: {},
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-      isDeleted: false,
     );
   }
 
@@ -257,6 +253,12 @@ class Note {
     DateTime? createdAt,
     DateTime? updatedAt,
     bool? isDeleted,
+    String? imageUrl,
+    String? extractedText,
+    String? translatedText,
+    int? flashcardCount,
+    int? reviewCount,
+    DateTime? lastReviewedAt,
   }) {
     // 알려진 플래시카드 목록 (기존 + 새로 추가된)
     final Set<String> allKnownCards = {...this.knownFlashCards, ...(knownFlashCards ?? {})};
@@ -277,18 +279,72 @@ class Note {
       userId: userId ?? this.userId,
       title: title ?? this.title,
       content: content ?? this.content,
+      imageUrl: imageUrl ?? this.imageUrl,
+      extractedText: extractedText ?? this.extractedText,
+      translatedText: translatedText ?? this.translatedText,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      isDeleted: isDeleted ?? this.isDeleted,
+      flashcardCount: flashcardCount ?? this.flashcardCount,
+      reviewCount: reviewCount ?? this.reviewCount,
+      lastReviewedAt: lastReviewedAt ?? this.lastReviewedAt,
       pages: pages ?? this.pages,
       flashCards: effectiveCards,
       highlightedTexts: highlightedTexts ?? this.highlightedTexts,
       knownFlashCards: allKnownCards,
-      createdAt: createdAt ?? this.createdAt,
-      updatedAt: updatedAt ?? this.updatedAt,
-      isDeleted: isDeleted ?? this.isDeleted,
     );
   }
 
   @override
   String toString() {
     return 'Note(id: $id, title: $title, pages: ${pages.length}, flashCards: ${flashCards.length})';
+  }
+
+  factory Note.fromJson(Map<String, dynamic> json) {
+    return Note(
+      id: json['id'],
+      spaceId: json['spaceId'],
+      userId: json['userId'],
+      title: json['title'],
+      content: json['content'] ?? '',
+      imageUrl: json['imageUrl'] ?? '',
+      extractedText: json['extractedText'] ?? '',
+      translatedText: json['translatedText'] ?? '',
+      createdAt: json['createdAt'] is Timestamp 
+          ? (json['createdAt'] as Timestamp).toDate()
+          : (json['createdAt'] is String 
+              ? DateTime.parse(json['createdAt'])
+              : DateTime.now()),
+      updatedAt: json['updatedAt'] is Timestamp
+          ? (json['updatedAt'] as Timestamp).toDate()
+          : (json['updatedAt'] is String
+              ? DateTime.parse(json['updatedAt'])
+              : DateTime.now()),
+      isDeleted: json['isDeleted'],
+      flashcardCount: json['flashcardCount'] ?? 0,
+      reviewCount: json['reviewCount'] ?? 0,
+      lastReviewedAt: json['lastReviewedAt'] is Timestamp
+          ? (json['lastReviewedAt'] as Timestamp).toDate()
+          : null,
+      pages: (json['pages'] as List<dynamic>?)
+          ?.map((page) => Page.fromJson(page))
+          .toList() ?? [],
+      flashCards: (json['flashCards'] as List<dynamic>?)
+          ?.map((card) => FlashCard.fromJson(card))
+          .toList() ?? [],
+      highlightedTexts: Set<String>.from(json['highlightedTexts'] ?? []),
+      knownFlashCards: Set<String>.from(json['knownFlashCards'] ?? []),
+    );
+  }
+
+  // 호환성을 위한 toFirestore 메서드
+  Map<String, dynamic> toFirestore() {
+    final json = toJson();
+    
+    // DateTime을 Timestamp로 변환
+    json['createdAt'] = Timestamp.fromDate(createdAt);
+    json['updatedAt'] = Timestamp.fromDate(updatedAt);
+    
+    return json;
   }
 }

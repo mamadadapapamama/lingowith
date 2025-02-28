@@ -52,17 +52,25 @@ class NoteRepository {
   Future<Note> createNote(Note note) async {
     try {
       print('노트 생성 시작: ${note.title}');
-      final docRef = await _firestore.collection('notes').add(note.toFirestore());
-      final doc = await docRef.get();
-      final createdNote = Note.fromFirestore(doc);
+      final docRef = await _firestore.collection('notes').add({
+        'spaceId': note.spaceId,
+        'userId': note.userId,
+        'title': note.title,
+        'content': note.content,
+        'imageUrl': note.imageUrl,
+        'extractedText': note.extractedText,
+        'translatedText': note.translatedText,
+        'createdAt': Timestamp.fromDate(note.createdAt),
+        'updatedAt': Timestamp.fromDate(note.updatedAt),
+        'isDeleted': note.isDeleted,
+        'flashcardCount': note.flashcardCount,
+        'reviewCount': note.reviewCount,
+        'lastReviewedAt': note.lastReviewedAt != null
+            ? Timestamp.fromDate(note.lastReviewedAt!)
+            : null,
+      });
       
-      // 캐시에 저장
-      if (_cacheEnabled) {
-        _cache[createdNote.id] = createdNote;
-      }
-      
-      print('노트 생성 완료: ${createdNote.id}, 제목: ${createdNote.title}');
-      return createdNote;
+      return note.copyWith(id: docRef.id);
     } catch (e) {
       print('노트 생성 오류: $e');
       rethrow;
@@ -73,7 +81,7 @@ class NoteRepository {
   Future<void> updateNote(Note note) async {
     try {
       print('노트 업데이트 시작: ${note.id}, 제목: ${note.title}');
-      await _firestore.collection('notes').doc(note.id).update(note.toFirestore());
+      await _firestore.collection('notes').doc(note.id).update(note.toJson());
       
       // 캐시 업데이트
       if (_cacheEnabled) {

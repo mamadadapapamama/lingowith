@@ -21,7 +21,7 @@ class NoteService {
   
   // 노트 업데이트 메서드
   Future<Note> updateNote(Note note) async {
-    await _firestore.collection('notes').doc(note.id).update(note.toFirestore());
+    await _firestore.collection('notes').doc(note.id).update(note.toJson());
     return note;
   }
   

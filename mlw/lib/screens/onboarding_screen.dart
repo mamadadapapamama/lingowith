@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mlw/theme/tokens/color_tokens.dart';
 import 'package:mlw/theme/tokens/typography_tokens.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:mlw/screens/home_screen.dart';
+import 'package:mlw/screens/home/home_screen.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({Key? key}) : super(key: key);
