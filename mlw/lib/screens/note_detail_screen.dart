@@ -14,6 +14,7 @@ import 'package:mlw/services/image_processing_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mlw/services/translator_service.dart';
 import 'package:mlw/screens/flashcard_screen.dart';
+import 'package:mlw/repositories/note_repository.dart';
 
 
 class NoteDetailScreen extends StatefulWidget {
@@ -39,18 +40,50 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   late ImageProcessingService _imageProcessingService;
   bool _isTranslating = false;
   String _translatedText = '';
+  bool _isNoteModified = false;
+  bool _isLoading = true;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
+    _loadNoteData();
     _isHighlightMode = true;
-    _note = widget.note;
-    _highlightedTexts = widget.note.highlightedTexts;
-    _flashCardCount = _highlightedTexts.length;
-    _initTTS();
     _imageProcessingService = ImageProcessingService(
       translatorService: translatorService,
     );
+  }
+
+  Future<void> _loadNoteData() async {
+    try {
+      setState(() {
+        _isLoading = true;
+      });
+      
+      print('노트 데이터 로드 시작: ${widget.note.id}');
+      
+      final noteRepository = NoteRepository();
+      noteRepository.clearCache();
+      
+      final loadedNote = await noteRepository.getNote(widget.note.id);
+      
+      setState(() {
+        _note = loadedNote;
+        _highlightedTexts = Set<String>.from(loadedNote.highlightedTexts);
+        _isLoading = false;
+      });
+      
+      print('노트 데이터 로드 완료: ${widget.note.id}');
+      
+      // 플래시카드 로드
+      print('저장된 플래시카드 수: ${_note.flashCards.length}');
+    } catch (e) {
+      print('노트 데이터 로드 오류: $e');
+      setState(() {
+        _error = '노트 데이터를 로드하는 중 오류가 발생했습니다: $e';
+        _isLoading = false;
+      });
+    }
   }
 
   Future<void> _initTTS() async {
@@ -493,10 +526,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     ).toList();
 
     return WillPopScope(
-      onWillPop: () async {
-        Navigator.pop(context, true);
-        return false;
-      },
+      onWillPop: _onWillPop,
       child: Scaffold(
         body: SafeArea(
           child: Column(
@@ -538,7 +568,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                     noteTitle: _note.title,
                     noteId: _note.id,
                     knownCount: 0, // 이미 필터링했으므로 0으로 설정
-                    onTap: _navigateToFlashcards,
+                    onTap: _navigateToFlashcardScreen,
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -721,7 +751,9 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     Navigator.pop(context, true); // true를 반환하여 홈 화면에 새로고침 신호 전달
   }
 
-  Future<void> _navigateToFlashcards() async {
+  void _navigateToFlashcardScreen() async {
+    print('플래시카드 화면으로 이동: ${_note.id}');
+    
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
@@ -730,33 +762,63 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     );
     
     if (result == true) {
-      print('플래시카드 화면에서 돌아옴: 노트 데이터 새로고침');
-      _refreshNoteData();
+      print('플래시카드 화면에서 돌아옴, 노트 데이터 새로고침');
+      _loadNoteData();
     }
   }
 
-  Future<void> _refreshNoteData() async {
+  Future<bool> _onWillPop() async {
+    print('Back button pressed, returning to HomeScreen');
+    
+    // 노트 데이터가 변경되었는지 확인
+    if (_isNoteModified) {
+      // 변경된 노트 저장
+      await _saveNote();
+    }
+    
+    // 홈 화면으로 돌아갈 때 true 반환하여 새로고침 신호 전달
+    Navigator.pop(context, true);
+    return false; // 네비게이션을 직접 처리했으므로 false 반환
+  }
+
+  Future<void> _saveNote() async {
     try {
+      print('노트 저장 시작: ${_note.id}, 제목: ${_note.title}');
+      
+      // 깊은 복사를 통해 새 객체 생성
+      final updatedNote = _note.copyWith(
+        flashCards: List<note_model.FlashCard>.from(_note.flashCards),
+        highlightedTexts: Set<String>.from(_highlightedTexts),
+        updatedAt: DateTime.now(),
+      );
+      
+      // Firestore 업데이트
+      await FirebaseFirestore.instance
+          .collection('notes')
+          .doc(_note.id)
+          .update(updatedNote.toFirestore());
+      
+      print('노트 저장 완료: ${_note.id}');
+      
+      // 저장 확인
       final docSnapshot = await FirebaseFirestore.instance
           .collection('notes')
           .doc(_note.id)
           .get();
       
       if (docSnapshot.exists) {
-        final refreshedNote = note_model.Note.fromFirestore(docSnapshot);
-        print('새로고침된 노트: 플래시카드 ${refreshedNote.flashCards.length}개, 알고 있는 카드 ${refreshedNote.knownFlashCards.length}개');
-        
-        setState(() {
-          _note = refreshedNote;
-          _highlightedTexts = refreshedNote.highlightedTexts;
-          _flashCardCount = _highlightedTexts.length;
-        });
+        final savedNote = note_model.Note.fromFirestore(docSnapshot);
+        print('저장된 노트: ${savedNote.id}, 제목: ${savedNote.title}');
       }
+      
+      setState(() {
+        _isNoteModified = false;
+      });
     } catch (e) {
-      print('노트 데이터 새로고침 오류: $e');
+      print('노트 저장 오류: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('노트 데이터 새로고침 중 오류가 발생했습니다: $e')),
+          SnackBar(content: Text('노트 저장 중 오류가 발생했습니다: $e')),
         );
       }
     }

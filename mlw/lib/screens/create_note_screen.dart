@@ -1,0 +1,112 @@
+import 'package:flutter/material.dart';
+import 'package:mlw/models/note.dart' as note_model;
+import 'package:mlw/repositories/note_repository.dart';
+
+class CreateNoteScreen extends StatefulWidget {
+  final String spaceId;
+  final String userId;
+  final String imageUrl;
+  final String extractedText;
+  final String translatedText;
+
+  const CreateNoteScreen({
+    Key? key,
+    required this.spaceId,
+    required this.userId,
+    required this.imageUrl,
+    required this.extractedText,
+    required this.translatedText,
+  }) : super(key: key);
+
+  @override
+  _CreateNoteScreenState createState() => _CreateNoteScreenState();
+}
+
+class _CreateNoteScreenState extends State<CreateNoteScreen> {
+  final _titleController = TextEditingController();
+  final _noteRepository = NoteRepository();
+  bool _isCreating = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _createNote() async {
+    if (_isCreating) return;
+    
+    setState(() {
+      _isCreating = true;
+      _error = null;
+    });
+    
+    try {
+      // 노트 생성
+      final note = note_model.Note(
+        id: '',
+        spaceId: widget.spaceId,
+        userId: widget.userId,
+        title: _titleController.text.isNotEmpty ? _titleController.text : 'New Note',
+        pages: [
+          note_model.Page(
+            imageUrl: widget.imageUrl,
+            extractedText: widget.extractedText,
+            translatedText: widget.translatedText,
+          ),
+        ],
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+      
+      print('노트 생성 중...');
+      final createdNote = await _noteRepository.createNote(note);
+      print('노트 생성 완료: ${createdNote.id}');
+      
+      // 생성된 노트가 Firestore에 확실히 저장되었는지 확인
+      await Future.delayed(const Duration(milliseconds: 500));
+      final verifyNote = await _noteRepository.getNote(createdNote.id);
+      print('노트 확인: ${verifyNote.id}, 제목: ${verifyNote.title}');
+      
+      if (mounted) {
+        Navigator.pop(context, {'success': true, 'noteId': createdNote.id});
+      }
+    } catch (e) {
+      print('노트 생성 오류: $e');
+      setState(() {
+        _error = '노트 생성 중 오류가 발생했습니다: $e';
+        _isCreating = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Create Note'),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            TextField(
+              controller: _titleController,
+              decoration: InputDecoration(labelText: 'Title'),
+            ),
+            ElevatedButton(
+              onPressed: _createNote,
+              child: Text('Create Note'),
+            ),
+            if (_error != null)
+              Text(
+                _error!,
+                style: TextStyle(color: Colors.red),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+} 

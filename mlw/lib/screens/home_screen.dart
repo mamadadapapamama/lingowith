@@ -17,6 +17,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:mlw/services/image_processing_service.dart';
+import 'package:mlw/screens/create_note_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final String? spaceId;
@@ -122,7 +123,6 @@ class _HomeScreenState extends State<HomeScreen> {
     // 약간의 지연 후 로드 (UI가 먼저 그려지도록)
     Future.delayed(Duration.zero, () {
       _loadCurrentNoteSpace();
-      _checkFirestoreData(); // 직접 Firestore 데이터 확인
     });
   }
 
@@ -214,16 +214,8 @@ class _HomeScreenState extends State<HomeScreen> {
     // 기존 구독 취소
     _notesSubscription?.cancel();
     
-    if (_currentNoteSpace == null) {
-      setState(() {
-        _notes = [];
-        _isLoading = false;
-      });
-      return;
-    }
-    
     final user = _auth.currentUser;
-    if (user == null) {
+    if (user == null || _currentNoteSpace == null) {
       setState(() {
         _notes = [];
         _isLoading = false;
@@ -231,17 +223,20 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
     
-    // 새로운 스트림 구독 (repository의 getNotes는 두 개의 매개변수를 받음)
+    print('노트 스트림 구독 시작: ${_currentNoteSpace!.id}');
+    setState(() {
+      _isLoading = true;
+    });
+    
+    // 먼저 직접 데이터 로드
+    _loadNotesDirectly();
+    
+    // 새로운 스트림 구독
     _notesSubscription = _noteRepository
         .getNotes(_currentNoteSpace!.id)
         .listen(
           (notes) {
             print('노트 스트림 업데이트: ${notes.length}개');
-            
-            // 각 노트의 데이터 일관성 확인
-            for (var note in notes) {
-              // 데이터 일관성 확인 로직 주석 처리 또는 제거
-            }
             
             if (mounted) {
               setState(() {
@@ -260,6 +255,38 @@ class _HomeScreenState extends State<HomeScreen> {
             }
           },
         );
+  }
+
+  // 직접 Firestore에서 노트 데이터 로드
+  Future<void> _loadNotesDirectly() async {
+    try {
+      if (_currentNoteSpace == null) return;
+      
+      print('직접 Firestore에서 노트 데이터 로드 시작');
+      
+      final snapshot = await FirebaseFirestore.instance
+          .collection('notes')
+          .where('spaceId', isEqualTo: _currentNoteSpace!.id)
+          .get();
+      
+      final notes = snapshot.docs
+          .map((doc) => note_model.Note.fromFirestore(doc))
+          .where((note) => note.isDeleted != true)
+          .toList();
+      
+      notes.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      
+      print('직접 로드한 노트: ${notes.length}개');
+      
+      if (mounted) {
+        setState(() {
+          _notes = notes;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('직접 노트 로드 오류: $e');
+    }
   }
 
   void _showImageSourceActionSheet() {
@@ -420,7 +447,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    print("HomeScreen build called - notes count: ${_notes.length}");
+    print('HomeScreen build called - notes count: ${_notes.length}');
     
     return Scaffold(
       appBar: AppBar(
@@ -443,7 +470,11 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _subscribeToNotes,
+            onPressed: () {
+              print('강제 새로고침 요청');
+              _forceRefreshNotes();
+            },
+            tooltip: '강제 새로고침',
           ),
           IconButton(
             icon: const Icon(Icons.settings),
@@ -459,6 +490,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 );
               }
             },
+          ),
+          IconButton(
+            icon: const Icon(Icons.bug_report),
+            onPressed: _checkDataState,
+            tooltip: '데이터 상태 확인',
           ),
         ],
       ),
@@ -764,27 +800,38 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  Future<void> _checkFirestoreData() async {
+  Future<void> _checkDataState() async {
     try {
-      // 모든 노트 확인
-      final notesSnapshot = await FirebaseFirestore.instance.collection('notes').get();
-      print('Found ${notesSnapshot.docs.length} total notes in Firestore');
+      print('\n===== 데이터 상태 확인 =====');
+      print('현재 스페이스: ${_currentNoteSpace?.id}, 이름: ${_currentNoteSpace?.name}');
+      print('메모리 내 노트 수: ${_notes.length}');
       
-      for (var doc in notesSnapshot.docs) {
-        final data = doc.data();
-        print('Note in Firestore: ${doc.id}, spaceId: ${data['spaceId']}, title: ${data['title']}');
+      // 캐시 상태 확인
+      print('노트 캐시 상태: ${_noteRepository.getCacheSize()}개 항목');
+      
+      // Firestore 상태 확인
+      if (_currentNoteSpace != null) {
+        final snapshot = await FirebaseFirestore.instance
+            .collection('notes')
+            .where('spaceId', isEqualTo: _currentNoteSpace!.id)
+            .get();
+        
+        print('Firestore 내 노트 수: ${snapshot.docs.length}');
+        
+        for (var doc in snapshot.docs) {
+          final data = doc.data();
+          print('- 노트: ${doc.id}, 제목: ${data['title']}');
+        }
       }
       
-      // 모든 스페이스 확인
-      final spacesSnapshot = await FirebaseFirestore.instance.collection('note_spaces').get();
-      print('Found ${spacesSnapshot.docs.length} note spaces in Firestore');
+      print('===== 데이터 상태 확인 완료 =====\n');
       
-      for (var doc in spacesSnapshot.docs) {
-        final data = doc.data();
-        print('Note space in Firestore: ${doc.id}, name: ${data['name']}');
-      }
+      // 사용자에게 알림
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('데이터 상태를 콘솔에서 확인하세요')),
+      );
     } catch (e) {
-      print('Error checking Firestore data: $e');
+      print('데이터 상태 확인 오류: $e');
     }
   }
 
@@ -879,6 +926,254 @@ class _HomeScreenState extends State<HomeScreen> {
       print('Updated ${notesSnapshot.docs.length} notes with spaceId: $spaceId');
     } catch (e) {
       print('Error updating notes with missing spaceId: $e');
+    }
+  }
+
+  // Firestore 데이터 초기화 함수
+  Future<void> _resetFirestoreData() async {
+    try {
+      print('Firestore 데이터 초기화 시작...');
+      
+      // 1. 모든 노트 삭제
+      final notesSnapshot = await FirebaseFirestore.instance.collection('notes').get();
+      print('삭제할 노트 수: ${notesSnapshot.docs.length}');
+      
+      final batch1 = FirebaseFirestore.instance.batch();
+      for (var doc in notesSnapshot.docs) {
+        batch1.delete(doc.reference);
+      }
+      await batch1.commit();
+      print('모든 노트 삭제 완료');
+      
+      // 2. 모든 노트 스페이스 삭제
+      final spacesSnapshot = await FirebaseFirestore.instance.collection('note_spaces').get();
+      print('삭제할 노트 스페이스 수: ${spacesSnapshot.docs.length}');
+      
+      final batch2 = FirebaseFirestore.instance.batch();
+      for (var doc in spacesSnapshot.docs) {
+        batch2.delete(doc.reference);
+      }
+      await batch2.commit();
+      print('모든 노트 스페이스 삭제 완료');
+      
+      // 3. 기본 노트 스페이스 생성
+      final user = _auth.currentUser;
+      final userId = user?.uid ?? 'test_user_id';
+      
+      final defaultSpace = NoteSpace(
+        id: '',
+        userId: userId,
+        name: '기본 스페이스',
+        language: 'ko',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+      
+      final createdSpace = await _spaceRepository.createNoteSpace(defaultSpace);
+      print('기본 노트 스페이스 생성 완료: ${createdSpace.id}');
+      
+      // 4. 앱 상태 초기화
+      setState(() {
+        _currentNoteSpace = createdSpace;
+        _notes = [];
+        _isLoading = false;
+      });
+      
+      // 5. 노트 목록 다시 구독
+      _subscribeToNotes();
+      
+      print('Firestore 데이터 초기화 완료');
+    } catch (e) {
+      print('Firestore 데이터 초기화 오류: $e');
+    }
+  }
+
+  // 데이터 정리 함수
+  Future<void> _cleanupFirestoreData() async {
+    try {
+      print('Firestore 데이터 정리 시작...');
+      
+      // 1. 기본 스페이스 찾기 또는 생성
+      final spacesSnapshot = await FirebaseFirestore.instance.collection('note_spaces').limit(1).get();
+      String targetSpaceId;
+      
+      if (spacesSnapshot.docs.isEmpty) {
+        // 스페이스가 없으면 생성
+        final user = _auth.currentUser;
+        final userId = user?.uid ?? 'test_user_id';
+        
+        final defaultSpace = NoteSpace(
+          id: '',
+          userId: userId,
+          name: '기본 스페이스',
+          language: 'ko',
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+        
+        final createdSpace = await _spaceRepository.createNoteSpace(defaultSpace);
+        targetSpaceId = createdSpace.id;
+        print('기본 노트 스페이스 생성: $targetSpaceId');
+      } else {
+        targetSpaceId = spacesSnapshot.docs.first.id;
+        print('기존 스페이스 사용: $targetSpaceId');
+      }
+      
+      // 2. 모든 노트의 spaceId 업데이트
+      final notesSnapshot = await FirebaseFirestore.instance.collection('notes').get();
+      print('업데이트할 노트 수: ${notesSnapshot.docs.length}');
+      
+      final batch = FirebaseFirestore.instance.batch();
+      for (var doc in notesSnapshot.docs) {
+        batch.update(doc.reference, {
+          'spaceId': targetSpaceId,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+      await batch.commit();
+      print('모든 노트의 spaceId 업데이트 완료');
+      
+      // 3. 앱 상태 업데이트
+      _loadCurrentNoteSpace();
+      
+      print('Firestore 데이터 정리 완료');
+    } catch (e) {
+      print('Firestore 데이터 정리 오류: $e');
+    }
+  }
+
+  // 노트 상세 화면에서 돌아올 때 호출
+  Future<void> _refreshNotes() async {
+    print('Returned from NoteDetailScreen, refreshing notes');
+    
+    // 노트 다시 로드
+    // 기존 구독 취소 후 새로 구독
+    _notesSubscription?.cancel();
+    
+    if (_currentNoteSpace != null) {
+      // Firestore에서 직접 데이터 가져오기
+      try {
+        final snapshot = await FirebaseFirestore.instance
+            .collection('notes')
+            .where('spaceId', isEqualTo: _currentNoteSpace!.id)
+            .get();
+        
+        final notes = snapshot.docs
+            .map((doc) => note_model.Note.fromFirestore(doc))
+            .where((note) => !(note.isDeleted ?? false))
+            .toList();
+        
+        notes.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        
+        print('Firestore에서 직접 로드한 노트: ${notes.length}개');
+        
+        setState(() {
+          _notes = notes;
+          _isLoading = false;
+        });
+        
+        // 구독 다시 시작
+        _subscribeToNotes();
+      } catch (e) {
+        print('노트 새로고침 오류: $e');
+        // 오류 발생 시 기존 구독 방식으로 폴백
+        _subscribeToNotes();
+      }
+    }
+  }
+
+  // 강제 새로고침 함수
+  Future<void> _forceRefreshNotes() async {
+    try {
+      setState(() {
+        _isLoading = true;
+      });
+      
+      // 캐시 초기화
+      _noteRepository.clearCache();
+      
+      // 구독 취소
+      _notesSubscription?.cancel();
+      
+      if (_currentNoteSpace != null) {
+        // Firestore에서 직접 데이터 가져오기
+        final snapshot = await FirebaseFirestore.instance
+            .collection('notes')
+            .where('spaceId', isEqualTo: _currentNoteSpace!.id)
+            .get();
+        
+        final notes = snapshot.docs
+            .map((doc) => note_model.Note.fromFirestore(doc))
+            .where((note) => note.isDeleted != true)
+            .toList();
+        
+        notes.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        
+        print('강제 새로고침: Firestore에서 ${notes.length}개 노트 로드됨');
+        
+        // 캐시에 노트 추가
+        for (var note in notes) {
+          _noteRepository.updateCache(note);
+        }
+        
+        setState(() {
+          _notes = notes;
+          _isLoading = false;
+        });
+        
+        // 구독 다시 시작
+        _subscribeToNotes();
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${notes.length}개 노트를 새로고침했습니다')),
+        );
+      }
+    } catch (e) {
+      print('강제 새로고침 오류: $e');
+      setState(() {
+        _isLoading = false;
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('새로고침 중 오류가 발생했습니다: $e')),
+      );
+    }
+  }
+
+  void _navigateToCreateNote(String imageUrl, String extractedText, String translatedText) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CreateNoteScreen(
+          spaceId: _currentNoteSpace!.id,
+          userId: _auth.currentUser?.uid ?? 'test_user_id',
+          imageUrl: imageUrl,
+          extractedText: extractedText,
+          translatedText: translatedText,
+        ),
+      ),
+    );
+    
+    if (result != null && result is Map<String, dynamic> && result['success'] == true) {
+      print('노트 생성 완료, 노트 목록 새로고침');
+      
+      // 생성된 노트 ID가 있으면 직접 로드
+      if (result.containsKey('noteId')) {
+        final noteId = result['noteId'];
+        try {
+          final note = await _noteRepository.getNote(noteId);
+          print('생성된 노트 로드: ${note.id}, 제목: ${note.title}');
+          
+          // 노트 목록에 추가
+          setState(() {
+            _notes = [note, ..._notes];
+          });
+        } catch (e) {
+          print('생성된 노트 로드 오류: $e');
+        }
+      }
+      
+      _refreshNotes();
     }
   }
 }
