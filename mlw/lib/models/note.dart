@@ -85,46 +85,48 @@ class Note {
   /// 노트에서 강조된 텍스트 목록
   final Set<String> highlightedTexts;
   
+  /// 노트에서 알려진 플래시카드 목록
+  final Set<String> knownFlashCards;
+  
   /// 노트의 생성 시간
   final DateTime createdAt;
   
   /// 노트의 업데이트 시간
   final DateTime updatedAt;
-  
-  /// 노트에서 알려진 플래시카드 목록
-  final Map<String, bool> knownFlashCards;
 
   Note({
     required this.id,
     required this.spaceId,
     required this.userId,
-    required this.title,
-    required this.content,
-    required this.pages,
-    required this.flashCards,
-    required this.highlightedTexts,
-    required this.createdAt,
-    required this.updatedAt,
-    required this.knownFlashCards,
-  });
+    this.title = '',
+    this.content = '',
+    this.pages = const [],
+    this.flashCards = const [],
+    this.highlightedTexts = const {},
+    this.knownFlashCards = const {},
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) : 
+    this.createdAt = createdAt ?? DateTime.now(),
+    this.updatedAt = updatedAt ?? DateTime.now();
 
-  int get knownFlashCardsCount => knownFlashCards.values.where((known) => known).length;
+  int get knownFlashCardsCount => knownFlashCards.length;
 
   int get remainingFlashCardsCount => flashCards.length - knownFlashCardsCount;
 
   Map<String, dynamic> toFirestore() {
     return {
-      'userId': userId,
+      'id': id,
       'spaceId': spaceId,
+      'userId': userId,
       'title': title,
       'content': content,
       'pages': pages.map((page) => page.toJson()).toList(),
       'flashCards': flashCards.map((card) => card.toJson()).toList(),
       'highlightedTexts': highlightedTexts.toList(),
+      'knownFlashCards': knownFlashCards.toList(),
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
-      'knownFlashCards': knownFlashCards.map((key, value) => 
-        MapEntry(key, value ? Timestamp.fromDate(DateTime.now()) : null)),
     };
   }
 
@@ -134,69 +136,100 @@ class Note {
   /// 문서 데이터가 유효하지 않은 경우 오류를 기록하고 기본값을 사용합니다.
   factory Note.fromFirestore(DocumentSnapshot doc) {
     try {
-      final data = doc.data() as Map<String, dynamic>? ?? {};
-      print("Parsing note from Firestore: ${doc.id}");
+      if (!doc.exists) {
+        print('노트 문서가 존재하지 않음: ${doc.id}');
+        return Note.empty(id: doc.id);
+      }
       
-      // null 체크 추가
-      final String id = doc.id;
-      final String userId = data['userId'] as String? ?? '';
-      final String spaceId = data['spaceId'] as String? ?? '';
-      final String title = data['title'] as String? ?? '';
-      final String content = data['content'] as String? ?? '';
+      final data = doc.data() as Map<String, dynamic>?;
       
-      // 안전하게 데이터 추출
-      final List<dynamic> pagesData = data['pages'] as List<dynamic>? ?? [];
-      final List<dynamic> flashCardsData = data['flashCards'] as List<dynamic>? ?? [];
-      final List<dynamic> highlightedTextsData = data['highlightedTexts'] as List<dynamic>? ?? [];
+      if (data == null) {
+        print('노트 데이터가 null임: ${doc.id}');
+        return Note.empty(id: doc.id);
+      }
+      
+      print('노트 데이터 로드 시작: ${doc.id}');
       
       // 타임스탬프 처리
       final Timestamp? createdAtTimestamp = data['createdAt'] as Timestamp?;
       final Timestamp? updatedAtTimestamp = data['updatedAt'] as Timestamp?;
       
+      // 페이지 처리
+      List<Page> pages = [];
+      try {
+        final List<dynamic>? pagesData = data['pages'] as List<dynamic>?;
+        pages = pagesData?.map((pageData) => 
+          Page.fromJson(pageData as Map<String, dynamic>)
+        ).toList() ?? [];
+      } catch (e) {
+        print('페이지 데이터 파싱 오류: $e');
+      }
+      
+      // 플래시카드 처리
+      List<FlashCard> flashCards = [];
+      try {
+        final List<dynamic>? flashCardsData = data['flashCards'] as List<dynamic>?;
+        flashCards = flashCardsData?.map((cardData) => 
+          FlashCard.fromJson(cardData as Map<String, dynamic>)
+        ).toList() ?? [];
+      } catch (e) {
+        print('플래시카드 데이터 파싱 오류: $e');
+      }
+      
+      // 하이라이트된 텍스트 처리
+      Set<String> highlightedTexts = {};
+      try {
+        final List<dynamic>? highlightedTextsData = data['highlightedTexts'] as List<dynamic>?;
+        highlightedTexts = Set<String>.from(
+          highlightedTextsData?.map((item) => item.toString()) ?? []
+        );
+      } catch (e) {
+        print('하이라이트 텍스트 파싱 오류: $e');
+      }
+      
       // knownFlashCards 처리
-      final Map<String, dynamic> rawKnownCards = data['knownFlashCards'] as Map<String, dynamic>? ?? {};
-      final Map<String, bool> knownCards = {};
+      Set<String> knownFlashCards = {};
+      try {
+        final List<dynamic>? knownCardsData = data['knownFlashCards'] as List<dynamic>?;
+        knownFlashCards = Set<String>.from(knownCardsData?.map((item) => item.toString()) ?? []);
+      } catch (e) {
+        print('알고 있는 플래시카드 파싱 오류: $e');
+      }
       
-      rawKnownCards.forEach((key, value) {
-        knownCards[key] = value as bool? ?? false;
-      });
-      
-      return Note(
-        id: id,
-        spaceId: spaceId,
-        userId: userId,
-        title: title,
-        content: content,
-        pages: pagesData.map((pageData) {
-          return Page.fromJson(pageData as Map<String, dynamic>? ?? {});
-        }).toList(),
-        flashCards: flashCardsData.map((cardData) {
-          return FlashCard.fromJson(cardData as Map<String, dynamic>? ?? {});
-        }).toList(),
-        highlightedTexts: Set<String>.from(
-          highlightedTextsData.map((item) => item.toString())
-        ),
-        createdAt: createdAtTimestamp?.toDate() ?? DateTime.now(),
-        updatedAt: updatedAtTimestamp?.toDate() ?? DateTime.now(),
-        knownFlashCards: knownCards,
-      );
-    } catch (e) {
-      print("Error parsing note ${doc.id}: $e");
-      // 기본 Note 반환
+      print('노트 데이터 로드 완료: ${doc.id}');
       return Note(
         id: doc.id,
-        spaceId: '',
-        userId: '',
-        title: 'Error loading note',
-        content: '',
-        pages: [],
-        flashCards: [],
-        highlightedTexts: {},
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-        knownFlashCards: {},
+        spaceId: data['spaceId'] as String? ?? '',
+        userId: data['userId'] as String? ?? '',
+        title: data['title'] as String? ?? '',
+        content: data['content'] as String? ?? '',
+        pages: pages,
+        flashCards: flashCards,
+        highlightedTexts: highlightedTexts,
+        knownFlashCards: knownFlashCards,
+        createdAt: createdAtTimestamp?.toDate() ?? DateTime.now(),
+        updatedAt: updatedAtTimestamp?.toDate() ?? DateTime.now(),
       );
+    } catch (e) {
+      print('노트 파싱 오류 (${doc.id}): $e');
+      print('스택 트레이스: ${StackTrace.current}');
+      return Note.empty(id: doc.id);
     }
+  }
+
+  // 빈 노트 생성을 위한 팩토리 메서드
+  factory Note.empty({String id = ''}) {
+    return Note(
+      id: id,
+      spaceId: '',
+      userId: '',
+      title: 'Error loading note',
+      content: '',
+      pages: [],
+      flashCards: [],
+      highlightedTexts: {},
+      knownFlashCards: {},
+    );
   }
 
   Note copyWith({
@@ -208,9 +241,9 @@ class Note {
     List<Page>? pages,
     List<FlashCard>? flashCards,
     Set<String>? highlightedTexts,
+    Set<String>? knownFlashCards,
     DateTime? createdAt,
     DateTime? updatedAt,
-    Map<String, bool>? knownFlashCards,
   }) {
     return Note(
       id: id ?? this.id,
@@ -221,9 +254,9 @@ class Note {
       pages: pages ?? this.pages,
       flashCards: flashCards ?? this.flashCards,
       highlightedTexts: highlightedTexts ?? this.highlightedTexts,
+      knownFlashCards: knownFlashCards ?? this.knownFlashCards,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
-      knownFlashCards: knownFlashCards ?? this.knownFlashCards,
     );
   }
 

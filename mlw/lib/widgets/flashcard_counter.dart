@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:mlw/theme/tokens/color_tokens.dart';
 import 'package:mlw/theme/tokens/typography_tokens.dart';
-import 'package:mlw/screens/flash_card_screen.dart';
+import 'package:mlw/screens/flashcard_screen.dart';
 import 'package:mlw/models/note.dart' as note_model;
 
 class FlashcardCounter extends StatelessWidget {
@@ -73,10 +73,10 @@ class FlashcardCounter extends StatelessWidget {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => FlashCardScreen(
+              builder: (context) => FlashcardScreen.fromParts(
                 flashCards: flashCards,
                 title: noteTitle,
-                noteId: noteId, // noteId 전달
+                noteId: noteId,
               ),
             ),
           );

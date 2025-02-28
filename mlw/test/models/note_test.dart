@@ -67,6 +67,7 @@ void main() {
       final flashCard = FlashCard(
         front: '你好',
         back: '안녕하세요',
+        pinyin: 'nǐ hǎo',
       );
 
       final page = Page(
@@ -133,6 +134,7 @@ void main() {
       final flashCard = FlashCard(
         front: '你好',
         back: '안녕하세요',
+        pinyin: 'nǐ hǎo',
       );
 
       final page = Page(

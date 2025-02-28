@@ -105,4 +105,20 @@ class NoteRepository {
       rethrow;
     }
   }
+
+  // 노트 스페이스의 모든 노트 가져오기
+  Stream<List<Note>> getNotes(String spaceId) {
+    return _firestore
+        .collection('notes')
+        .where('spaceId', isEqualTo: spaceId)
+        .snapshots()
+        .map((snapshot) {
+          return snapshot.docs.map((doc) => Note.fromFirestore(doc)).toList();
+        });
+  }
+  
+  // 노트 스페이스의 모든 노트 관찰하기 (getNotes와 동일한 기능)
+  Stream<List<Note>> watchNotes(String spaceId) {
+    return getNotes(spaceId);
+  }
 } 

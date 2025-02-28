@@ -184,66 +184,36 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _loadNotes() async {
-    print("Loading notes...");
-    
-    if (!mounted) return;
-    
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
-
-    final userId = widget.userId ?? _auth.currentUser?.uid ?? 'test_user';
-    
-    // 수정된 코드: 실제 노트 스페이스 ID 사용
-    final spaceId = widget.spaceId ?? _currentNoteSpace?.id;
-    
-    print("Loading notes for userId: $userId, spaceId: $spaceId");
-    
-    // 노트 스페이스 ID가 없으면 로드하지 않음
-    if (spaceId == null) {
-      print("No note space ID available, cannot load notes");
-      setState(() {
-        _isLoading = false;
-        _error = "노트 스페이스 ID가 없습니다";
-      });
-      return;
-    }
-    
+  Future<void> _loadNotes() async {
     try {
-      // 직접 Firestore에서 데이터 가져오기
-      final snapshot = await FirebaseFirestore.instance
-          .collection('notes')
-          .where('userId', isEqualTo: userId)
-          .where('spaceId', isEqualTo: spaceId)
-          .get();
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
       
-      print("Found ${snapshot.docs.length} notes in Firestore");
+      print('노트 로딩 시작: ${_currentNoteSpace?.id}');
       
-      // 노트 모델로 변환
-      final loadedNotes = snapshot.docs.map((doc) {
-        try {
-          return note_model.Note.fromFirestore(doc);
-        } catch (e) {
-          print("Error parsing note ${doc.id}: $e");
-          return null;
-        }
-      }).where((note) => note != null).cast<note_model.Note>().toList();
+      if (_currentNoteSpace == null) {
+        throw Exception('No note space selected');
+      }
       
-      // 메모리에서 정렬
-      loadedNotes.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      final notes = await _noteRepository.getNotes(_currentNoteSpace!.id).first;
+      print('노트 ${notes.length}개 로드됨');
       
-      print("Successfully parsed ${loadedNotes.length} notes");
+      for (var note in notes) {
+        print('노트 정보: id=${note.id}, title=${note.title}, flashCards=${note.flashCards.length}, knownFlashCards=${note.knownFlashCards.length}');
+      }
       
       if (mounted) {
         setState(() {
-          _notes = loadedNotes;
+          _notes = notes;
           _isLoading = false;
         });
       }
     } catch (e) {
-      print('Error loading notes: $e');
+      print('노트 로딩 오류: $e');
+      print('스택 트레이스: ${StackTrace.current}');
+      
       if (mounted) {
         setState(() {
           _error = e.toString();

@@ -99,6 +99,58 @@ class TranslatorService {
       return 'Translation error';
     }
   }
+
+  // 중국어 문장 구분 개선
+  List<String> splitChineseSentences(String text) {
+    // 중국어 구두점 정의
+    final punctuations = [
+      '。', '！', '？', // 문장 종결 부호
+      '，', '；', '：', // 문장 내 구두점
+      '\n', '\r\n'     // 줄바꿈
+    ];
+    
+    List<String> sentences = [];
+    String currentSentence = '';
+    
+    for (int i = 0; i < text.length; i++) {
+      currentSentence += text[i];
+      
+      // 구두점 또는 마지막 문자인 경우
+      if (punctuations.contains(text[i]) || i == text.length - 1) {
+        // 빈 문장이 아닌 경우에만 추가
+        if (currentSentence.trim().isNotEmpty) {
+          sentences.add(currentSentence.trim());
+        }
+        currentSentence = '';
+      }
+    }
+    
+    // 마지막 문장 처리
+    if (currentSentence.trim().isNotEmpty) {
+      sentences.add(currentSentence.trim());
+    }
+    
+    return sentences;
+  }
+
+  // 번역 전처리 및 후처리
+  Future<String> translateSentence(String text, String targetLanguage, {String sourceLanguage = 'auto'}) async {
+    if (text.isEmpty) return '';
+    
+    // 특수 문자 처리
+    final processedText = text
+        .replaceAll('，', ', ')
+        .replaceAll('：', ': ')
+        .replaceAll('；', '; ');
+    
+    print('번역 전처리 텍스트: $processedText');
+    
+    final translatedText = await translate(processedText, targetLanguage, sourceLanguage: sourceLanguage);
+    
+    print('번역 결과: $translatedText');
+    
+    return translatedText;
+  }
 }
 
 // 단일 번역 서비스 인스턴스

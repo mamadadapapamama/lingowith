@@ -446,6 +446,42 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     }
   }
 
+  Future<void> _saveFlashCards() async {
+    try {
+      print('플래시카드 저장 시작: ${_note.id}, 카드 수: ${_note.flashCards.length}');
+      
+      // 깊은 복사를 통해 새 객체 생성
+      final updatedNote = _note.copyWith(
+        flashCards: List<note_model.FlashCard>.from(_note.flashCards),
+        updatedAt: DateTime.now(),
+      );
+      
+      // Firestore 업데이트
+      await FirebaseFirestore.instance
+          .collection('notes')
+          .doc(_note.id)
+          .update(updatedNote.toFirestore());
+      
+      print('플래시카드 저장 완료: ${_note.id}');
+      
+      // 저장 확인
+      final docSnapshot = await FirebaseFirestore.instance
+          .collection('notes')
+          .doc(_note.id)
+          .get();
+      
+      if (docSnapshot.exists) {
+        final savedNote = note_model.Note.fromFirestore(docSnapshot);
+        print('저장된 플래시카드 수: ${savedNote.flashCards.length}');
+      }
+    } catch (e) {
+      print('플래시카드 저장 오류: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('플래시카드 저장 중 오류가 발생했습니다: $e')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
@@ -654,6 +690,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
 
   @override
   void dispose() {
+    _saveFlashCards();
     _flutterTts.stop();
     super.dispose();
   }
