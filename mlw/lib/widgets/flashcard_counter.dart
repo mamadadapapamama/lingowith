@@ -34,6 +34,11 @@ class FlashcardCounter extends StatelessWidget {
 
     // 남은 카드 수 계산
     final remainingCards = flashCards.length - knownCount;
+    
+    // 남은 카드가 없으면 표시하지 않음
+    if (remainingCards <= 0 && !alwaysShow) {
+      return const SizedBox.shrink();
+    }
 
     Widget counter = Container(
       padding: const EdgeInsets.symmetric(
@@ -63,7 +68,7 @@ class FlashcardCounter extends StatelessWidget {
       ),
     );
 
-    if (!isInteractive) return counter;
+    if (!isInteractive || remainingCards <= 0) return counter;
 
     return Material(
       color: Colors.transparent,

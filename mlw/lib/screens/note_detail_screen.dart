@@ -476,9 +476,11 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       }
     } catch (e) {
       print('플래시카드 저장 오류: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('플래시카드 저장 중 오류가 발생했습니다: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('플래시카드 저장 중 오류가 발생했습니다: $e')),
+        );
+      }
     }
   }
 

@@ -252,7 +252,8 @@ class Note {
       title: title ?? this.title,
       content: content ?? this.content,
       pages: pages ?? this.pages,
-      flashCards: flashCards ?? this.flashCards,
+      flashCards: flashCards ?? this.flashCards.where((card) => 
+        !knownFlashCards!.contains(card.front)).toList(),
       highlightedTexts: highlightedTexts ?? this.highlightedTexts,
       knownFlashCards: knownFlashCards ?? this.knownFlashCards,
       createdAt: createdAt ?? this.createdAt,

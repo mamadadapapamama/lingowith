@@ -114,7 +114,7 @@ class _FlashcardWidgetState extends State<FlashcardWidget> {
               ],
               const SizedBox(height: 32),
               Text(
-                _showFront ? '탭하여 뒤집기' : '탭하여 앞면 보기',
+                _showFront ? '탭하여 뜻 보기' : '탭하여 단어 보기',
                 style: TypographyTokens.getStyle('body.small').copyWith(
                   color: ColorTokens.getColor('text.secondary'),
                 ),

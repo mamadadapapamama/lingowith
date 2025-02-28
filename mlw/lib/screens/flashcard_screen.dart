@@ -83,6 +83,17 @@ class _FlashcardScreenState extends State<FlashcardScreen> {
       }
     });
     
+    // 완료 메시지 표시
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('이제 이 단어를 마스터했어요!'),
+          duration: Duration(seconds: 1),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+    
     // 모든 카드를 완료했을 때
     if (_flashCards.isEmpty) {
       if (mounted) {
