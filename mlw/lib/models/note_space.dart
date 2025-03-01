@@ -10,6 +10,7 @@ class NoteSpace {
   final bool isPinyinEnabled;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final bool isDeleted;
 
   const NoteSpace({
     required this.id,
@@ -21,6 +22,7 @@ class NoteSpace {
     this.isPinyinEnabled = true,
     required this.createdAt,
     required this.updatedAt,
+    this.isDeleted = false,
   });
 
   factory NoteSpace.fromJson(Map<String, dynamic> json) {
@@ -52,6 +54,7 @@ class NoteSpace {
   // Firestore 변환 메서드
   Map<String, dynamic> toFirestore() {
     return {
+      'id': id,
       'userId': userId,
       'name': name,
       'language': language,
@@ -60,6 +63,7 @@ class NoteSpace {
       'isPinyinEnabled': isPinyinEnabled,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
+      'isDeleted': isDeleted,
     };
   }
 
@@ -67,19 +71,12 @@ class NoteSpace {
     final data = doc.data() as Map<String, dynamic>;
     return NoteSpace(
       id: doc.id,
-      userId: data['userId'] as String,
-      name: data['name'] as String,
-      language: data['language'] as String,
-      createdAt: data['createdAt'] is Timestamp 
-          ? (data['createdAt'] as Timestamp).toDate()
-          : (data['createdAt'] is String 
-              ? DateTime.parse(data['createdAt'])
-              : DateTime.now()),
-      updatedAt: data['updatedAt'] is Timestamp
-          ? (data['updatedAt'] as Timestamp).toDate()
-          : (data['updatedAt'] is String
-              ? DateTime.parse(data['updatedAt'])
-              : DateTime.now()),
+      userId: data['userId'] ?? '',
+      name: data['name'] ?? '',
+      language: data['language'] ?? 'ko',
+      createdAt: (data['createdAt'] as Timestamp).toDate(),
+      updatedAt: (data['updatedAt'] as Timestamp).toDate(),
+      isDeleted: data['isDeleted'] ?? false,
     );
   }
 
@@ -94,6 +91,7 @@ class NoteSpace {
     bool? isPinyinEnabled,
     DateTime? createdAt,
     DateTime? updatedAt,
+    bool? isDeleted,
   }) {
     return NoteSpace(
       id: id ?? this.id,
@@ -105,6 +103,7 @@ class NoteSpace {
       isPinyinEnabled: isPinyinEnabled ?? this.isPinyinEnabled,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      isDeleted: isDeleted ?? this.isDeleted,
     );
   }
 

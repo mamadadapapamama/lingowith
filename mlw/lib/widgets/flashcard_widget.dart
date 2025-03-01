@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:mlw/models/note.dart';
+import 'package:mlw/models/flash_card.dart';
 import 'package:mlw/theme/tokens/color_tokens.dart';
 import 'package:mlw/theme/tokens/typography_tokens.dart';
 import 'package:flutter_tts/flutter_tts.dart';

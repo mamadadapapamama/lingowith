@@ -1,24 +1,51 @@
 import 'package:flutter/material.dart';
 import 'package:mlw/models/note.dart';
+import 'package:mlw/models/flash_card.dart';
+// FlashCard 클래스 충돌 해결을 위해 별칭 사용
+import 'package:mlw/models/flash_card.dart' as flash_card_model;
+import 'package:mlw/repositories/note_repository.dart';
+import 'dart:math';
+import 'package:mlw/theme/app_theme.dart';
 import 'package:mlw/theme/tokens/color_tokens.dart';
 import 'package:mlw/theme/tokens/typography_tokens.dart';
-import 'package:mlw/widgets/flashcard_widget.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:mlw/repositories/note_repository.dart';
 
 class FlashcardScreen extends StatefulWidget {
   final Note note;
-  
-  const FlashcardScreen({Key? key, required this.note}) : super(key: key);
+  final Function(int)? onFlashcardCompleted;
 
-  FlashcardScreen.fromParts({
+  const FlashcardScreen({
     Key? key,
-    required List<FlashCard> flashCards,
+    required this.note,
+    this.onFlashcardCompleted,
+  }) : super(key: key);
+
+  factory FlashcardScreen.fromParts({
+    Key? key,
+    required List<dynamic> flashCards,
     required String title,
     required String noteId,
-  }) : this(
-    key: key,
-    note: Note(
+    Function(int)? onFlashcardCompleted,
+  }) {
+    // FlashCard 객체로 변환
+    final List<FlashCard> cards = flashCards.map((card) {
+      if (card is FlashCard) {
+        return card;
+      }
+      
+      // 동적 데이터에서 FlashCard 생성
+      return FlashCard(
+        front: card.front,
+        back: card.back,
+        pinyin: card.pinyin ?? '',
+        noteId: noteId,
+        createdAt: DateTime.now(),
+        reviewCount: 0,
+        // imageUrl 필드 제거 (필요 없음)
+      );
+    }).toList();
+
+    // Note 객체 생성
+    final note = Note(
       id: noteId,
       spaceId: '',
       userId: '',
@@ -30,197 +57,316 @@ class FlashcardScreen extends StatefulWidget {
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
       isDeleted: false,
-      flashcardCount: 0,
+      flashcardCount: cards.length,
       reviewCount: 0,
       lastReviewedAt: null,
-    ),
-  );
+      pages: [],
+      flashCards: cards,
+      highlightedTexts: {},
+      knownFlashCards: {},
+    );
+
+    return FlashcardScreen(
+      key: key,
+      note: note,
+      onFlashcardCompleted: onFlashcardCompleted,
+    );
+  }
 
   @override
   _FlashcardScreenState createState() => _FlashcardScreenState();
 }
 
 class _FlashcardScreenState extends State<FlashcardScreen> {
-  late List<FlashCard> _flashCards;
+  final NoteRepository _noteRepository = NoteRepository();
+  
+  // FlashCard 타입을 flash_card_model.FlashCard로 변경
+  late List<flash_card_model.FlashCard> _flashCards;
   int _currentIndex = 0;
-
+  bool _showAnswer = false;
+  bool _isCompleted = false;
+  int _knownCount = 0;
+  
+  // 학습 완료 여부를 추적하는 변수
+  bool _isLearningCompleted = false;
+  
   @override
   void initState() {
     super.initState();
-    _flashCards = List.from(widget.note.flashCards);
+    _initializeFlashcards();
   }
-
-  void _nextCard() {
-    if (_currentIndex < _flashCards.length - 1) {
+  
+  void _initializeFlashcards() {
+    // 플래시카드 목록 초기화
+    _flashCards = List.from(widget.note.flashCards);
+    
+    // 플래시카드가 없으면 빈 목록으로 초기화
+    if (_flashCards.isEmpty) {
+      _isCompleted = true;
+      return;
+    }
+    
+    // 플래시카드 섞기
+    _flashCards.shuffle(Random());
+    
+    // 이미 알고 있는 플래시카드 필터링 (선택적)
+    // _flashCards = _flashCards.where((card) => 
+    //   !widget.note.knownFlashCards.contains(card.front)).toList();
+    
+    _currentIndex = 0;
+    _showAnswer = false;
+    _isCompleted = _flashCards.isEmpty;
+    _knownCount = 0;
+  }
+  
+  void _nextCard({required bool isKnown}) async {
+    if (_currentIndex >= _flashCards.length - 1) {
+      // 마지막 카드인 경우
+      if (isKnown) {
+        _markCardAsKnown(_flashCards[_currentIndex]);
+        _knownCount++;
+      }
+      
+      setState(() {
+        _isCompleted = true;
+        _isLearningCompleted = true;
+      });
+      
+      // 학습 완료 콜백 호출
+      if (widget.onFlashcardCompleted != null) {
+        widget.onFlashcardCompleted!(_knownCount);
+      }
+    } else {
+      // 다음 카드로 이동
+      if (isKnown) {
+        _markCardAsKnown(_flashCards[_currentIndex]);
+        _knownCount++;
+      }
+      
       setState(() {
         _currentIndex++;
+        _showAnswer = false;
       });
     }
   }
-
-  void _previousCard() {
-    if (_currentIndex > 0) {
-      setState(() {
-        _currentIndex--;
-      });
-    }
-  }
-
-  Future<void> _markAsDone(FlashCard card) async {
+  
+  // FlashCard 타입을 flash_card_model.FlashCard로 변경
+  Future<void> _markCardAsKnown(flash_card_model.FlashCard card) async {
     try {
-      print('플래시카드 완료 처리 시작: ${card.front}');
+      // 현재 노트의 knownFlashCards 집합에 추가
+      final updatedKnownCards = Set<String>.from(widget.note.knownFlashCards);
+      updatedKnownCards.add(card.front);
       
       // 노트 업데이트
       final updatedNote = widget.note.copyWith(
-        knownFlashCards: Set<String>.from(widget.note.knownFlashCards)..add(card.front),
-        updatedAt: DateTime.now(),
+        knownFlashCards: updatedKnownCards,
+        flashcardCount: widget.note.flashcardCount,
+        reviewCount: widget.note.reviewCount,
       );
       
-      // Firestore 업데이트
-      await FirebaseFirestore.instance
-          .collection('notes')
-          .doc(updatedNote.id)
-          .update(updatedNote.toJson());
-      
-      // 캐시 업데이트를 위해 NoteRepository 사용
-      final noteRepository = NoteRepository();
-      await noteRepository.updateNote(updatedNote);
-      
-      print('플래시카드 완료 처리 완료: ${card.front}');
-      
-      // 다음 카드로 이동
-      if (_currentIndex < _flashCards.length - 1) {
-        _nextCard();
-      } else {
-        // 모든 카드 완료
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('모든 플래시카드를 완료했습니다!')),
-          );
-          // 결과를 true로 반환하여 데이터가 변경되었음을 알림
-          Navigator.pop(context, true);
-        }
-      }
+      await _noteRepository.updateNote(updatedNote);
     } catch (e) {
-      print('플래시카드 완료 처리 오류: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('플래시카드 완료 처리 중 오류가 발생했습니다: $e')),
-        );
-      }
+      print('플래시카드 상태 업데이트 오류: $e');
     }
   }
-
+  
+  void _resetLearning() {
+    setState(() {
+      _initializeFlashcards();
+      _isLearningCompleted = false;
+    });
+  }
+  
   @override
   Widget build(BuildContext context) {
-    if (_flashCards.isEmpty) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text('플래시카드'),
-          backgroundColor: ColorTokens.getColor('primary.400'),
-        ),
-        body: Center(
-          child: Text(
-            '플래시카드가 없습니다',
-            style: TypographyTokens.getStyle('body.large'),
-          ),
-        ),
-      );
-    }
-
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          '플래시카드 (${_currentIndex + 1}/${_flashCards.length})',
-          style: TypographyTokens.getStyle('heading.h3').copyWith(
-            color: ColorTokens.getColor('base.0'),
+        title: const Text('플래시카드'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _resetLearning,
+            tooltip: '다시 시작',
+          ),
+        ],
+      ),
+      body: _isCompleted ? _buildCompletionScreen() : _buildFlashcardScreen(),
+    );
+  }
+  
+  Widget _buildFlashcardScreen() {
+    if (_flashCards.isEmpty) {
+      return const Center(
+        child: Text('플래시카드가 없습니다. 노트에 플래시카드를 추가해주세요.'),
+      );
+    }
+    
+    final currentCard = _flashCards[_currentIndex];
+    
+    return Column(
+      children: [
+        LinearProgressIndicator(
+          value: (_currentIndex + 1) / _flashCards.length,
+          backgroundColor: Colors.grey.shade200,
+          valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).primaryColor),
+        ),
+        
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          child: Text(
+            '${_currentIndex + 1} / ${_flashCards.length}',
+            style: Theme.of(context).textTheme.bodySmall,
           ),
         ),
-        backgroundColor: ColorTokens.getColor('primary.400'),
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: GestureDetector(
-              onHorizontalDragEnd: (details) {
-                if (details.primaryVelocity! > 0) {
-                  // 오른쪽으로 스와이프 - 이전 카드
-                  _previousCard();
-                } else if (details.primaryVelocity! < 0) {
-                  // 왼쪽으로 스와이프 - 다음 카드
-                  _nextCard();
-                }
-              },
-              onVerticalDragEnd: (details) {
-                if (details.primaryVelocity! < 0) {
-                  // 위로 스와이프 - 완료 표시
-                  _markAsDone(_flashCards[_currentIndex]);
-                }
-              },
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: FlashcardWidget(
-                  flashCard: _flashCards[_currentIndex],
-                  onDone: () => _markAsDone(_flashCards[_currentIndex]),
+        
+        Expanded(
+          child: GestureDetector(
+            onTap: () {
+              setState(() {
+                _showAnswer = !_showAnswer;
+              });
+            },
+            child: Card(
+              margin: const EdgeInsets.all(16.0),
+              elevation: 4.0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16.0),
+              ),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      _showAnswer ? '답변' : '질문',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: 16.0),
+                    Text(
+                      _showAnswer ? currentCard.back : currentCard.front,
+                      style: Theme.of(context).textTheme.titleLarge,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 24.0),
+                    if (!_showAnswer)
+                      ElevatedButton(
+                        onPressed: () {
+                          setState(() {
+                            _showAnswer = true;
+                          });
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Theme.of(context).primaryColor,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24.0,
+                            vertical: 12.0,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8.0),
+                          ),
+                        ),
+                        child: const Text('답변 보기'),
+                      ),
+                  ],
                 ),
               ),
             ),
           ),
-          _buildBottomBar(),
-        ],
-      ),
+        ),
+        
+        if (_showAnswer)
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => _nextCard(isKnown: false),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red.shade400,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12.0),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8.0),
+                      ),
+                    ),
+                    child: const Text('모름'),
+                  ),
+                ),
+                const SizedBox(width: 16.0),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => _nextCard(isKnown: true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green.shade400,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12.0),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8.0),
+                      ),
+                    ),
+                    child: const Text('알고 있음'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
     );
   }
-
-  Widget _buildBottomBar() {
-    return Container(
-      height: 80,
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      decoration: BoxDecoration(
-        color: ColorTokens.getColor('base.0'),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 4,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  
+  Widget _buildCompletionScreen() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          IconButton(
-            icon: Icon(
-              Icons.arrow_back_ios,
-              color: _currentIndex > 0 
-                ? ColorTokens.getColor('primary.400') 
-                : ColorTokens.getColor('text.disabled'),
-            ),
-            onPressed: _currentIndex > 0 ? _previousCard : null,
+          Icon(
+            Icons.check_circle_outline,
+            size: 80.0,
+            color: Colors.green.shade400,
           ),
+          const SizedBox(height: 24.0),
+          Text(
+            '학습 완료!',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 16.0),
+          Text(
+            '알고 있는 카드: $_knownCount / ${_flashCards.length}',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 32.0),
           ElevatedButton(
-            onPressed: () => _markAsDone(_flashCards[_currentIndex]),
+            onPressed: _resetLearning,
             style: ElevatedButton.styleFrom(
-              backgroundColor: ColorTokens.getColor('success.400'),
-              foregroundColor: ColorTokens.getColor('base.0'),
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              backgroundColor: Theme.of(context).primaryColor,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(
+                horizontal: 24.0,
+                vertical: 12.0,
+              ),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(8.0),
               ),
             ),
-            child: Text(
-              'Done',
-              style: TypographyTokens.getStyle('button.medium'),
-            ),
+            child: const Text('다시 학습하기'),
           ),
-          IconButton(
-            icon: Icon(
-              Icons.arrow_forward_ios,
-              color: _currentIndex < _flashCards.length - 1 
-                ? ColorTokens.getColor('primary.400') 
-                : ColorTokens.getColor('text.disabled'),
+          const SizedBox(height: 16.0),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context, true); // 학습 완료 후 true 반환
+            },
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).primaryColor,
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16.0,
+                vertical: 8.0,
+              ),
             ),
-            onPressed: _currentIndex < _flashCards.length - 1 ? _nextCard : null,
+            child: const Text('돌아가기'),
           ),
         ],
       ),

@@ -20,7 +20,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final NoteRepository _noteRepository = NoteRepository();
-  final NoteSpaceRepository _spaceRepository = NoteSpaceRepository();
+  final NoteRepository _spaceRepository = NoteRepository();
   
   late HomeScreenLogic _logic;
   ImageHandler? _imageHandler;

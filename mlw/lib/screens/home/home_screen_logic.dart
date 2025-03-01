@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:mlw/models/note.dart' as note_model;
 import 'package:mlw/models/note_space.dart';
 import 'package:mlw/repositories/note_repository.dart';
-import 'package:mlw/repositories/note_space_repository.dart';
 import 'package:mlw/screens/note_detail_screen.dart';
 import 'package:mlw/screens/create_note_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -14,7 +13,7 @@ import 'dart:convert';
 class HomeScreenLogic {
   final FirebaseAuth auth;
   final NoteRepository noteRepository;
-  final NoteSpaceRepository spaceRepository;
+  final NoteRepository spaceRepository;
   final Function(List<note_model.Note>) onNotesChanged;
   final Function(NoteSpace?) onNoteSpaceChanged;
   final Function(bool) onLoadingChanged;

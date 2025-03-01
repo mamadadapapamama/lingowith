@@ -4,9 +4,10 @@ import 'package:mlw/theme/tokens/color_tokens.dart';
 import 'package:mlw/theme/tokens/typography_tokens.dart';
 import 'package:mlw/screens/flashcard_screen.dart';
 import 'package:mlw/models/note.dart' as note_model;
+import 'package:mlw/models/flash_card.dart';
 
 class FlashcardCounter extends StatelessWidget {
-  final List<note_model.FlashCard> flashCards;
+  final List<FlashCard> flashCards;
   final String noteTitle;
   final String noteId; // 노트 ID 추가
   final int knownCount;

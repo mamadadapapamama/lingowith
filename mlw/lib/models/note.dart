@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:mlw/models/flash_card.dart';
 
 class Page {
   final String imageUrl;
@@ -24,34 +25,6 @@ class Page {
       imageUrl: json['imageUrl'] as String? ?? '',
       extractedText: json['extractedText'] as String? ?? '',
       translatedText: json['translatedText'] as String? ?? '',
-    );
-  }
-}
-
-class FlashCard {
-  final String front;
-  final String back;
-  final String pinyin;
-
-  FlashCard({
-    required this.front,
-    required this.back,
-    required this.pinyin,
-  });
-
-  Map<String, dynamic> toJson() {
-    return {
-      'front': front,
-      'back': back,
-      'pinyin': pinyin,
-    };
-  }
-
-  factory FlashCard.fromJson(Map<String, dynamic> json) {
-    return FlashCard(
-      front: json['front'] as String? ?? '',
-      back: json['back'] as String? ?? '',
-      pinyin: json['pinyin'] as String? ?? '',
     );
   }
 }
@@ -160,59 +133,66 @@ class Note {
   factory Note.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     
-    // createdAt과 updatedAt 필드 처리
+    // Timestamp를 DateTime으로 변환
     DateTime createdAt;
-    DateTime updatedAt;
+    if (data['createdAt'] is Timestamp) {
+      createdAt = (data['createdAt'] as Timestamp).toDate();
+    } else if (data['createdAt'] is DateTime) {
+      createdAt = data['createdAt'] as DateTime;
+    } else {
+      createdAt = DateTime.now(); // 기본값
+    }
     
-    try {
-      // createdAt 처리
-      if (data['createdAt'] is Timestamp) {
-        createdAt = (data['createdAt'] as Timestamp).toDate();
-      } else if (data['createdAt'] is String) {
-        createdAt = DateTime.parse(data['createdAt'] as String);
-      } else {
-        createdAt = DateTime.now();
+    DateTime updatedAt;
+    if (data['updatedAt'] is Timestamp) {
+      updatedAt = (data['updatedAt'] as Timestamp).toDate();
+    } else if (data['updatedAt'] is DateTime) {
+      updatedAt = data['updatedAt'] as DateTime;
+    } else {
+      updatedAt = DateTime.now(); // 기본값
+    }
+    
+    // 플래시카드 목록 변환
+    List<FlashCard> flashCards = [];
+    if (data['flashCards'] != null) {
+      flashCards = (data['flashCards'] as List)
+          .map((card) => FlashCard.fromJson(card as Map<String, dynamic>))
+          .toList();
+    }
+    
+    // 알고 있는 플래시카드 집합 변환
+    Set<String> knownFlashCards = {};
+    if (data['knownFlashCards'] != null) {
+      if (data['knownFlashCards'] is Map) {
+        knownFlashCards = (data['knownFlashCards'] as Map).keys.toSet().cast<String>();
+      } else if (data['knownFlashCards'] is List) {
+        knownFlashCards = Set<String>.from(data['knownFlashCards'] as List);
       }
-      
-      // updatedAt 처리
-      if (data['updatedAt'] is Timestamp) {
-        updatedAt = (data['updatedAt'] as Timestamp).toDate();
-      } else if (data['updatedAt'] is String) {
-        updatedAt = DateTime.parse(data['updatedAt'] as String);
-      } else {
-        updatedAt = DateTime.now();
-      }
-    } catch (e) {
-      print('날짜 변환 오류: $e');
-      createdAt = DateTime.now();
-      updatedAt = DateTime.now();
     }
     
     return Note(
       id: doc.id,
-      spaceId: data['spaceId'] as String,
-      userId: data['userId'] as String,
-      title: data['title'] as String? ?? '제목 없음',
-      content: data['content'] as String? ?? '',
-      imageUrl: data['imageUrl'] as String? ?? '',
-      extractedText: data['extractedText'] as String? ?? '',
-      translatedText: data['translatedText'] as String? ?? '',
+      spaceId: data['spaceId'] ?? '',
+      userId: data['userId'] ?? '',
+      title: data['title'] ?? '',
+      content: data['content'] ?? '',
+      imageUrl: data['imageUrl'] ?? '',
+      extractedText: data['extractedText'] ?? '',
+      translatedText: data['translatedText'] ?? '',
       createdAt: createdAt,
       updatedAt: updatedAt,
-      isDeleted: data['isDeleted'] as bool? ?? false,
-      flashcardCount: data['flashcardCount'] as int? ?? 0,
-      reviewCount: data['reviewCount'] as int? ?? 0,
+      isDeleted: data['isDeleted'] ?? false,
+      flashcardCount: data['flashcardCount'] ?? 0,
+      reviewCount: data['reviewCount'] ?? 0,
       lastReviewedAt: data['lastReviewedAt'] is Timestamp 
           ? (data['lastReviewedAt'] as Timestamp).toDate() 
           : null,
       pages: (data['pages'] as List<dynamic>?)
           ?.map((page) => Page.fromJson(page))
           .toList() ?? [],
-      flashCards: (data['flashCards'] as List<dynamic>?)
-          ?.map((card) => FlashCard.fromJson(card))
-          .toList() ?? [],
+      flashCards: flashCards,
       highlightedTexts: Set<String>.from(data['highlightedTexts'] ?? []),
-      knownFlashCards: Set<String>.from(data['knownFlashCards'] ?? []),
+      knownFlashCards: knownFlashCards,
     );
   }
 
@@ -310,17 +290,9 @@ class Note {
       imageUrl: json['imageUrl'] ?? '',
       extractedText: json['extractedText'] ?? '',
       translatedText: json['translatedText'] ?? '',
-      createdAt: json['createdAt'] is Timestamp 
-          ? (json['createdAt'] as Timestamp).toDate()
-          : (json['createdAt'] is String 
-              ? DateTime.parse(json['createdAt'])
-              : DateTime.now()),
-      updatedAt: json['updatedAt'] is Timestamp
-          ? (json['updatedAt'] as Timestamp).toDate()
-          : (json['updatedAt'] is String
-              ? DateTime.parse(json['updatedAt'])
-              : DateTime.now()),
-      isDeleted: json['isDeleted'],
+      createdAt: _parseTimestamp(json['createdAt']),
+      updatedAt: _parseTimestamp(json['updatedAt']),
+      isDeleted: json['isDeleted'] ?? false,
       flashcardCount: json['flashcardCount'] ?? 0,
       reviewCount: json['reviewCount'] ?? 0,
       lastReviewedAt: json['lastReviewedAt'] is Timestamp
@@ -335,6 +307,15 @@ class Note {
       highlightedTexts: Set<String>.from(json['highlightedTexts'] ?? []),
       knownFlashCards: Set<String>.from(json['knownFlashCards'] ?? []),
     );
+  }
+
+  static DateTime _parseTimestamp(dynamic timestamp) {
+    if (timestamp is Timestamp) {
+      return timestamp.toDate();
+    } else if (timestamp is String) {
+      return DateTime.parse(timestamp);
+    }
+    return DateTime.now(); // Default value
   }
 
   // 호환성을 위한 toFirestore 메서드

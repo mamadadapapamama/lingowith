@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mlw/models/note.dart' as note_model;
+import 'package:mlw/models/flash_card.dart' as flash_card_model;
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:mlw/widgets/note_page.dart';
 import 'dart:io';
@@ -13,6 +14,9 @@ import 'package:mlw/services/image_processing_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mlw/repositories/note_repository.dart';
 import 'dart:convert';
+import 'package:image_picker/image_picker.dart';
+import 'package:mlw/screens/flashcard_screen.dart';
+import 'package:mlw/services/translator_service.dart';
 
 class NoteDetailScreen extends StatefulWidget {
   final String noteId;
@@ -51,24 +55,17 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   int _currentPageIndex = 0;
   TextDisplayMode _displayMode = TextDisplayMode.both;
   Set<String> _highlightedTexts = {};
-  int _flashCardCount = 0;
   late note_model.Note _note;
   late ImageProcessingService _imageProcessingService;
-  bool _isTranslating = false;
-  String _translatedText = '';
   bool _isNoteModified = false;
-  bool _isLoading = true;
-  String? _error;
   final NoteRepository _noteRepository = NoteRepository();
+  final TranslatorService _translatorService = TranslatorService();
   
   late TextEditingController _titleController;
   late TextEditingController _contentController;
   late TextEditingController _translatedContentController;
   
-  bool _isSaving = false;
   String? _imageUrl;
-  bool _isEditing = false;
-  
   // 노트 ID와 스페이스 ID를 저장할 변수
   late String _noteId;
   late String _spaceId;
@@ -84,7 +81,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       _titleController = TextEditingController(text: widget.note!.title);
       _contentController = TextEditingController(text: widget.note!.content);
       _translatedContentController = TextEditingController(
-        text: widget.note!.translatedText ?? '',
+        text: widget.note!.translatedText,
       );
       _imageUrl = widget.note!.imageUrl;
     } else {
@@ -104,7 +101,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     // 노트 데이터 로드
     _loadNoteData();
     _imageProcessingService = ImageProcessingService(
-      translatorService: translatorService,
+      translatorService: _translatorService,
     );
   }
 
@@ -112,15 +109,12 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     try {
       print('노트 데이터 로드 시작: $_noteId');
       setState(() {
-        _isLoading = true;
-        _error = null;
       });
       
       // 노트 ID가 비어있으면 로드하지 않음
       if (_noteId.isEmpty) {
         print('노트 ID가 비어있어 로드하지 않음');
         setState(() {
-          _isLoading = false;
         });
         return;
       }
@@ -138,7 +132,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
           _contentController.text = noteData['content'] ?? widget.initialContent;
           _translatedContentController.text = noteData['translatedText'] ?? widget.initialTranslatedContent ?? '';
           _imageUrl = noteData['imageUrl'] ?? widget.initialImageUrl;
-          _isLoading = false;
         });
         
         print('캐시에서 노트 데이터 로드 완료');
@@ -163,7 +156,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
               _contentController.text = noteData['content'] ?? widget.initialContent;
               _translatedContentController.text = noteData['translatedText'] ?? widget.initialTranslatedContent ?? '';
               _imageUrl = noteData['imageUrl'] ?? widget.initialImageUrl;
-              _isLoading = false;
             });
             
             // 캐시에 저장
@@ -173,48 +165,26 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
           } else {
             print('노트 데이터가 null입니다');
             setState(() {
-              _isLoading = false;
             });
           }
         } else {
           print('노트 문서가 존재하지 않습니다');
           setState(() {
-            _isLoading = false;
           });
         }
       } catch (e) {
         print('Firestore에서 노트 데이터 로드 오류: $e');
         setState(() {
-          _isLoading = false;
         });
       }
     } catch (e) {
       print('노트 데이터 로드 오류: $e');
       print('스택 트레이스: ${StackTrace.current}');
       setState(() {
-        _error = '노트 데이터를 로드하는 중 오류가 발생했습니다: $e';
-        _isLoading = false;
       });
     }
   }
 
-  Future<void> _initTTS() async {
-    await _flutterTts.setLanguage("zh-CN");
-    await _flutterTts.setSpeechRate(0.5);
-    await _flutterTts.setVolume(1.0);
-    await _flutterTts.setPitch(1.0);
-    
-    if (Platform.isIOS) {
-      await _flutterTts.setIosAudioCategory(
-        IosTextToSpeechAudioCategory.playback,
-        [
-          IosTextToSpeechAudioCategoryOptions.allowBluetooth,
-          IosTextToSpeechAudioCategoryOptions.allowBluetoothA2DP,
-          IosTextToSpeechAudioCategoryOptions.defaultToSpeaker
-        ],
-      );
-    }
-  }
 
   Future<void> _speak(String text) async {
     try {
@@ -230,12 +200,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     }
   }
 
-  void _toggleHighlightMode() {
-    setState(() {
-      _isHighlightMode = !_isHighlightMode;
-      print('Highlight mode toggled: $_isHighlightMode');
-    });
-  }
 
   Future<void> _handleTextSelection(String text) async {
     try {
@@ -255,7 +219,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   Future<void> _removeHighlight(String text) async {
     setState(() {
       _highlightedTexts.remove(text);
-      _flashCardCount = _highlightedTexts.length;
     });
     
     // Firestore 업데이트
@@ -274,17 +237,20 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   }
 
   Future<void> _addHighlight(String text) async {
-    final translatedText = await translatorService.translate(text, 'zh', sourceLanguage: 'ko');
+    final translatedText = await _translatorService.translate(text, from: 'ko', to: 'zh');
     final pinyin = await pinyinService.getPinyin(text);
     
-    final newFlashCard = note_model.FlashCard(
+    final newFlashCard = flash_card_model.FlashCard(
       front: text,
       back: translatedText,
       pinyin: pinyin,
+      noteId: _note.id,
+      createdAt: DateTime.now(),
+      reviewCount: 0,
     );
 
     // 중복 플래시카드 방지
-    final List<note_model.FlashCard> updatedFlashCards = [
+    final List<flash_card_model.FlashCard> updatedFlashCards = [
       ..._note.flashCards.where((card) => card.front != text),
       newFlashCard,
     ];
@@ -302,7 +268,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     setState(() {
       _note = updatedNote;
       _highlightedTexts = Set<String>.from(updatedNote.highlightedTexts);
-      _flashCardCount = _highlightedTexts.length;
     });
 
     _showMessage('플래시카드에 저장되었습니다');
@@ -337,54 +302,10 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     return 'mao he gou shi hao peng you';
   }
 
-  void _addToFlashcards(String text) async {
-    try {
-      final translatedText = await translatorService.translate(text, 'zh', sourceLanguage: 'ko');
-      final pinyin = await pinyinService.getPinyin(text);
-      
-      final newFlashCard = note_model.FlashCard(
-        front: text,
-        back: translatedText,
-        pinyin: pinyin,
-      );
-      
-      final List<note_model.FlashCard> updatedFlashCards = [
-        ..._note.flashCards,
-        newFlashCard,
-      ];
-
-      final updatedNote = _note.copyWith(
-        flashCards: updatedFlashCards,
-        updatedAt: DateTime.now(),
-      );
-      
-      // Firestore 업데이트
-      await firestore.collection('notes').doc(_note.id).update(updatedNote.toJson());
-      
-      // UI 업데이트
-      setState(() {
-        _note = updatedNote;
-        _highlightedTexts.add(text);
-      });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('플래시카드가 추가되었습니다')),
-        );
-      }
-    } catch (e) {
-      print('Error adding flashcard: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('플래시카드 추가 중 오류가 발생했습니다: $e')),
-        );
-      }
-    }
-  }
 
   Future<void> _editPageText(int pageIndex, String newText) async {
     try {
-      final translatedText = await translatorService.translate(newText, 'zh', sourceLanguage: 'ko');
+      final translatedText = await _translatorService.translate(newText, from: 'ko', to: 'zh');
       
       final updatedPage = note_model.Page(
         imageUrl: _note.pages[pageIndex].imageUrl,
@@ -568,8 +489,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
 
   Future<void> _translateText(String text) async {
     setState(() {
-      _isTranslating = true;
-      _translatedText = '번역 중...';  // 로딩 표시
+// 로딩 표시
     });
     
     try {
@@ -577,17 +497,13 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       final prefs = await SharedPreferences.getInstance();
       final targetLanguage = prefs.getString('target_language') ?? '한국어';
       // 번역 서비스 호출
-      final translatedText = await translatorService.translate(text, targetLanguage, sourceLanguage: 'auto');
+      final translatedText = await _translatorService.translate(text, from: 'auto', to: targetLanguage);
       
       setState(() {
-        _translatedText = translatedText;
-        _isTranslating = false;
       });
     } catch (e) {
       print('번역 오류: $e');
       setState(() {
-        _translatedText = 'Sorry, an error occurred during translation. Please try again later.';
-        _isTranslating = false;
       });
     }
   }
@@ -598,7 +514,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       
       // 깊은 복사를 통해 새 객체 생성
       final updatedNote = _note.copyWith(
-        flashCards: List<note_model.FlashCard>.from(_note.flashCards),
+        flashCards: List<flash_card_model.FlashCard>.from(_note.flashCards),
         updatedAt: DateTime.now(),
       );
       
@@ -901,8 +817,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     try {
       print('노트 저장 시작: $_noteId');
       setState(() {
-        _isSaving = true;
-        _error = null;
       });
       
       final updatedNote = note_model.Note(
@@ -910,8 +824,10 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
         spaceId: _spaceId,
         userId: widget.note?.userId ?? '',
         title: _titleController.text,
+        flashcardCount: widget.note?.flashcardCount ?? 0,
+        reviewCount: widget.note?.reviewCount ?? 0,
         content: _contentController.text,
-        imageUrl: _imageUrl,
+        imageUrl: _imageUrl ?? '',
         extractedText: widget.note?.extractedText ?? '',
         translatedText: _translatedContentController.text,
         createdAt: DateTime.now(),
@@ -923,7 +839,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       print('노트 저장 완료: ${updatedNote.id}');
       
       setState(() {
-        _isSaving = false;
       });
       
       ScaffoldMessenger.of(context).showSnackBar(
@@ -932,8 +847,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     } catch (e) {
       print('노트 저장 오류: $e');
       setState(() {
-        _error = '노트 저장 중 오류가 발생했습니다: $e';
-        _isSaving = false;
       });
     }
   }

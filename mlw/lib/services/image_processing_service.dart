@@ -102,7 +102,7 @@ class ImageProcessingService {
     
     final lines = text.split('\n').where((s) => s.trim().isNotEmpty).toList();
     final translatedLines = await Future.wait(
-      lines.map((line) => translatorService.translate(line, to, sourceLanguage: from))
+      lines.map((line) => translatorService.translate(line, from: from, to: to))
     );
     return translatedLines.join('\n');
   }
