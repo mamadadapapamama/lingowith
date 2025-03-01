@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:mlw/models/note.dart' as note_model;
 import 'package:mlw/models/note_space.dart';
 import 'package:mlw/repositories/note_repository.dart';
-import 'package:mlw/repositories/note_space_repository.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:mlw/screens/home/home_screen_logic.dart';
 import 'package:mlw/screens/home/image_handler.dart';

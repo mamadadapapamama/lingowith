@@ -4,7 +4,7 @@ import '../models/note_space.dart';
 import '../theme/tokens/color_tokens.dart';
 import '../theme/tokens/typography_tokens.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import '../repositories/note_space_repository.dart';
+import '../repositories/note_repository.dart';
 
 class NoteSpaceSettingsScreen extends StatefulWidget {
   final NoteSpace noteSpace;
@@ -21,7 +21,7 @@ class NoteSpaceSettingsScreen extends StatefulWidget {
 class _NoteSpaceSettingsScreenState extends State<NoteSpaceSettingsScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  final _spaceRepository = NoteSpaceRepository();
+  final _spaceRepository = NoteRepository();
   String _selectedLanguage = 'zh';
 
   @override
