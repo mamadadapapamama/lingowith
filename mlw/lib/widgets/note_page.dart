@@ -19,6 +19,7 @@ class NotePage extends StatefulWidget {
   final int? currentPlayingIndex;
   final VoidCallback onDeletePage;
   final Function(String) onEditText;
+  final Function(String)? onRetranslate;
 
   const NotePage({
     Key? key,
@@ -31,6 +32,7 @@ class NotePage extends StatefulWidget {
     this.currentPlayingIndex,
     required this.onDeletePage,
     required this.onEditText,
+    this.onRetranslate,
   }) : super(key: key);
 
   @override
@@ -87,12 +89,8 @@ class _NotePageState extends State<NotePage> {
 
   @override
   Widget build(BuildContext context) {
-    // 이미지 파일 존재 여부를 비동기적으로 확인
-    Future<bool> _checkImageExists(String path) async {
-      final file = File(path);
-      return await file.exists();
-    }
-
+    print('NotePage build: ${widget.page.imageUrl}');
+    
     return SingleChildScrollView(
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -100,145 +98,276 @@ class _NotePageState extends State<NotePage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // 이미지 표시
-            FutureBuilder<bool>(
-              future: _checkImageExists(widget.page.imageUrl),
-              builder: (context, snapshot) {
-                final imageExists = snapshot.data ?? false;
-                
-                return ClipRRect(
-                  borderRadius: BorderRadius.circular(8.0),
-                  child: imageExists
-                      ? Image.file(
-                          File(widget.page.imageUrl),
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                        )
-                      : Container(
-                          width: double.infinity,
-                          height: 200,
-                          color: ColorTokens.getColor('base.200'),
-                          child: Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.image_not_supported,
-                                  size: 48,
-                                  color: ColorTokens.getColor('base.400'),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  '이미지를 찾을 수 없습니다',
-                                  style: TypographyTokens.getStyle('body.medium').copyWith(
-                                    color: ColorTokens.getColor('base.500'),
-                                  ),
-                                ),
-                                Text(
-                                  widget.page.imageUrl,
-                                  style: TypographyTokens.getStyle('body.small').copyWith(
-                                    color: ColorTokens.getColor('base.400'),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                );
-              },
-            ),
-            Positioned(
-              top: 8,
-              right: 8,
-              child: Row(
-                children: [
-                  // 텍스트 편집 버튼
-                  CircleAvatar(
-                    backgroundColor: Colors.white.withOpacity(0.7),
-                    radius: 18,
-                    child: IconButton(
-                      icon: const Icon(Icons.edit, size: 18),
-                      onPressed: () => widget.onEditText.call(widget.page.extractedText),
-                      color: ColorTokens.getColor('primary.500'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  // 페이지 삭제 버튼
-                  CircleAvatar(
-                    backgroundColor: Colors.white.withOpacity(0.7),
-                    radius: 18,
-                    child: IconButton(
-                      icon: const Icon(Icons.delete, size: 18),
-                      onPressed: widget.onDeletePage,
-                      color: ColorTokens.getColor('error.500'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            if (widget.page.imageUrl.isNotEmpty)
+              _buildImageSection(context),
             
             const SizedBox(height: 16),
             
             // 원문 표시 (displayMode에 따라)
             if (widget.displayMode == TextDisplayMode.originalOnly || widget.displayMode == TextDisplayMode.both)
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        '원문',
-                        style: TypographyTokens.getStyle('heading.h3').copyWith(
-                          color: ColorTokens.getColor('text.heading'),
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.volume_up),
-                        onPressed: () => widget.onSpeak.call(widget.page.extractedText),
-                        color: ColorTokens.getColor('primary.400'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  TextHighlighter(
-                    text: widget.page.extractedText,
-                    highlightedTexts: widget.highlightedTexts,
-                    isHighlightMode: widget.isHighlightMode,
-                    onHighlighted: widget.onHighlighted,
-                    highlightColor: ColorTokens.getColor('primary.100'),
-                    style: TypographyTokens.getStyle('body.large').copyWith(
-                      color: ColorTokens.getColor('text.body'),
-                      height: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                ],
-              ),
+              _buildOriginalTextSection(context),
             
             // 번역 표시 (displayMode에 따라)
             if (widget.displayMode == TextDisplayMode.translationOnly || widget.displayMode == TextDisplayMode.both)
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '번역',
-                    style: TypographyTokens.getStyle('heading.h3').copyWith(
-                      color: ColorTokens.getColor('text.heading'),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    widget.page.translatedText,
-                    style: TypographyTokens.getStyle('body.large').copyWith(
-                      color: ColorTokens.getColor('text.body'),
-                      height: 1.5,
-                    ),
-                  ),
-                ],
-              ),
+              _buildTranslationSection(context),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildImageSection(BuildContext context) {
+    return Stack(
+      children: [
+        GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => Scaffold(
+                  appBar: AppBar(title: const Text('이미지 보기')),
+                  body: Center(
+                    child: InteractiveViewer(
+                      child: Image.file(File(widget.page.imageUrl)),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8.0),
+            child: _buildImage(),
+          ),
+        ),
+        Positioned(
+          top: 8,
+          right: 8,
+          child: Row(
+            children: [
+              // 텍스트 편집 버튼
+              CircleAvatar(
+                backgroundColor: Colors.white.withOpacity(0.7),
+                radius: 18,
+                child: IconButton(
+                  icon: const Icon(Icons.edit, size: 18),
+                  onPressed: () => widget.onEditText.call(widget.page.extractedText),
+                  color: ColorTokens.getColor('primary.500'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // 페이지 삭제 버튼
+              CircleAvatar(
+                backgroundColor: Colors.white.withOpacity(0.7),
+                radius: 18,
+                child: IconButton(
+                  icon: const Icon(Icons.delete, size: 18),
+                  onPressed: widget.onDeletePage,
+                  color: ColorTokens.getColor('error.500'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildImage() {
+    try {
+      final file = File(widget.page.imageUrl);
+      if (file.existsSync()) {
+        return Image.file(
+          file,
+          width: double.infinity,
+          fit: BoxFit.cover,
+        );
+      } else {
+        print('이미지 파일이 존재하지 않음: ${widget.page.imageUrl}');
+      }
+    } catch (e) {
+      print('이미지 로드 오류: $e');
+    }
+    
+    return Container(
+      width: double.infinity,
+      height: 200,
+      color: ColorTokens.getColor('base.200'),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.image_not_supported,
+              size: 48,
+              color: ColorTokens.getColor('base.400'),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '이미지를 찾을 수 없습니다',
+              style: TypographyTokens.getStyle('body.medium').copyWith(
+                color: ColorTokens.getColor('base.500'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOriginalTextSection(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              '원문',
+              style: TypographyTokens.getStyle('heading.h3').copyWith(
+                color: ColorTokens.getColor('text.heading'),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.volume_up),
+              onPressed: () => widget.onSpeak.call(widget.page.extractedText),
+              color: ColorTokens.getColor('primary.400'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        SelectableText(
+          widget.page.extractedText,
+          style: TypographyTokens.getStyle('body.large').copyWith(
+            color: ColorTokens.getColor('text.body'),
+            height: 1.5,
+          ),
+          onSelectionChanged: (selection, cause) {
+            if (widget.isHighlightMode && selection.baseOffset != selection.extentOffset) {
+              final selectedText = widget.page.extractedText.substring(
+                selection.baseOffset, 
+                selection.extentOffset
+              );
+              widget.onHighlighted(selectedText);
+            }
+          },
+        ),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  Widget _buildTranslationSection(BuildContext context) {
+    // 번역 텍스트가 비어있는 경우 처리
+    if (widget.page.translatedText.isEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '번역',
+                style: TypographyTokens.getStyle('heading.h3').copyWith(
+                  color: ColorTokens.getColor('text.heading'),
+                ),
+              ),
+              // 번역 재시도 버튼
+              TextButton.icon(
+                onPressed: () {
+                  // 번역 재시도 콜백 호출
+                  if (widget.onRetranslate != null) {
+                    widget.onRetranslate!(widget.page.extractedText);
+                  }
+                },
+                icon: Icon(
+                  Icons.refresh,
+                  color: ColorTokens.getColor('primary.400'),
+                  size: 18,
+                ),
+                label: Text(
+                  '번역 재시도',
+                  style: TypographyTokens.getStyle('body.small').copyWith(
+                    color: ColorTokens.getColor('primary.400'),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: ColorTokens.getColor('base.100'),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: ColorTokens.getColor('base.300')),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.info_outline,
+                  color: ColorTokens.getColor('base.500'),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '번역 텍스트가 없습니다. 원문이 추출되지 않았거나 번역 중 오류가 발생했을 수 있습니다.',
+                    style: TypographyTokens.getStyle('body.medium').copyWith(
+                      color: ColorTokens.getColor('base.700'),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+    
+    // 정상적인 번역 텍스트 표시
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              '번역',
+              style: TypographyTokens.getStyle('heading.h3').copyWith(
+                color: ColorTokens.getColor('text.heading'),
+              ),
+            ),
+            // 번역 재시도 버튼
+            TextButton.icon(
+              onPressed: () {
+                // 번역 재시도 콜백 호출
+                if (widget.onRetranslate != null) {
+                  widget.onRetranslate!(widget.page.extractedText);
+                }
+              },
+              icon: Icon(
+                Icons.refresh,
+                color: ColorTokens.getColor('primary.400'),
+                size: 18,
+              ),
+              label: Text(
+                '번역 재시도',
+                style: TypographyTokens.getStyle('body.small').copyWith(
+                  color: ColorTokens.getColor('primary.400'),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        SelectableText(
+          widget.page.translatedText,
+          style: TypographyTokens.getStyle('body.large').copyWith(
+            color: ColorTokens.getColor('text.body'),
+            height: 1.5,
+          ),
+        ),
+      ],
     );
   }
 

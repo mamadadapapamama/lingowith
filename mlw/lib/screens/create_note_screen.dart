@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mlw/models/note.dart' as note_model;
 import 'package:mlw/repositories/note_repository.dart';
 import 'package:mlw/screens/note_detail_screen.dart';
+import 'dart:io';
 
 class CreateNoteScreen extends StatefulWidget {
   final String spaceId;
@@ -45,12 +46,30 @@ class _CreateNoteScreenState extends State<CreateNoteScreen> {
         _isCreating = true;
       });
       
-      // 페이지 생성
+      // 페이지 생성 - 이미지 URL이 비어있지 않은지 확인
+      if (widget.imageUrl == null || widget.imageUrl!.isEmpty) {
+        throw Exception('이미지 URL이 비어있습니다');
+      }
+      
+      // 이미지 파일이 존재하는지 확인
+      final imageFile = File(widget.imageUrl!);
+      final imageExists = await imageFile.exists();
+      print('이미지 파일 존재 여부: $imageExists');
+      
+      if (!imageExists) {
+        throw Exception('이미지 파일이 존재하지 않습니다: ${widget.imageUrl}');
+      }
+      
       final page = note_model.Page(
-        imageUrl: widget.imageUrl ?? '',
+        imageUrl: widget.imageUrl!,
         extractedText: widget.extractedText ?? '',
         translatedText: widget.translatedText ?? '',
       );
+      
+      print('페이지 생성:');
+      print('- 이미지 URL: ${page.imageUrl}');
+      print('- 추출된 텍스트 길이: ${page.extractedText.length}');
+      print('- 번역된 텍스트 길이: ${page.translatedText.length}');
       
       // 노트 생성
       final note = note_model.Note(
@@ -59,10 +78,10 @@ class _CreateNoteScreenState extends State<CreateNoteScreen> {
         userId: widget.userId,
         title: _titleController.text.isNotEmpty ? _titleController.text : 'New Note',
         content: '',
-        imageUrl: '',
-        extractedText: '',
-        translatedText: '',
-        pages: [page],
+        imageUrl: widget.imageUrl ?? '',
+        extractedText: widget.extractedText ?? '',
+        translatedText: widget.translatedText ?? '',
+        pages: [page],  // 페이지 추가
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
         isDeleted: false,
@@ -74,6 +93,10 @@ class _CreateNoteScreenState extends State<CreateNoteScreen> {
       
       // 노트 저장
       final createdNote = await _noteRepository.createNote(note);
+      
+      print('노트 생성 완료:');
+      print('- 노트 ID: ${createdNote.id}');
+      print('- 페이지 수: ${createdNote.pages.length}');
       
       setState(() {
         _isCreating = false;

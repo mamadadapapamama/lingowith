@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mlw/models/note.dart';
 import 'package:mlw/models/note_space.dart';
+import 'dart:io';
 
 class NoteRepository {
   final FirebaseFirestore _firestore;
@@ -60,28 +61,33 @@ class NoteRepository {
   Future<Note> createNote(Note note) async {
     try {
       print('노트 생성 시작: ${note.title}');
+      
+      // 페이지 정보 로깅
+      if (note.pages.isNotEmpty) {
+        print('페이지 수: ${note.pages.length}');
+        for (int i = 0; i < note.pages.length; i++) {
+          final page = note.pages[i];
+          print('페이지 $i:');
+          print('- 이미지 URL: ${page.imageUrl}');
+          print('- 추출된 텍스트 길이: ${page.extractedText.length}');
+          print('- 번역된 텍스트 길이: ${page.translatedText.length}');
+          
+          // 이미지 파일 존재 확인
+          if (page.imageUrl.isNotEmpty) {
+            final file = File(page.imageUrl);
+            final exists = await file.exists();
+            print('- 이미지 파일 존재 여부: $exists');
+          }
+        }
+      }
+      
+      // Firestore에 노트 추가
       final docRef = await _notes.add(note.toFirestore());
       
-      // ID가 포함된 완전한 노트 객체 생성
-      final createdNote = Note(
-        id: docRef.id,
-        spaceId: note.spaceId,
-        userId: note.userId,
-        title: note.title,
-        content: note.content,
-        imageUrl: note.imageUrl,
-        extractedText: note.extractedText,
-        translatedText: note.translatedText,
-        createdAt: note.createdAt,
-        updatedAt: note.updatedAt,
-        isDeleted: note.isDeleted,
-        flashCards: note.flashCards,
-        knownFlashCards: note.knownFlashCards,
-        flashcardCount: note.flashcardCount,
-        reviewCount: note.reviewCount,
-      );
+      // 생성된 노트 ID로 업데이트된 노트 객체 생성
+      final createdNote = note.copyWith(id: docRef.id);
       
-      // 캐시 업데이트
+      // 캐시에 저장
       if (_cacheEnabled) {
         _cache[docRef.id] = createdNote;
       }

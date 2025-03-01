@@ -54,6 +54,10 @@ class ImageProcessingService {
       final exists = await savedFile.exists();
       print('저장된 이미지 파일 존재 여부: $exists');
       
+      if (!exists) {
+        throw Exception('이미지 파일이 저장되지 않았습니다');
+      }
+      
       return savedImagePath;
     } catch (e) {
       print('이미지 저장 오류: $e');
@@ -163,8 +167,22 @@ class ImageProcessingService {
         return null;
       }
       
+      print('추출된 텍스트: ${extractedText.substring(0, extractedText.length > 50 ? 50 : extractedText.length)}...');
+      
       // 텍스트 번역
-      final translatedText = await translateText(extractedText);
+      String translatedText = '';
+      try {
+        // 번역 서비스 초기화 확인
+        await translatorService.initialize();
+        
+        // 텍스트 번역
+        translatedText = await translatorService.translateText(extractedText);
+        print('번역된 텍스트: ${translatedText.substring(0, translatedText.length > 50 ? 50 : translatedText.length)}...');
+      } catch (e) {
+        print('텍스트 번역 오류: $e');
+        // 번역 실패 시 빈 문자열 사용
+        translatedText = '';
+      }
       
       print('이미지 처리 완료:');
       print('- 이미지 경로: $savedImagePath');

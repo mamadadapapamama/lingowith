@@ -17,6 +17,7 @@ import 'package:mlw/screens/flashcard_screen.dart';
 import 'package:mlw/services/translator_service.dart';
 import 'dart:io';
 import 'dart:async';
+import 'package:image_picker/image_picker.dart';
 
 class NoteDetailScreen extends StatefulWidget {
   final String noteId;
@@ -139,18 +140,119 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       print('Firestore에서 노트 데이터 로드 시작: $_noteId');
       
       try {
-        final loadedNote = await _noteRepository.getNote(_noteId);
+        // final을 제거하여 변수를 재할당 가능하게 함
+        var loadedNote = await _noteRepository.getNote(_noteId);
         
         print('Firestore에서 노트 데이터 로드 성공');
+        print('로드된 노트: ${loadedNote.toString()}');
         print('로드된 노트 페이지 수: ${loadedNote.pages.length}');
         
-        if (loadedNote.pages.isNotEmpty) {
-          print('첫 번째 페이지 정보: ${loadedNote.pages[0].imageUrl}');
-          // 이미지 파일이 존재하는지 확인
-          final file = File(loadedNote.pages[0].imageUrl);
-          print('이미지 파일 존재 여부: ${await file.exists()}');
+        // 페이지가 없는 경우 마이그레이션 수행
+        if (loadedNote.pages.isEmpty && loadedNote.imageUrl.isNotEmpty) {
+          print('페이지가 없지만 이미지 URL이 있습니다. 마이그레이션 수행...');
+          
+          // 이미지 파일 존재 확인
+          final imageFile = File(loadedNote.imageUrl);
+          final imageExists = await imageFile.exists();
+          print('이미지 파일 존재 여부: $imageExists');
+          
+          if (imageExists) {
+            // 번역 텍스트가 비어있는 경우 번역 시도
+            String translatedText = loadedNote.translatedText;
+            if (translatedText.isEmpty && loadedNote.extractedText.isNotEmpty) {
+              try {
+                print('번역 텍스트가 비어있어 번역 시도...');
+                await _translatorService.initialize();
+                translatedText = await _translatorService.translateText(loadedNote.extractedText);
+                print('번역 완료: ${translatedText.substring(0, translatedText.length > 20 ? 20 : translatedText.length)}...');
+              } catch (e) {
+                print('번역 오류: $e');
+              }
+            }
+            
+            // 페이지 생성
+            final page = note_model.Page(
+              imageUrl: loadedNote.imageUrl,
+              extractedText: loadedNote.extractedText,
+              translatedText: translatedText,
+            );
+            
+            // 페이지가 추가된 노트 생성
+            final updatedNote = loadedNote.copyWith(
+              pages: [page],
+              translatedText: translatedText,
+              updatedAt: DateTime.now(),
+            );
+            
+            // Firestore 업데이트
+            await _noteRepository.updateNote(updatedNote);
+            
+            print('노트 마이그레이션 완료: ${updatedNote.id}');
+            print('마이그레이션 후 페이지 수: ${updatedNote.pages.length}');
+            
+            // 업데이트된 노트 사용
+            loadedNote = updatedNote;
+          } else {
+            print('이미지 파일이 존재하지 않아 마이그레이션을 수행할 수 없습니다');
+          }
         }
         
+        // 기존 로직 계속 진행...
+        if (loadedNote.pages.isNotEmpty) {
+          for (int i = 0; i < loadedNote.pages.length; i++) {
+            final page = loadedNote.pages[i];
+            print('페이지 $i 정보:');
+            print('- 이미지 URL: ${page.imageUrl}');
+            print('- 추출된 텍스트 길이: ${page.extractedText.length}');
+            print('- 번역된 텍스트 길이: ${page.translatedText.length}');
+            
+            // 번역 텍스트가 비어있는 경우 번역 시도
+            if (page.translatedText.isEmpty && page.extractedText.isNotEmpty) {
+              try {
+                print('페이지 $i의 번역 텍스트가 비어있어 번역 시도...');
+                await _translatorService.initialize();
+                final translatedText = await _translatorService.translateText(page.extractedText);
+                
+                // 페이지 목록 업데이트
+                final updatedPages = List<note_model.Page>.from(loadedNote.pages);
+                updatedPages[i] = note_model.Page(
+                  imageUrl: page.imageUrl,
+                  extractedText: page.extractedText,
+                  translatedText: translatedText,
+                );
+                
+                // 노트 업데이트
+                final updatedNote = loadedNote.copyWith(
+                  pages: updatedPages,
+                  updatedAt: DateTime.now(),
+                );
+                
+                // Firestore 업데이트
+                await _noteRepository.updateNote(updatedNote);
+                
+                // 로드된 노트 업데이트
+                loadedNote = updatedNote;
+                
+                print('페이지 $i 번역 완료');
+              } catch (e) {
+                print('페이지 $i 번역 오류: $e');
+              }
+            }
+            
+            // 이미지 파일이 존재하는지 확인
+            final file = File(page.imageUrl);
+            final exists = await file.exists();
+            print('- 이미지 파일 존재 여부: $exists');
+            
+            if (!exists) {
+              print('- 이미지 파일 경로 문제 발생: ${page.imageUrl}');
+            }
+          }
+        } else {
+          print('페이지가 없습니다');
+        }
+        
+        // UI 업데이트
         setState(() {
           _note = loadedNote;
           _titleController.text = loadedNote.title;
@@ -158,7 +260,10 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
           _translatedContentController.text = loadedNote.translatedText;
           _imageUrl = loadedNote.imageUrl;
           _highlightedTexts = loadedNote.highlightedTexts;
+          _currentPageIndex = 0;
         });
+        
+        print('노트 데이터 UI 업데이트 완료');
         
       } catch (e) {
         print('Firestore에서 노트 데이터 로드 오류: $e');
@@ -448,25 +553,18 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       );
     }
     
-    // 페이지 목록이 비어있는지 확인
-    final hasPages = _note!.pages.isNotEmpty;
-    print('노트 페이지 수: ${_note!.pages.length}');
-    
-    return WillPopScope(
-      onWillPop: _onWillPop,
-      child: Scaffold(
+    // 페이지가 없는 경우 빈 상태 표시
+    if (_note!.pages.isEmpty) {
+      return Scaffold(
         appBar: _buildAppBar(),
-        body: Column(
-          children: [
-            if (hasPages) _buildPageControls(),
-            Expanded(
-              child: hasPages 
-                  ? _buildPageContent()
-                  : _buildEmptyState(),
-            ),
-          ],
-        ),
-      ),
+        body: _buildEmptyState(),
+      );
+    }
+    
+    // 정상적인 노트 표시
+    return Scaffold(
+      appBar: _buildAppBar(),
+      body: _buildPageContent(),
     );
   }
 
@@ -604,24 +702,21 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   }
 
   Widget _buildPageContent() {
-    // 현재 페이지 인덱스가 유효한지 확인
-    if (_currentPageIndex >= _note!.pages.length) {
-      _currentPageIndex = 0;
+    if (_note == null || _note!.pages.isEmpty) {
+      return const Center(child: Text('페이지가 없습니다'));
     }
     
-    // 현재 페이지 가져오기
-    final currentPage = _note!.pages[_currentPageIndex];
-    print('현재 페이지 정보: ${currentPage.imageUrl}');
-    
     return NotePage(
-      page: currentPage,
+      page: _note!.pages[_currentPageIndex],
       displayMode: _displayMode,
       isHighlightMode: _isHighlightMode,
-      highlightedTexts: _note!.highlightedTexts,
+      highlightedTexts: _highlightedTexts,
       onHighlighted: _handleTextSelection,
       onSpeak: _speak,
+      currentPlayingIndex: _currentPlayingIndex,
       onDeletePage: () => _deletePage(_currentPageIndex),
       onEditText: (text) => _showEditDialog(_currentPageIndex, text),
+      onRetranslate: _retranslate,  // 번역 재시도 콜백 전달
     );
   }
 
@@ -653,9 +748,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
           ElevatedButton.icon(
             icon: const Icon(Icons.add_photo_alternate),
             label: const Text('이미지 추가'),
-            onPressed: () {
-              // 이미지 추가 기능 구현
-            },
+            onPressed: _addImage,
           ),
         ],
       ),
@@ -754,6 +847,172 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     _saveTimer = Timer(const Duration(milliseconds: 500), () {
       _saveNote();
     });
+  }
+
+  Future<void> _addImage() async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+      
+      if (image == null) {
+        print('이미지 선택이 취소되었습니다');
+        return;
+      }
+      
+      print('이미지 선택됨: ${image.path}');
+      
+      // 이미지 처리 서비스 초기화
+      final imageProcessingService = ImageProcessingService(
+        translatorService: _translatorService,
+      );
+      await imageProcessingService.initialize();
+      
+      // 이미지 처리 중 로딩 표시
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+      
+      // 이미지 처리
+      final result = await imageProcessingService.processImage(File(image.path));
+      
+      // 로딩 다이얼로그 닫기
+      if (mounted) {
+        Navigator.pop(context);
+      }
+      
+      if (result == null) {
+        throw Exception('이미지 처리 결과가 null입니다');
+      }
+      
+      print('이미지 처리 완료:');
+      print('- 이미지 URL: ${result.imageUrl}');
+      print('- 추출된 텍스트 길이: ${result.extractedText.length}');
+      print('- 번역된 텍스트 길이: ${result.translatedText.length}');
+      
+      // 번역 텍스트가 비어있는 경우 번역 시도
+      String translatedText = result.translatedText;
+      if (translatedText.isEmpty && result.extractedText.isNotEmpty) {
+        try {
+          print('번역 텍스트가 비어있어 번역 시도...');
+          await _translatorService.initialize();
+          translatedText = await _translatorService.translateText(result.extractedText);
+          print('번역 완료: ${translatedText.substring(0, translatedText.length > 20 ? 20 : translatedText.length)}...');
+        } catch (e) {
+          print('번역 오류: $e');
+        }
+      }
+      
+      // 새 페이지 생성
+      final newPage = note_model.Page(
+        imageUrl: result.imageUrl,
+        extractedText: result.extractedText,
+        translatedText: translatedText,
+      );
+      
+      // 페이지 목록 업데이트
+      final updatedPages = List<note_model.Page>.from(_note!.pages)..add(newPage);
+      
+      // 노트 업데이트
+      final updatedNote = _note!.copyWith(
+        pages: updatedPages,
+        updatedAt: DateTime.now(),
+      );
+      
+      // Firestore 업데이트
+      await _noteRepository.updateNote(updatedNote);
+      
+      // UI 업데이트
+      setState(() {
+        _note = updatedNote;
+        _currentPageIndex = updatedPages.length - 1;  // 새 페이지로 이동
+      });
+      
+      print('이미지 추가 완료: 페이지 수 ${updatedPages.length}');
+      
+    } catch (e) {
+      print('이미지 추가 오류: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('이미지 추가 중 오류가 발생했습니다: $e')),
+      );
+    }
+  }
+
+  Future<void> _retranslate(String text) async {
+    if (text.isEmpty || _note == null || _note!.pages.isEmpty) {
+      return;
+    }
+    
+    try {
+      // 로딩 표시
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+      
+      // 번역 서비스 초기화
+      await _translatorService.initialize();
+      
+      // 텍스트 번역
+      final translatedText = await _translatorService.translateText(text);
+      
+      // 로딩 다이얼로그 닫기
+      if (mounted) {
+        Navigator.pop(context);
+      }
+      
+      // 현재 페이지 업데이트
+      final currentPage = _note!.pages[_currentPageIndex];
+      final updatedPage = note_model.Page(
+        imageUrl: currentPage.imageUrl,
+        extractedText: currentPage.extractedText,
+        translatedText: translatedText,
+      );
+      
+      // 페이지 목록 업데이트
+      final updatedPages = List<note_model.Page>.from(_note!.pages);
+      updatedPages[_currentPageIndex] = updatedPage;
+      
+      // 노트 업데이트
+      final updatedNote = _note!.copyWith(
+        pages: updatedPages,
+        updatedAt: DateTime.now(),
+      );
+      
+      // Firestore 업데이트
+      await _noteRepository.updateNote(updatedNote);
+      
+      // UI 업데이트
+      setState(() {
+        _note = updatedNote;
+      });
+      
+      print('번역 재시도 완료: 페이지 $_currentPageIndex');
+      
+      // 성공 메시지 표시
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('번역이 완료되었습니다')),
+      );
+      
+    } catch (e) {
+      print('번역 재시도 오류: $e');
+      
+      // 로딩 다이얼로그 닫기
+      if (mounted) {
+        Navigator.pop(context);
+      }
+      
+      // 오류 메시지 표시
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('번역 중 오류가 발생했습니다: $e')),
+      );
+    }
   }
 }
 

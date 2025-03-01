@@ -133,16 +133,28 @@ class Note {
   factory Note.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     
+    print('Firestore 데이터 로드: ${doc.id}');
+    print('데이터 필드: ${data.keys.toList()}');
+    
     // 페이지 목록 변환
     List<Page> pages = [];
     if (data['pages'] != null) {
-      pages = (data['pages'] as List).map((pageData) {
-        return Page(
-          imageUrl: pageData['imageUrl'] ?? '',
-          extractedText: pageData['extractedText'] ?? '',
-          translatedText: pageData['translatedText'] ?? '',
-        );
-      }).toList();
+      try {
+        pages = (data['pages'] as List).map((pageData) {
+          final page = Page(
+            imageUrl: pageData['imageUrl'] ?? '',
+            extractedText: pageData['extractedText'] ?? '',
+            translatedText: pageData['translatedText'] ?? '',
+          );
+          print('페이지 로드: ${page.imageUrl}');
+          return page;
+        }).toList();
+        print('로드된 페이지 수: ${pages.length}');
+      } catch (e) {
+        print('페이지 변환 오류: $e');
+      }
+    } else {
+      print('페이지 데이터가 없습니다');
     }
     
     // 플래시카드 목록 변환
