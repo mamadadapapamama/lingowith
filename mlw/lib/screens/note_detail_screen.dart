@@ -3,7 +3,6 @@ import 'package:mlw/models/note.dart' as note_model;
 import 'package:mlw/models/flash_card.dart' as flash_card_model;
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:mlw/widgets/note_page.dart';
-import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mlw/theme/tokens/color_tokens.dart';
 import 'package:mlw/theme/tokens/typography_tokens.dart';
@@ -14,7 +13,6 @@ import 'package:mlw/services/image_processing_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mlw/repositories/note_repository.dart';
 import 'dart:convert';
-import 'package:image_picker/image_picker.dart';
 import 'package:mlw/screens/flashcard_screen.dart';
 import 'package:mlw/services/translator_service.dart';
 
@@ -55,8 +53,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   int _currentPageIndex = 0;
   TextDisplayMode _displayMode = TextDisplayMode.both;
   Set<String> _highlightedTexts = {};
-  late note_model.Note _note;
-  late ImageProcessingService _imageProcessingService;
+  note_model.Note? _note;
   bool _isNoteModified = false;
   final NoteRepository _noteRepository = NoteRepository();
   final TranslatorService _translatorService = TranslatorService();
@@ -76,6 +73,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     
     // 노트 객체가 전달된 경우 해당 객체의 값을 사용
     if (widget.note != null) {
+      _note = widget.note;
       _noteId = widget.note!.id;
       _spaceId = widget.note!.spaceId;
       _titleController = TextEditingController(text: widget.note!.title);
@@ -85,7 +83,27 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       );
       _imageUrl = widget.note!.imageUrl;
     } else {
-      // 개별 필드가 전달된 경우 해당 값을 사용
+      // 기본 빈 노트 객체 생성
+      _note = note_model.Note(
+        id: widget.noteId,
+        spaceId: widget.spaceId,
+        userId: '',
+        title: widget.initialTitle,
+        content: widget.initialContent,
+        imageUrl: widget.initialImageUrl ?? '',
+        extractedText: '',
+        translatedText: widget.initialTranslatedContent ?? '',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        isDeleted: false,
+        flashcardCount: 0,
+        reviewCount: 0,
+        pages: [],
+        flashCards: [],
+        knownFlashCards:<String>{},
+        highlightedTexts:<String>{},
+      );
+      // 나머지 초기화 코드...
       _noteId = widget.noteId;
       _spaceId = widget.spaceId;
       _titleController = TextEditingController(text: widget.initialTitle);
@@ -100,9 +118,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     
     // 노트 데이터 로드
     _loadNoteData();
-    _imageProcessingService = ImageProcessingService(
-      translatorService: _translatorService,
-    );
   }
 
   Future<void> _loadNoteData() async {
@@ -151,16 +166,30 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
           if (noteData != null) {
             print('Firestore에서 노트 데이터 로드 성공');
             
+            // 노트 객체 생성
+            final loadedNote = note_model.Note.fromFirestore(noteDoc);
+            
             setState(() {
-              _titleController.text = noteData['title'] ?? widget.initialTitle;
-              _contentController.text = noteData['content'] ?? widget.initialContent;
-              _translatedContentController.text = noteData['translatedText'] ?? widget.initialTranslatedContent ?? '';
-              _imageUrl = noteData['imageUrl'] ?? widget.initialImageUrl;
+              _note = loadedNote;
+              _titleController.text = loadedNote.title;
+              _contentController.text = loadedNote.content;
+              _translatedContentController.text = loadedNote.translatedText;
+              _imageUrl = loadedNote.imageUrl;
             });
             
-            // 캐시에 저장
-            await prefs.setString('note_$_noteId', jsonEncode(noteData));
+            // 캐시에 저장 (Timestamp 변환 처리)
+            final prefs = await SharedPreferences.getInstance();
+            final cacheData = {
+              'id': loadedNote.id,
+              'title': loadedNote.title,
+              'content': loadedNote.content,
+              'translatedText': loadedNote.translatedText,
+              'imageUrl': loadedNote.imageUrl,
+              'createdAt': loadedNote.createdAt.toIso8601String(),
+              'updatedAt': loadedNote.updatedAt.toIso8601String(),
+            };
             
+            await prefs.setString('note_$_noteId', jsonEncode(cacheData));
             print('노트 데이터 캐시에 저장 완료');
           } else {
             print('노트 데이터가 null입니다');
@@ -222,12 +251,12 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     });
     
     // Firestore 업데이트
-    final updatedNote = _note.copyWith(
+    final updatedNote = _note!.copyWith(
       highlightedTexts: Set<String>.from(_highlightedTexts),
       updatedAt: DateTime.now(),
     );
     
-    await firestore.collection('notes').doc(_note.id).update(updatedNote.toJson());
+    await firestore.collection('notes').doc(_note!.id).update(updatedNote.toJson());
     
     setState(() {
       _note = updatedNote;
@@ -244,25 +273,25 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       front: text,
       back: translatedText,
       pinyin: pinyin,
-      noteId: _note.id,
+      noteId: _note!.id,
       createdAt: DateTime.now(),
       reviewCount: 0,
     );
 
     // 중복 플래시카드 방지
     final List<flash_card_model.FlashCard> updatedFlashCards = [
-      ..._note.flashCards.where((card) => card.front != text),
+      ..._note!.flashCards.where((card) => card.front != text),
       newFlashCard,
     ];
 
-    final updatedNote = _note.copyWith(
+    final updatedNote = _note!.copyWith(
       flashCards: updatedFlashCards,
       highlightedTexts: {..._highlightedTexts, text},
       updatedAt: DateTime.now(),
     );
 
     // Firestore 업데이트
-    await firestore.collection('notes').doc(_note.id).update(updatedNote.toJson());
+    await firestore.collection('notes').doc(_note!.id).update(updatedNote.toJson());
 
     // UI 업데이트
     setState(() {
@@ -308,20 +337,20 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       final translatedText = await _translatorService.translate(newText, from: 'ko', to: 'zh');
       
       final updatedPage = note_model.Page(
-        imageUrl: _note.pages[pageIndex].imageUrl,
+        imageUrl: _note!.pages[pageIndex].imageUrl,
         extractedText: newText,
         translatedText: translatedText,
       );
       
-      final updatedPages = List<note_model.Page>.from(_note.pages);
+      final updatedPages = List<note_model.Page>.from(_note!.pages);
       updatedPages[pageIndex] = updatedPage;
       
-      final updatedNote = _note.copyWith(
+      final updatedNote = _note!.copyWith(
         pages: updatedPages,
         updatedAt: DateTime.now(),
       );
       
-      await firestore.collection('notes').doc(_note.id).update(updatedNote.toJson());
+      await firestore.collection('notes').doc(_note!.id).update(updatedNote.toJson());
       
       setState(() {
         _note = updatedNote;
@@ -344,15 +373,15 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
 
   Future<void> _deletePage(int pageIndex) async {
     try {
-      final updatedPages = List<note_model.Page>.from(_note.pages)
+      final updatedPages = List<note_model.Page>.from(_note!.pages)
         ..removeAt(pageIndex);
       
-      final updatedNote = _note.copyWith(
+      final updatedNote = _note!.copyWith(
         pages: updatedPages,
         updatedAt: DateTime.now(),
       );
       
-      await firestore.collection('notes').doc(_note.id).update(updatedNote.toJson());
+      await firestore.collection('notes').doc(_note!.id).update(updatedNote.toJson());
       
       setState(() {
         _note = updatedNote;
@@ -425,67 +454,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     );
   }
 
-  Future<void> _addNewPage(ImageSource source) async {
-    try {
-      final XFile? pickedFile = await ImagePicker().pickImage(
-        source: source,
-        maxWidth: 1200,
-        maxHeight: 1200,
-        imageQuality: 85,
-      );
-
-      if (pickedFile == null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('이미지가 선택되지 않았습니다')),
-          );
-        }
-        return;
-      }
-
-      final imageFile = File(pickedFile.path);
-      if (!await imageFile.exists()) {
-        throw Exception('선택된 이미지 파일이 존재하지 않습니다');
-      }
-
-      // 이미지 처리 서비스 사용
-      final imagePath = await _imageProcessingService.saveImageLocally(imageFile);
-      final extractedText = await _imageProcessingService.extractTextFromImage(await imageFile.readAsBytes());
-      final translatedText = await _imageProcessingService.translateText(extractedText);
-
-      // 새 페이지 생성
-      final newPage = note_model.Page(
-        imageUrl: imagePath,
-        extractedText: extractedText,
-        translatedText: translatedText,
-      );
-
-      // 노트 업데이트
-      final updatedNote = _note.copyWith(
-        pages: [..._note.pages, newPage],
-        updatedAt: DateTime.now(),
-      );
-
-      // Firestore 업데이트
-      await firestore.collection('notes').doc(_note.id).update(updatedNote.toJson());
-
-      if (mounted) {
-        setState(() {
-          _note = updatedNote;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('새로운 페이지가 추가되었습니다')),
-        );
-      }
-    } catch (e) {
-      print('Error adding new page: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('페이지 추가 중 오류가 발생했습니다: $e')),
-        );
-      }
-    }
-  }
 
   Future<void> _translateText(String text) async {
     setState(() {
@@ -510,26 +478,26 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
 
   Future<void> _saveFlashCards() async {
     try {
-      print('플래시카드 저장 시작: ${_note.id}, 카드 수: ${_note.flashCards.length}');
+      print('플래시카드 저장 시작: ${_note!.id}, 카드 수: ${_note!.flashCards.length}');
       
       // 깊은 복사를 통해 새 객체 생성
-      final updatedNote = _note.copyWith(
-        flashCards: List<flash_card_model.FlashCard>.from(_note.flashCards),
+      final updatedNote = _note!.copyWith(
+        flashCards: List<flash_card_model.FlashCard>.from(_note!.flashCards),
         updatedAt: DateTime.now(),
       );
       
       // Firestore 업데이트
       await FirebaseFirestore.instance
           .collection('notes')
-          .doc(_note.id)
+          .doc(_note!.id)
           .update(updatedNote.toJson());
       
-      print('플래시카드 저장 완료: ${_note.id}');
+      print('플래시카드 저장 완료: ${_note!.id}');
       
       // 저장 확인
       final docSnapshot = await FirebaseFirestore.instance
           .collection('notes')
-          .doc(_note.id)
+          .doc(_note!.id)
           .get();
       
       if (docSnapshot.exists) {
@@ -548,10 +516,18 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // _note가 null인 경우 로딩 표시
+    if (_note == null) {
+      return Scaffold(
+        appBar: AppBar(title: Text('노트 로딩 중...')),
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+    
     print('NoteDetailScreen build: $_noteId');
     // 알고 있는 카드를 제외한 활성 플래시카드만 필터링
-    final activeFlashCards = _note.flashCards.where(
-      (card) => !_note.knownFlashCards.contains(card.front)
+    final activeFlashCards = _note!.flashCards.where(
+      (card) => !_note!.knownFlashCards.contains(card.front)
     ).toList();
 
     return WillPopScope(
@@ -562,7 +538,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
             children: [
               _buildAppBar(),
               Expanded(
-                child: _note.pages.isEmpty
+                child: _note!.pages.isEmpty
                   ? Center(
                       child: Text(
                         '페이지가 없습니다. 새 페이지를 추가하세요.',
@@ -572,7 +548,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                       ),
                     )
                   : NotePage(
-                      page: _note.pages[_currentPageIndex],
+                      page: _note!.pages[_currentPageIndex],
                       displayMode: _displayMode,
                       isHighlightMode: _isHighlightMode,
                       highlightedTexts: _highlightedTexts,
@@ -594,8 +570,8 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 16.0),
                   child: FlashcardCounter(
                     flashCards: activeFlashCards,
-                    noteTitle: _note.title,
-                    noteId: _note.id,
+                    noteTitle: _note!.title,
+                    noteId: _note!.id,
                     knownCount: 0, // 이미 필터링했으므로 0으로 설정
                     onTap: _navigateToFlashcardScreen,
                   ),
@@ -631,7 +607,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       actions: [
         // 페이지 숫자 표시
         Text(
-          '${_currentPageIndex + 1}/${_note.pages.length} pages',
+          '${_currentPageIndex + 1}/${_note!.pages.length} pages',
           style: TypographyTokens.getStyle('body.small').copyWith(
             color: ColorTokens.getColor('base.400'),
           ),
@@ -639,9 +615,9 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
         const SizedBox(width: 8),  // 8px 간격
         // 플래시카드 카운터 업데이트
         FlashcardCounter(
-          flashCards: _note.flashCards,
-          noteTitle: _note.title,
-          noteId: _note.id,
+          flashCards: _note!.flashCards,
+          noteTitle: _note!.title,
+          noteId: _note!.id,
           alwaysShow: true,
         ),
         const SizedBox(width: 8),  // 우측 여백
@@ -733,8 +709,8 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
               // TTS 버튼
               IconButton(
                 onPressed: () {
-                  if (_note.pages.isNotEmpty) {
-                    _speak(_note.pages[_currentPageIndex].extractedText);
+                  if (_note!.pages.isNotEmpty) {
+                    _speak(_note!.pages[_currentPageIndex].extractedText);
                   }
                 },
                 icon: Icon(
@@ -749,7 +725,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
 
           // 다음 페이지 버튼
           IconButton(
-            onPressed: _currentPageIndex < _note.pages.length - 1
+            onPressed: _currentPageIndex < _note!.pages.length - 1
                 ? () {
                     setState(() {
                       _currentPageIndex++;
@@ -758,7 +734,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                 : null,
             icon: Icon(
               Icons.arrow_forward_ios,
-              color: _currentPageIndex < _note.pages.length - 1
+              color: _currentPageIndex < _note!.pages.length - 1
                   ? Theme.of(context).iconTheme.color
                   : Theme.of(context).disabledColor,
             ),
@@ -784,12 +760,12 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   }
 
   void _navigateToFlashcardScreen() async {
-    print('플래시카드 화면으로 이동: ${_note.id}');
+    print('플래시카드 화면으로 이동: ${_note!.id}');
     
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => FlashcardScreen(note: _note),
+        builder: (context) => FlashcardScreen(note: _note!),
       ),
     );
     

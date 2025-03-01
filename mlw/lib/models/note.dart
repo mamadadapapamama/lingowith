@@ -95,8 +95,8 @@ class Note {
     this.lastReviewedAt,
     this.pages = const [],
     this.flashCards = const [],
-    this.highlightedTexts = const {},
     this.knownFlashCards = const {},
+    this.highlightedTexts = const {},
   });
 
   int get knownFlashCardsCount => knownFlashCards.length;
@@ -170,6 +170,14 @@ class Note {
       }
     }
     
+    // 강조된 텍스트 집합 변환
+    Set<String> highlightedTexts = {};
+    if (data['highlightedTexts'] != null) {
+      if (data['highlightedTexts'] is List) {
+        highlightedTexts = Set<String>.from(data['highlightedTexts'] as List);
+      }
+    }
+    
     return Note(
       id: doc.id,
       spaceId: data['spaceId'] ?? '',
@@ -191,8 +199,8 @@ class Note {
           ?.map((page) => Page.fromJson(page))
           .toList() ?? [],
       flashCards: flashCards,
-      highlightedTexts: Set<String>.from(data['highlightedTexts'] ?? []),
       knownFlashCards: knownFlashCards,
+      highlightedTexts: highlightedTexts,
     );
   }
 
@@ -215,8 +223,8 @@ class Note {
       lastReviewedAt: null,
       pages: [],
       flashCards: [],
-      highlightedTexts: {},
       knownFlashCards: {},
+      highlightedTexts: {},
     );
   }
 
@@ -270,8 +278,8 @@ class Note {
       lastReviewedAt: lastReviewedAt ?? this.lastReviewedAt,
       pages: pages ?? this.pages,
       flashCards: effectiveCards,
-      highlightedTexts: highlightedTexts ?? this.highlightedTexts,
       knownFlashCards: allKnownCards,
+      highlightedTexts: highlightedTexts ?? this.highlightedTexts,
     );
   }
 
@@ -304,8 +312,8 @@ class Note {
       flashCards: (json['flashCards'] as List<dynamic>?)
           ?.map((card) => FlashCard.fromJson(card))
           .toList() ?? [],
-      highlightedTexts: Set<String>.from(json['highlightedTexts'] ?? []),
       knownFlashCards: Set<String>.from(json['knownFlashCards'] ?? []),
+      highlightedTexts: Set<String>.from(json['highlightedTexts'] ?? []),
     );
   }
 

@@ -272,6 +272,7 @@ class NoteRepository {
         id: docRef.id,
         userId: space.userId,
         name: space.name,
+        language: space.language,
         createdAt: space.createdAt,
         updatedAt: space.updatedAt,
         isDeleted: space.isDeleted,
