@@ -24,6 +24,20 @@ class ImageProcessingService {
   
   ImageProcessingService({required this.translatorService});
   
+  bool _initialized = false;
+
+  Future<void> initialize() async {
+    if (_initialized) return;
+    
+    try {
+      // Google API 키 로드 등의 초기화 작업
+      await _loadServiceAccountKey();
+      _initialized = true;
+    } catch (e) {
+      print('ImageProcessingService 초기화 실패: $e');
+    }
+  }
+  
   Future<String> saveImageLocally(File image) async {
     try {
       final directory = await getApplicationDocumentsDirectory();
@@ -38,7 +52,11 @@ class ImageProcessingService {
   
   Future<String> extractTextFromImage(List<int> imageBytes) async {
     try {
+      // 서비스 계정 키 로드
+      print('서비스 계정 키 파일 로드 시도...');
       final keyJson = await rootBundle.loadString('assets/service-account-key.json');
+      print('서비스 계정 키 파일 로드 성공');
+      
       final credentials = ServiceAccountCredentials.fromJson(keyJson);
       final client = await clientViaServiceAccount(credentials, [vision.VisionApi.cloudVisionScope]);
       final api = vision.VisionApi(client);
@@ -74,7 +92,7 @@ class ImageProcessingService {
         client.close();
       }
     } catch (e) {
-      print('Vision API error: $e');
+      print('텍스트 추출 오류: $e');
       return '';
     }
   }
@@ -89,42 +107,11 @@ class ImageProcessingService {
     return translatedLines.join('\n');
   }
 
-  Future<ImageProcessingResult?> processImage(ImageSource source) async {
-    try {
-      // 이미지 선택
-      final picker = ImagePicker();
-      final pickedFile = await picker.pickImage(source: source);
-      
-      if (pickedFile == null) {
-        print('이미지를 선택하지 않았습니다.');
-        return null;
-      }
-      
-      // 이미지 파일 저장
-      final imageFile = File(pickedFile.path);
-      final appDir = await getApplicationDocumentsDirectory();
-      final fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final savedImage = await imageFile.copy('${appDir.path}/$fileName');
-      // 텍스트 추출: read image file as bytes before processing
-      final imageBytes = await savedImage.readAsBytes();
-      final extractedText = await extractTextFromImage(imageBytes);
-      if (extractedText.isEmpty) {
-        print('이미지에서 텍스트를 추출할 수 없습니다.');
-        return null;
-      }
-      
-      // 텍스트 번역
-      final translatedText = await translateText(extractedText);
-      
-      return ImageProcessingResult(
-        imageUrl: savedImage.path,
-        extractedText: extractedText,
-        translatedText: translatedText,
-      );
-    } catch (e) {
-      print('이미지 처리 오류: $e');
-      return null;
+  Future<ImageProcessingResult?> processImage(File imageFile) async {
+    if (!_initialized) {
+      await initialize();
     }
+    return _processImageFile(imageFile);
   }
 
   Future<List<ImageProcessingResult>> processMultipleImages() async {
@@ -179,5 +166,35 @@ class ImageProcessingService {
       print('이미지 파일 처리 오류: $e');
       return null;
     }
+  }
+  
+  Future<bool> testGoogleApiAuthentication(String keyJson) async {
+    // JSON 파싱 검사
+    try {
+      final decodedJson = jsonDecode(keyJson);
+      print('서비스 계정 키 JSON 확인 완료');
+    } catch (e) {
+      print('서비스 계정 키 JSON 파싱 오류: $e');
+      return false;
+    }
+    
+    // Google API 인증 처리
+    try {
+      final credentials = ServiceAccountCredentials.fromJson(keyJson);
+      final client = await clientViaServiceAccount(
+        credentials,
+        [vision.VisionApi.cloudVisionScope]
+      );
+      print('Google API 인증 성공');
+      client.close();
+      return true;
+    } catch (e) {
+      print('Google API 인증 실패: $e');
+      return false;
+    }
+  }
+
+  Future<void> _loadServiceAccountKey() async {
+    // Implementation of _loadServiceAccountKey method
   }
 } 

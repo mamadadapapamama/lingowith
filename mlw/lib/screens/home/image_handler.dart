@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:mlw/services/image_processing_service.dart';
-import 'package:mlw/services/translator_service.dart';
 import 'package:mlw/models/note.dart' as note_model;
 import 'package:mlw/repositories/note_repository.dart';
 import 'package:mlw/screens/note_detail_screen.dart';
+import 'dart:io';
 
 class ImageHandler {
   final BuildContext context;
@@ -13,18 +12,12 @@ class ImageHandler {
   final Function(note_model.Note) onNoteCreated;
   final NoteRepository _noteRepository = NoteRepository();
   
-  late ImageProcessingService _imageProcessingService;
-  
   ImageHandler({
     required this.context,
     required this.spaceId,
     required this.userId,
     required this.onNoteCreated,
-  }) {
-    _imageProcessingService = ImageProcessingService(
-      translatorService: TranslatorService(),
-    );
-  }
+  });
   
   // 이미지 소스 선택 액션 시트 표시
   void showImageSourceActionSheet() {
@@ -40,7 +33,7 @@ class ImageHandler {
                 title: const Text('카메라로 촬영'),
                 onTap: () {
                   Navigator.pop(context);
-                  processImage(ImageSource.camera);
+                  createNoteFromImage(ImageSource.camera);
                 },
               ),
               ListTile(
@@ -48,7 +41,7 @@ class ImageHandler {
                 title: const Text('갤러리에서 선택'),
                 onTap: () {
                   Navigator.pop(context);
-                  processMultipleImages();
+                  createNotesFromGallery();
                 },
               ),
             ],
@@ -58,8 +51,8 @@ class ImageHandler {
     );
   }
   
-  // 이미지 처리 및 노트 자동 생성
-  Future<void> processImage(ImageSource source) async {
+  // 이미지에서 노트 생성 (OCR 없이)
+  Future<void> createNoteFromImage(ImageSource source) async {
     try {
       // 로딩 표시
       showDialog(
@@ -68,28 +61,31 @@ class ImageHandler {
         builder: (context) => const Center(child: CircularProgressIndicator()),
       );
       
-      final ImageProcessingResult? result = await _imageProcessingService.processImage(source);
+      // 이미지 선택
+      final pickedFile = await ImagePicker().pickImage(source: source);
       
       // 로딩 다이얼로그 닫기
       if (context.mounted) {
         Navigator.pop(context);
       }
       
-      if (result != null) {
+      if (pickedFile != null) {
+        final imageFile = File(pickedFile.path);
+        
         // 노트 번호 생성 (현재 시간 기반)
         final noteNumber = DateTime.now().millisecondsSinceEpoch % 10000;
         final title = "#$noteNumber";
         
-        // 노트 자동 생성
+        // 노트 생성 (OCR 없이)
         final newNote = note_model.Note(
           id: '',
           spaceId: spaceId,
           userId: userId,
           title: title,
           content: '',
-          imageUrl: result.imageUrl,
-          extractedText: result.extractedText,
-          translatedText: result.translatedText,
+          imageUrl: imageFile.path, // 로컬 경로 저장
+          extractedText: '', // OCR 없이 빈 텍스트
+          translatedText: '', // 번역 없이 빈 텍스트
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
           isDeleted: false,
@@ -113,13 +109,6 @@ class ImageHandler {
             ),
           );
         }
-      } else {
-        print('이미지 처리 결과가 없습니다.');
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('이미지 처리 중 오류가 발생했습니다.')),
-          );
-        }
       }
     } catch (e) {
       print('이미지 처리 오류: $e');
@@ -134,8 +123,8 @@ class ImageHandler {
     }
   }
   
-  // 다중 이미지 처리
-  Future<void> processMultipleImages() async {
+  // 갤러리에서 여러 이미지 선택하여 노트 생성
+  Future<void> createNotesFromGallery() async {
     try {
       // 로딩 표시
       showDialog(
@@ -144,34 +133,34 @@ class ImageHandler {
         builder: (context) => const Center(child: CircularProgressIndicator()),
       );
       
-      final List<ImageProcessingResult> results = 
-          await _imageProcessingService.processMultipleImages();
+      // 여러 이미지 선택
+      final pickedFiles = await ImagePicker().pickMultiImage();
       
       // 로딩 다이얼로그 닫기
       if (context.mounted) {
         Navigator.pop(context);
       }
       
-      if (results.isNotEmpty) {
+      if (pickedFiles.isNotEmpty) {
         note_model.Note? lastCreatedNote;
         
-        for (var i = 0; i < results.length; i++) {
-          final result = results[i];
+        for (var i = 0; i < pickedFiles.length; i++) {
+          final imageFile = File(pickedFiles[i].path);
           
           // 노트 번호 생성 (현재 시간 + 인덱스 기반)
           final noteNumber = DateTime.now().millisecondsSinceEpoch % 10000 + i;
           final title = "#$noteNumber";
           
-          // 노트 자동 생성
+          // 노트 생성 (OCR 없이)
           final newNote = note_model.Note(
             id: '',
             spaceId: spaceId,
             userId: userId,
             title: title,
             content: '',
-            imageUrl: result.imageUrl,
-            extractedText: result.extractedText,
-            translatedText: result.translatedText,
+            imageUrl: imageFile.path, // 로컬 경로 저장
+            extractedText: '', // OCR 없이 빈 텍스트
+            translatedText: '', // 번역 없이 빈 텍스트
             createdAt: DateTime.now(),
             updatedAt: DateTime.now(),
             isDeleted: false,
@@ -197,8 +186,6 @@ class ImageHandler {
             ),
           );
         }
-      } else {
-        print('선택된 이미지가 없습니다.');
       }
     } catch (e) {
       print('다중 이미지 처리 오류: $e');

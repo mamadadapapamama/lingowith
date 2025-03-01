@@ -73,112 +73,73 @@ class HomeScreenLogic {
       print('노트 스페이스 로드 시작');
       onLoadingChanged(true);
       
-      final user = auth.currentUser;
-      if (user == null) {
-        print('사용자가 로그인되어 있지 않습니다. 테스트 사용자 ID 사용');
-        // 테스트 사용자 ID 사용
-        const testUserId = 'test_user_id';
+      // 기존 노트 스페이스 ID 가져오기 (캐시에서)
+      final prefs = await SharedPreferences.getInstance();
+      final cachedSpaceId = prefs.getString('current_note_space_id');
+      
+      if (cachedSpaceId != null) {
+        print('캐시에서 노트 스페이스 ID 로드: $cachedSpaceId');
         
-        // 테스트 사용자의 노트 스페이스 가져오기
-        final spaces = await spaceRepository.getNoteSpaces(testUserId);
-        
-        NoteSpace? currentSpace;
-        if (spaces.isEmpty) {
-          // 노트 스페이스가 없으면 기본 스페이스 생성
-          final defaultSpace = NoteSpace(
-            id: '',
-            userId: testUserId,
-            name: '기본 스페이스',
-            language: 'ko',
-            createdAt: DateTime.now(),
-            updatedAt: DateTime.now(),
-          );
+        // 해당 ID로 노트 스페이스 직접 가져오기
+        try {
+          final spaceDoc = await FirebaseFirestore.instance
+              .collection('note_spaces')
+              .doc(cachedSpaceId)
+              .get();
           
-          currentSpace = await spaceRepository.createNoteSpace(defaultSpace);
-          print('테스트 사용자용 기본 노트 스페이스 생성됨: ${currentSpace.id}');
-        } else {
-          // 첫 번째 스페이스 사용
-          currentSpace = spaces.first;
-          print('테스트 사용자의 기존 노트 스페이스 사용: ${currentSpace.id}');
+          if (spaceDoc.exists) {
+            final spaceData = spaceDoc.data();
+            if (spaceData != null) {
+              final space = NoteSpace.fromFirestore(spaceDoc);
+              print('기존 노트 스페이스 로드 성공: ${space.name}');
+              
+              onNoteSpaceChanged(space);
+              _currentNoteSpace = space;
+              
+              // 캐시에 저장
+              _saveNoteSpaceToCache(space);
+              
+              // 노트 로드는 별도로 처리
+              onLoadingChanged(false);
+              return;
+            }
+          }
+        } catch (e) {
+          print('캐시된 노트 스페이스 로드 오류: $e');
         }
-        
-        onNoteSpaceChanged(currentSpace);
-        _currentNoteSpace = currentSpace;
-        
-        // 노트 목록 구독
-        subscribeToNotes(currentSpace.id);
-        
-        // 캐시에 저장
-        _saveNoteSpaceToCache(currentSpace);
-        
-        onLoadingChanged(false);
-        return;
       }
       
-      print('사용자 ID: ${user.uid}');
-      // 사용자의 노트 스페이스 가져오기
-      final spaces = await spaceRepository.getNoteSpaces(user.uid);
-      print('노트 스페이스 개수: ${spaces.length}');
+      // 캐시에서 로드 실패 또는 캐시가 없는 경우 기본 스페이스 생성
+      print('기본 노트 스페이스 생성 시작');
       
-      NoteSpace? currentSpace;
-      if (spaces.isEmpty) {
-        print('노트 스페이스가 없어 기본 스페이스 생성 시작');
-        // 노트 스페이스가 없으면 기본 스페이스 생성
-        final defaultSpace = NoteSpace(
-          id: '',
-          userId: user.uid,
-          name: '기본 스페이스',
-          language: 'ko',
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-        );
-        
-        currentSpace = await spaceRepository.createNoteSpace(defaultSpace);
-        print('기본 노트 스페이스 생성됨: ${currentSpace.id}');
-      } else {
-        print('기존 노트 스페이스 사용');
-        // 첫 번째 스페이스 사용
-        currentSpace = spaces.first;
-        print('기존 노트 스페이스 사용: ${currentSpace.id}');
-      }
+      // 기본 스페이스 생성
+      final defaultSpace = NoteSpace(
+        id: '',
+        userId: 'anonymous', // 익명 사용자로 설정
+        name: '기본 스페이스',
+        language: 'ko',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
       
-      print('노트 스페이스 로드 완료: ${currentSpace.id}');
-      onNoteSpaceChanged(currentSpace);
-      _currentNoteSpace = currentSpace;
+      final createdSpace = await spaceRepository.createNoteSpace(defaultSpace);
+      print('기본 노트 스페이스 생성됨: ${createdSpace.id}');
       
-      // 노트 목록 구독
-      subscribeToNotes(currentSpace.id);
+      onNoteSpaceChanged(createdSpace);
+      _currentNoteSpace = createdSpace;
       
       // 캐시에 저장
-      _saveNoteSpaceToCache(currentSpace);
+      _saveNoteSpaceToCache(createdSpace);
       
+      // 노트 스페이스 ID 캐시에 저장
+      await prefs.setString('current_note_space_id', createdSpace.id);
+      
+      onLoadingChanged(false);
     } catch (e) {
       print('노트 스페이스 로드 오류: $e');
       print('스택 트레이스: ${StackTrace.current}');
       onErrorChanged('노트 스페이스 로드 중 오류가 발생했습니다: $e');
       onLoadingChanged(false);
-      
-      // 오류 발생 시 기본 노트 스페이스 생성
-      try {
-        print('오류 복구: 기본 노트 스페이스 생성 시도');
-        final defaultSpace = NoteSpace(
-          id: 'default_space',
-          userId: 'test_user_id',
-          name: '기본 스페이스',
-          language: 'ko',
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-        );
-        
-        onNoteSpaceChanged(defaultSpace);
-        _currentNoteSpace = defaultSpace;
-        
-        // 빈 노트 목록 표시
-        onNotesChanged([]);
-        onLoadingChanged(false);
-      } catch (recoveryError) {
-        print('오류 복구 실패: $recoveryError');
-      }
     }
   }
   
@@ -186,9 +147,20 @@ class HomeScreenLogic {
   Future<void> _saveNoteSpaceToCache(NoteSpace noteSpace) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final spaceJson = jsonEncode(noteSpace.toJson());
-      await prefs.setString('current_note_space', spaceJson);
-      print('노트 스페이스를 캐시에 저장: ${noteSpace.id}');
+      
+      // DateTime 객체를 ISO8601 문자열로 변환
+      final spaceJson = {
+        'id': noteSpace.id,
+        'userId': noteSpace.userId,
+        'name': noteSpace.name,
+        'language': noteSpace.language,
+        'createdAt': noteSpace.createdAt.toIso8601String(),
+        'updatedAt': noteSpace.updatedAt.toIso8601String(),
+        // 다른 필드들...
+      };
+      
+      await prefs.setString('current_note_space', jsonEncode(spaceJson));
+      print('노트 스페이스 캐시 저장 완료: ${noteSpace.name}');
     } catch (e) {
       print('노트 스페이스 캐시 저장 오류: $e');
     }
@@ -278,19 +250,21 @@ class HomeScreenLogic {
     }
   }
   
-  // 노트 상세 화면으로 이동
-  Future<void> navigateToNoteDetail(BuildContext context, note_model.Note note) async {
-    final result = await Navigator.push(
+  // 노트 상세 페이지로 이동
+  void navigateToNoteDetail(BuildContext context, note_model.Note note) {
+    print('노트 상세 페이지로 이동: ${note.id}, 제목: ${note.title}');
+    
+    Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => NoteDetailScreen(note: note),
+        builder: (context) => NoteDetailScreen(
+          note: note,
+        ),
       ),
-    );
-    
-    if (result == true) {
-      print('노트 상세 화면에서 변경 사항 있음, 노트 목록 새로고침');
+    ).then((_) {
+      // 노트 상세 페이지에서 돌아오면 노트 목록 새로고침
       refreshNotes();
-    }
+    });
   }
   
   // 노트 생성 화면으로 이동
@@ -357,50 +331,64 @@ class HomeScreenLogic {
     }
   }
   
-  // 노트 상세 화면에서 돌아올 때 호출
+  // 노트 새로고침
   Future<void> refreshNotes() async {
-    print('Returned from NoteDetailScreen, refreshing notes');
-    
-    // 기존 구독 취소 후 새로 구독
-    _notesSubscription?.cancel();
-    
-    final currentSpace = await _getCurrentNoteSpace();
-    if (currentSpace != null) {
-      try {
-        onLoadingChanged(true);
-        
-        // Firestore에서 직접 데이터 가져오기
-        final snapshot = await FirebaseFirestore.instance
-            .collection('notes')
-            .where('spaceId', isEqualTo: currentSpace.id)
-            .get();
-        
-        final notes = snapshot.docs
-            .map((doc) => note_model.Note.fromFirestore(doc))
-            .where((note) => !(note.isDeleted ?? false))
-            .toList();
-        
-        notes.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-        
-        print('Firestore에서 직접 로드한 노트: ${notes.length}개');
-        
-        // 캐시에 노트 추가
-        for (var note in notes) {
-          noteRepository.updateCache(note);
-        }
-        
-        onNotesChanged(notes);
+    try {
+      print('노트 새로고침 시작');
+      onLoadingChanged(true);
+      
+      final currentSpace = _currentNoteSpace;
+      if (currentSpace == null) {
+        print('노트 스페이스가 없어 노트를 로드할 수 없습니다.');
         onLoadingChanged(false);
-        
-        // 캐시에 저장
-        _saveNotesToCache(notes);
-      } catch (e) {
-        print('노트 새로고침 오류: $e');
-        onLoadingChanged(false);
+        return;
       }
       
-      // 구독 다시 시작
-      subscribeToNotes(currentSpace.id);
+      print('노트 스페이스: ${currentSpace.id}, 이름: ${currentSpace.name}');
+      
+      // Firestore에서 직접 데이터 가져오기
+      final snapshot = await FirebaseFirestore.instance
+          .collection('notes')
+          .where('spaceId', isEqualTo: currentSpace.id)
+          .get();
+      
+      print('Firestore 쿼리 결과: ${snapshot.docs.length}개 문서');
+      
+      if (snapshot.docs.isEmpty) {
+        print('Firestore에서 노트를 찾을 수 없습니다.');
+        onLoadingChanged(false);
+        return;
+      }
+      
+      final notes = snapshot.docs
+          .map((doc) {
+            try {
+              return note_model.Note.fromFirestore(doc);
+            } catch (e) {
+              print('노트 파싱 오류 (${doc.id}): $e');
+              return null;
+            }
+          })
+          .where((note) => note != null)
+          .cast<note_model.Note>()
+          .where((note) => !(note.isDeleted))
+          .toList();
+      
+      notes.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      
+      print('Firestore에서 직접 로드한 노트: ${notes.length}개');
+      
+      // 노트 목록 업데이트
+      onNotesChanged(notes);
+      
+      // 캐시에 저장
+      _saveNotesToCache(notes);
+      
+      onLoadingChanged(false);
+    } catch (e) {
+      print('노트 새로고침 오류: $e');
+      onErrorChanged('노트 새로고침 중 오류가 발생했습니다: $e');
+      onLoadingChanged(false);
     }
   }
   

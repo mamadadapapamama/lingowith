@@ -4,15 +4,11 @@ import 'package:mlw/widgets/note_card.dart';
 
 class HomeScreenAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
-  final VoidCallback onRefresh;
-  final VoidCallback onCheckDataState;
   final VoidCallback onSettings;
   
   const HomeScreenAppBar({
     Key? key,
     required this.title,
-    required this.onRefresh,
-    required this.onCheckDataState,
     required this.onSettings,
   }) : super(key: key);
   
@@ -21,16 +17,6 @@ class HomeScreenAppBar extends StatelessWidget implements PreferredSizeWidget {
     return AppBar(
       title: Text(title),
       actions: [
-        IconButton(
-          icon: const Icon(Icons.refresh),
-          onPressed: onRefresh,
-          tooltip: '강제 새로고침',
-        ),
-        IconButton(
-          icon: const Icon(Icons.bug_report),
-          onPressed: onCheckDataState,
-          tooltip: '데이터 상태 확인',
-        ),
         IconButton(
           icon: const Icon(Icons.settings),
           onPressed: onSettings,

@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:mlw/models/note.dart' as note_model;
 import 'package:mlw/repositories/note_repository.dart';
 import 'package:mlw/screens/note_detail_screen.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:translator/translator.dart';
 
 class CreateNoteScreen extends StatefulWidget {
   final String spaceId;
@@ -50,16 +53,13 @@ class _CreateNoteScreenState extends State<CreateNoteScreen> {
         spaceId: widget.spaceId,
         userId: widget.userId,
         title: _titleController.text.isNotEmpty ? _titleController.text : 'New Note',
-        content: '',
+        content: widget.extractedText,
         imageUrl: widget.imageUrl,
         extractedText: widget.extractedText,
         translatedText: widget.translatedText,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
         isDeleted: false,
-        flashcardCount: 0,
-        reviewCount: 0,
-        lastReviewedAt: null,
       );
       
       print('노트 생성 중...');
@@ -75,7 +75,10 @@ class _CreateNoteScreenState extends State<CreateNoteScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => NoteDetailScreen(note: createdNote),
+            builder: (context) => NoteDetailScreen(
+              note: createdNote,
+              initialTranslatedContent: widget.translatedText,
+            ),
           ),
         );
       } else {

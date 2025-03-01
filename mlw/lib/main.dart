@@ -8,6 +8,8 @@ import 'package:mlw/screens/onboarding_screen.dart';
 import 'package:mlw/screens/settings_screen.dart';
 import 'package:mlw/theme/app_theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/services.dart';
+// import 'package:mlw/app.dart'; // 이 라인 제거
 // import 'package:mlw/view_models/home_view_model.dart'; // 필요한 경우 주석 해제
 // import 'package:mlw/firebase_options.dart'; // 필요한 경우 주석 해제
 
@@ -16,6 +18,8 @@ bool useEmulator = false;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Firebase 초기화
   await Firebase.initializeApp();
   
   // 에뮬레이터 비활성화

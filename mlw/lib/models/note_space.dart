@@ -25,20 +25,16 @@ class NoteSpace {
 
   factory NoteSpace.fromJson(Map<String, dynamic> json) {
     return NoteSpace(
-      id: json['id'],
-      userId: json['userId'],
-      name: json['name'],
-      language: json['language'],
-      createdAt: json['createdAt'] is Timestamp 
-          ? (json['createdAt'] as Timestamp).toDate()
-          : (json['createdAt'] is String 
-              ? DateTime.parse(json['createdAt'])
-              : DateTime.now()),
-      updatedAt: json['updatedAt'] is Timestamp
-          ? (json['updatedAt'] as Timestamp).toDate()
-          : (json['updatedAt'] is String
-              ? DateTime.parse(json['updatedAt'])
-              : DateTime.now()),
+      id: json['id'] as String,
+      userId: json['userId'] as String,
+      name: json['name'] as String,
+      language: json['language'] as String,
+      createdAt: json['createdAt'] is String 
+          ? DateTime.parse(json['createdAt'] as String)
+          : (json['createdAt'] as DateTime),
+      updatedAt: json['updatedAt'] is String 
+          ? DateTime.parse(json['updatedAt'] as String)
+          : (json['updatedAt'] as DateTime),
     );
   }
 
@@ -48,8 +44,8 @@ class NoteSpace {
       'userId': userId,
       'name': name,
       'language': language,
-      'createdAt': createdAt,
-      'updatedAt': updatedAt,
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
     };
   }
 
