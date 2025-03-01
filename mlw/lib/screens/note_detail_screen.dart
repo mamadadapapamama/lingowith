@@ -15,6 +15,7 @@ import 'package:mlw/repositories/note_repository.dart';
 import 'dart:convert';
 import 'package:mlw/screens/flashcard_screen.dart';
 import 'package:mlw/services/translator_service.dart';
+import 'dart:io';
 
 class NoteDetailScreen extends StatefulWidget {
   final String noteId;
@@ -123,102 +124,47 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   Future<void> _loadNoteData() async {
     try {
       print('노트 데이터 로드 시작: $_noteId');
-      setState(() {
-      });
       
       // 노트 ID가 비어있으면 로드하지 않음
       if (_noteId.isEmpty) {
         print('노트 ID가 비어있어 로드하지 않음');
-        setState(() {
-        });
         return;
-      }
-      
-      // 캐시에서 먼저 확인
-      final prefs = await SharedPreferences.getInstance();
-      final cachedNoteJson = prefs.getString('note_$_noteId');
-      
-      if (cachedNoteJson != null) {
-        print('캐시에서 노트 데이터 로드: $_noteId');
-        final noteData = jsonDecode(cachedNoteJson);
-        
-        setState(() {
-          _titleController.text = noteData['title'] ?? widget.initialTitle;
-          _contentController.text = noteData['content'] ?? widget.initialContent;
-          _translatedContentController.text = noteData['translatedText'] ?? widget.initialTranslatedContent ?? '';
-          _imageUrl = noteData['imageUrl'] ?? widget.initialImageUrl;
-        });
-        
-        print('캐시에서 노트 데이터 로드 완료');
       }
       
       // Firestore에서 최신 데이터 가져오기
       print('Firestore에서 노트 데이터 로드 시작: $_noteId');
       
       try {
-        final noteDoc = await FirebaseFirestore.instance
-            .collection('notes')
-            .doc(_noteId)
-            .get();
+        final loadedNote = await _noteRepository.getNote(_noteId);
         
-        if (noteDoc.exists) {
-          final noteData = noteDoc.data();
-          if (noteData != null) {
-            print('Firestore에서 노트 데이터 로드 성공');
-            
-            // 노트 객체 생성
-            final loadedNote = note_model.Note.fromFirestore(noteDoc);
-            
-            setState(() {
-              _note = loadedNote;
-              _titleController.text = loadedNote.title;
-              _contentController.text = loadedNote.content;
-              _translatedContentController.text = loadedNote.translatedText;
-              _imageUrl = loadedNote.imageUrl;
-            });
-            
-            // 캐시에 저장 (Timestamp 변환 처리)
-            final prefs = await SharedPreferences.getInstance();
-            final cacheData = {
-              'id': loadedNote.id,
-              'title': loadedNote.title,
-              'content': loadedNote.content,
-              'translatedText': loadedNote.translatedText,
-              'imageUrl': loadedNote.imageUrl,
-              'createdAt': loadedNote.createdAt.toIso8601String(),
-              'updatedAt': loadedNote.updatedAt.toIso8601String(),
-            };
-            
-            await prefs.setString('note_$_noteId', jsonEncode(cacheData));
-            print('노트 데이터 캐시에 저장 완료');
-            
-            print('로드된 노트 페이지 수: ${loadedNote.pages.length}');
-            if (loadedNote.pages.isNotEmpty) {
-              print('첫 번째 페이지 정보: ${loadedNote.pages[0].imageUrl}');
-            }
-          } else {
-            print('노트 데이터가 null입니다');
-            setState(() {
-            });
-          }
-        } else {
-          print('노트 문서가 존재하지 않습니다');
-          setState(() {
-          });
+        print('Firestore에서 노트 데이터 로드 성공');
+        print('로드된 노트 페이지 수: ${loadedNote.pages.length}');
+        
+        if (loadedNote.pages.isNotEmpty) {
+          print('첫 번째 페이지 정보: ${loadedNote.pages[0].imageUrl}');
+          // 이미지 파일이 존재하는지 확인
+          final file = File(loadedNote.pages[0].imageUrl);
+          print('이미지 파일 존재 여부: ${await file.exists()}');
         }
+        
+        setState(() {
+          _note = loadedNote;
+          _titleController.text = loadedNote.title;
+          _contentController.text = loadedNote.content;
+          _translatedContentController.text = loadedNote.translatedText;
+          _imageUrl = loadedNote.imageUrl;
+          _highlightedTexts = loadedNote.highlightedTexts;
+        });
+        
       } catch (e) {
         print('Firestore에서 노트 데이터 로드 오류: $e');
-        setState(() {
-        });
+        print('스택 트레이스: ${StackTrace.current}');
       }
     } catch (e) {
       print('노트 데이터 로드 오류: $e');
       print('스택 트레이스: ${StackTrace.current}');
-      setState(() {
-      });
     }
   }
-
 
   Future<void> _speak(String text) async {
     try {
@@ -233,7 +179,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       }
     }
   }
-
 
   Future<void> _handleTextSelection(String text) async {
     try {
@@ -335,7 +280,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     // 임시로 더미 데이터 반환
     return 'mao he gou shi hao peng you';
   }
-
 
   Future<void> _editPageText(int pageIndex, String newText) async {
     try {
@@ -459,7 +403,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     );
   }
 
-
   Future<void> _translateText(String text) async {
     setState(() {
 // 로딩 표시
@@ -553,47 +496,21 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     );
   }
 
-  Widget _buildAppBar() {
+  PreferredSizeWidget _buildAppBar() {
     return AppBar(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
+      title: Text(_note?.title ?? '노트'),
       leading: IconButton(
-        icon: const Icon(Icons.arrow_back, color: Colors.black),
+        icon: const Icon(Icons.arrow_back),
         onPressed: _handleBackPress,
       ),
-      titleSpacing: 0,
-      title: Row(
-        children: [
-          Text(
-            _titleController.text,
-            style: TypographyTokens.getStyle('heading.h1').copyWith(
-              color: ColorTokens.getColor('text.body'),
-            ),
-          ),
-        ],
-      ),
       actions: [
-        // 페이지 숫자 표시
-        Text(
-          '${_currentPageIndex + 1}/${_note!.pages.length} pages',
-          style: TypographyTokens.getStyle('body.small').copyWith(
-            color: ColorTokens.getColor('base.400'),
-          ),
-        ),
-        const SizedBox(width: 8),  // 8px 간격
-        // 플래시카드 카운터 업데이트
-        FlashcardCounter(
-          flashCards: _note!.flashCards,
-          noteTitle: _note!.title,
-          noteId: _note!.id,
-          alwaysShow: true,
-        ),
-        const SizedBox(width: 8),  // 우측 여백
-        // 하이라이트 모드 상태 확인 버튼
+        // 하이라이트 모드 토글 버튼
         IconButton(
           icon: Icon(
             _isHighlightMode ? Icons.highlight : Icons.highlight_off,
-            color: _isHighlightMode ? Colors.amber : Colors.grey,
+            color: _isHighlightMode
+                ? ColorTokens.getColor('primary.400')
+                : ColorTokens.getColor('text.body'),
           ),
           onPressed: () {
             setState(() {
@@ -727,8 +644,10 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       displayMode: _displayMode,
       isHighlightMode: _isHighlightMode,
       highlightedTexts: _note!.highlightedTexts,
-      onTextSelected: _handleTextSelection,
-      onSpeakText: _speak,
+      onHighlighted: _handleTextSelection,
+      onSpeak: _speak,
+      onDeletePage: () => _deletePage(_currentPageIndex),
+      onEditText: (text) => _showEditDialog(_currentPageIndex, text),
     );
   }
 
@@ -817,38 +736,39 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   Future<void> _saveNote() async {
     try {
       print('노트 저장 시작: $_noteId');
-      setState(() {
-      });
       
-      final updatedNote = note_model.Note(
-        id: _noteId,
-        spaceId: _spaceId,
-        userId: widget.note?.userId ?? '',
+      // 현재 노트가 null이면 저장하지 않음
+      if (_note == null) {
+        print('노트가 null이어서 저장하지 않음');
+        return;
+      }
+      
+      // 현재 노트 복사본 생성 및 업데이트
+      final updatedNote = _note!.copyWith(
         title: _titleController.text,
-        flashcardCount: widget.note?.flashcardCount ?? 0,
-        reviewCount: widget.note?.reviewCount ?? 0,
         content: _contentController.text,
-        imageUrl: _imageUrl ?? '',
-        extractedText: widget.note?.extractedText ?? '',
         translatedText: _translatedContentController.text,
-        createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
-        isDeleted: false,
+        highlightedTexts: _highlightedTexts,
       );
       
       await _noteRepository.updateNote(updatedNote);
-      print('노트 저장 완료: ${updatedNote.id}');
       
       setState(() {
+        _note = updatedNote;
+        _isNoteModified = false;
       });
+      
+      print('노트 저장 완료: ${updatedNote.id}');
       
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('노트가 저장되었습니다')),
       );
     } catch (e) {
       print('노트 저장 오류: $e');
-      setState(() {
-      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('노트 저장 중 오류가 발생했습니다: $e')),
+      );
     }
   }
 }

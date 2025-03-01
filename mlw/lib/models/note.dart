@@ -133,49 +133,41 @@ class Note {
   factory Note.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     
-    // Timestamp를 DateTime으로 변환
-    DateTime createdAt;
-    if (data['createdAt'] is Timestamp) {
-      createdAt = (data['createdAt'] as Timestamp).toDate();
-    } else if (data['createdAt'] is DateTime) {
-      createdAt = data['createdAt'] as DateTime;
-    } else {
-      createdAt = DateTime.now(); // 기본값
-    }
-    
-    DateTime updatedAt;
-    if (data['updatedAt'] is Timestamp) {
-      updatedAt = (data['updatedAt'] as Timestamp).toDate();
-    } else if (data['updatedAt'] is DateTime) {
-      updatedAt = data['updatedAt'] as DateTime;
-    } else {
-      updatedAt = DateTime.now(); // 기본값
+    // 페이지 목록 변환
+    List<Page> pages = [];
+    if (data['pages'] != null) {
+      pages = (data['pages'] as List).map((pageData) {
+        return Page(
+          imageUrl: pageData['imageUrl'] ?? '',
+          extractedText: pageData['extractedText'] ?? '',
+          translatedText: pageData['translatedText'] ?? '',
+        );
+      }).toList();
     }
     
     // 플래시카드 목록 변환
     List<FlashCard> flashCards = [];
     if (data['flashCards'] != null) {
       flashCards = (data['flashCards'] as List)
-          .map((card) => FlashCard.fromJson(card as Map<String, dynamic>))
+          .map((cardData) => FlashCard.fromJson(cardData))
           .toList();
     }
     
     // 알고 있는 플래시카드 집합 변환
     Set<String> knownFlashCards = {};
     if (data['knownFlashCards'] != null) {
-      if (data['knownFlashCards'] is Map) {
-        knownFlashCards = (data['knownFlashCards'] as Map).keys.toSet().cast<String>();
-      } else if (data['knownFlashCards'] is List) {
-        knownFlashCards = Set<String>.from(data['knownFlashCards'] as List);
-      }
+      knownFlashCards = Set<String>.from(data['knownFlashCards'] as List);
     }
     
     // 강조된 텍스트 집합 변환
     Set<String> highlightedTexts = {};
     if (data['highlightedTexts'] != null) {
-      if (data['highlightedTexts'] is List) {
-        highlightedTexts = Set<String>.from(data['highlightedTexts'] as List);
-      }
+      highlightedTexts = Set<String>.from(data['highlightedTexts'] as List);
+    }
+    
+    print('로드된 페이지 수: ${pages.length}');
+    if (pages.isNotEmpty) {
+      print('첫 번째 페이지 이미지 URL: ${pages[0].imageUrl}');
     }
     
     return Note(
@@ -187,17 +179,19 @@ class Note {
       imageUrl: data['imageUrl'] ?? '',
       extractedText: data['extractedText'] ?? '',
       translatedText: data['translatedText'] ?? '',
-      createdAt: createdAt,
-      updatedAt: updatedAt,
+      createdAt: data['createdAt'] is Timestamp 
+          ? (data['createdAt'] as Timestamp).toDate() 
+          : DateTime.now(),
+      updatedAt: data['updatedAt'] is Timestamp
+          ? (data['updatedAt'] as Timestamp).toDate()
+          : DateTime.now(),
       isDeleted: data['isDeleted'] ?? false,
       flashcardCount: data['flashcardCount'] ?? 0,
       reviewCount: data['reviewCount'] ?? 0,
-      lastReviewedAt: data['lastReviewedAt'] is Timestamp 
-          ? (data['lastReviewedAt'] as Timestamp).toDate() 
+      lastReviewedAt: data['lastReviewedAt'] is Timestamp
+          ? (data['lastReviewedAt'] as Timestamp).toDate()
           : null,
-      pages: (data['pages'] as List<dynamic>?)
-          ?.map((page) => Page.fromJson(page))
-          .toList() ?? [],
+      pages: pages,
       flashCards: flashCards,
       knownFlashCards: knownFlashCards,
       highlightedTexts: highlightedTexts,
@@ -328,12 +322,33 @@ class Note {
 
   // 호환성을 위한 toFirestore 메서드
   Map<String, dynamic> toFirestore() {
-    final json = toJson();
+    final data = {
+      'spaceId': spaceId,
+      'userId': userId,
+      'title': title,
+      'content': content,
+      'imageUrl': imageUrl,
+      'extractedText': extractedText,
+      'translatedText': translatedText,
+      'createdAt': Timestamp.fromDate(createdAt),
+      'updatedAt': Timestamp.fromDate(updatedAt),
+      'isDeleted': isDeleted,
+      'flashcardCount': flashcardCount,
+      'reviewCount': reviewCount,
+      'pages': pages.map((page) => {
+        'imageUrl': page.imageUrl,
+        'extractedText': page.extractedText,
+        'translatedText': page.translatedText,
+      }).toList(),
+      'flashCards': flashCards.map((card) => card.toJson()).toList(),
+      'knownFlashCards': knownFlashCards.toList(),
+      'highlightedTexts': highlightedTexts.toList(),
+    };
     
-    // DateTime을 Timestamp로 변환
-    json['createdAt'] = Timestamp.fromDate(createdAt);
-    json['updatedAt'] = Timestamp.fromDate(updatedAt);
+    if (lastReviewedAt != null) {
+      data['lastReviewedAt'] = Timestamp.fromDate(lastReviewedAt!);
+    }
     
-    return json;
+    return data;
   }
 }

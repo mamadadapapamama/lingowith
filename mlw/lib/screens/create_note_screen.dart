@@ -40,54 +40,54 @@ class _CreateNoteScreenState extends State<CreateNoteScreen> {
   }
 
   Future<void> _createNote() async {
-    if (_isCreating) return;
-    
-    setState(() {
-      _isCreating = true;
-      _error = null;
-    });
-    
     try {
+      setState(() {
+        _isCreating = true;
+      });
+      
+      // 페이지 생성
+      final page = note_model.Page(
+        imageUrl: widget.imageUrl ?? '',
+        extractedText: widget.extractedText ?? '',
+        translatedText: widget.translatedText ?? '',
+      );
+      
       // 노트 생성
-      final newNote = note_model.Note(
+      final note = note_model.Note(
         id: '',
         spaceId: widget.spaceId,
         userId: widget.userId,
         title: _titleController.text.isNotEmpty ? _titleController.text : 'New Note',
-        content: widget.extractedText ?? '',
-        imageUrl: widget.imageUrl ?? '',
-        extractedText: widget.extractedText ?? '',
-        translatedText: widget.translatedText ?? '',
+        content: '',
+        imageUrl: '',
+        extractedText: '',
+        translatedText: '',
+        pages: [page],
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
         isDeleted: false,
         flashcardCount: 0,
         reviewCount: 0,
-        flashCards: [], // 빈 플래시카드 목록 추가
-        knownFlashCards: {}, // 빈 알고 있는 플래시카드 집합 추가
+        knownFlashCards: <String>{},
+        highlightedTexts: <String>{},
       );
       
-      print('노트 생성 중...');
-      final createdNote = await _noteRepository.createNote(newNote);
-      print('노트 생성 완료: ${createdNote.id}');
+      // 노트 저장
+      final createdNote = await _noteRepository.createNote(note);
       
-      // 생성된 노트 저장
       setState(() {
-        _note = createdNote;
+        _isCreating = false;
       });
       
-      // 생성된 노트가 Firestore에 확실히 저장되었는지 확인
-      await Future.delayed(const Duration(milliseconds: 500));
-      final verifyNote = await _noteRepository.getNote(createdNote.id);
-      print('노트 확인: ${verifyNote.id}, 제목: ${verifyNote.title}');
-      
+      // 노트 상세 화면으로 이동
       if (mounted) {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
             builder: (context) => NoteDetailScreen(
-              note: _note!, // null 체크 후 사용
-              initialTranslatedContent: widget.translatedText,
+              noteId: createdNote.id,
+              spaceId: createdNote.spaceId,
+              note: createdNote,
             ),
           ),
         );
@@ -95,9 +95,14 @@ class _CreateNoteScreenState extends State<CreateNoteScreen> {
     } catch (e) {
       print('노트 생성 오류: $e');
       setState(() {
-        _error = '노트 생성 중 오류가 발생했습니다: $e';
         _isCreating = false;
       });
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('노트 생성 중 오류가 발생했습니다: $e')),
+        );
+      }
     }
   }
 

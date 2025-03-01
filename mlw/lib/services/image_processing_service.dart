@@ -42,11 +42,22 @@ class ImageProcessingService {
     try {
       final directory = await getApplicationDocumentsDirectory();
       final fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final savedImage = await image.copy('${directory.path}/$fileName');
-      return savedImage.path;
+      final savedImagePath = '${directory.path}/$fileName';
+      
+      // 이미지 파일 복사
+      await image.copy(savedImagePath);
+      
+      print('이미지 저장 완료: $savedImagePath');
+      
+      // 파일 존재 확인
+      final savedFile = File(savedImagePath);
+      final exists = await savedFile.exists();
+      print('저장된 이미지 파일 존재 여부: $exists');
+      
+      return savedImagePath;
     } catch (e) {
-      print('Error saving image: $e');
-      rethrow;
+      print('이미지 저장 오류: $e');
+      throw Exception('이미지 저장 중 오류가 발생했습니다: $e');
     }
   }
   
@@ -142,12 +153,10 @@ class ImageProcessingService {
   Future<ImageProcessingResult?> _processImageFile(File imageFile) async {
     try {
       // 이미지 파일 저장
-      final appDir = await getApplicationDocumentsDirectory();
-      final fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final savedImage = await imageFile.copy('${appDir.path}/$fileName');
+      final savedImagePath = await saveImageLocally(imageFile);
       
       // 텍스트 추출
-      final imageBytes = await savedImage.readAsBytes();
+      final imageBytes = await imageFile.readAsBytes();
       final extractedText = await extractTextFromImage(imageBytes);
       if (extractedText.isEmpty) {
         print('이미지에서 텍스트를 추출할 수 없습니다.');
@@ -157,8 +166,13 @@ class ImageProcessingService {
       // 텍스트 번역
       final translatedText = await translateText(extractedText);
       
+      print('이미지 처리 완료:');
+      print('- 이미지 경로: $savedImagePath');
+      print('- 추출된 텍스트 길이: ${extractedText.length}');
+      print('- 번역된 텍스트 길이: ${translatedText.length}');
+      
       return ImageProcessingResult(
-        imageUrl: savedImage.path,
+        imageUrl: savedImagePath,
         extractedText: extractedText,
         translatedText: translatedText,
       );
