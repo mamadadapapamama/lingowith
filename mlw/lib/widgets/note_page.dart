@@ -8,7 +8,6 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:mlw/screens/image_viewer_screen.dart';
 import 'package:mlw/models/text_display_mode.dart';
 import 'package:mlw/widgets/dictionary_lookup_sheet.dart';
-import 'package:mlw/services/translator_service.dart';
 
 class NotePage extends StatefulWidget {
   final note_model.Page page;
@@ -88,73 +87,157 @@ class _NotePageState extends State<NotePage> {
 
   @override
   Widget build(BuildContext context) {
-    print('NotePage - isHighlightMode: ${widget.isHighlightMode}');
-    print('NotePage - highlightedTexts: ${widget.highlightedTexts}');
-    
-    return Container(  // 페이지 배경색 추가
-      color: ColorTokens.getColor('base.0'),
-      child: Column(
-        children: [
-          // Image section with buttons
-          SizedBox(
-            width: double.infinity,
-            child: Stack(
-              children: [
-                // Image
-                AspectRatio(
-                  aspectRatio: 4/3,
-                  child: Image.file(
-                    File(widget.page.imageUrl),
-                    width: double.infinity,
-                    fit: BoxFit.cover,
+    // 이미지 파일 존재 여부를 비동기적으로 확인
+    Future<bool> _checkImageExists(String path) async {
+      final file = File(path);
+      return await file.exists();
+    }
+
+    return SingleChildScrollView(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 이미지 표시
+            FutureBuilder<bool>(
+              future: _checkImageExists(widget.page.imageUrl),
+              builder: (context, snapshot) {
+                final imageExists = snapshot.data ?? false;
+                
+                return ClipRRect(
+                  borderRadius: BorderRadius.circular(8.0),
+                  child: imageExists
+                      ? Image.file(
+                          File(widget.page.imageUrl),
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                        )
+                      : Container(
+                          width: double.infinity,
+                          height: 200,
+                          color: ColorTokens.getColor('base.200'),
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.image_not_supported,
+                                  size: 48,
+                                  color: ColorTokens.getColor('base.400'),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  '이미지를 찾을 수 없습니다',
+                                  style: TypographyTokens.getStyle('body.medium').copyWith(
+                                    color: ColorTokens.getColor('base.500'),
+                                  ),
+                                ),
+                                Text(
+                                  widget.page.imageUrl,
+                                  style: TypographyTokens.getStyle('body.small').copyWith(
+                                    color: ColorTokens.getColor('base.400'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                );
+              },
+            ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: Row(
+                children: [
+                  // 텍스트 편집 버튼
+                  CircleAvatar(
+                    backgroundColor: Colors.white.withOpacity(0.7),
+                    radius: 18,
+                    child: IconButton(
+                      icon: const Icon(Icons.edit, size: 18),
+                      onPressed: () => widget.onEditText.call(widget.page.extractedText),
+                      color: ColorTokens.getColor('primary.500'),
+                    ),
                   ),
-                ),
-                // Buttons overlay
-                Positioned(
-                  top: 16,
-                  right: 16,
-                  child: Row(
+                  const SizedBox(width: 8),
+                  // 페이지 삭제 버튼
+                  CircleAvatar(
+                    backgroundColor: Colors.white.withOpacity(0.7),
+                    radius: 18,
+                    child: IconButton(
+                      icon: const Icon(Icons.delete, size: 18),
+                      onPressed: widget.onDeletePage,
+                      color: ColorTokens.getColor('error.500'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // 원문 표시 (displayMode에 따라)
+            if (widget.displayMode == TextDisplayMode.originalOnly || widget.displayMode == TextDisplayMode.both)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // Expand button
-                      _buildActionButton(
-                        icon: 'assets/icon/expand.svg',
-                        onTap: () {
-                          setState(() {
-                            _isExpanding = !_isExpanding;
-                          });
-                          _openImageViewer(context);
-                        },
+                      Text(
+                        '원문',
+                        style: TypographyTokens.getStyle('heading.h3').copyWith(
+                          color: ColorTokens.getColor('text.heading'),
+                        ),
                       ),
-                      // More button
-                      _buildActionButton(
-                        icon: 'assets/icon/more.svg',
-                        onTap: () {
-                          setState(() {
-                            _isMorePressed = !_isMorePressed;
-                          });
-                          _showMoreOptions();
-                        },
+                      IconButton(
+                        icon: const Icon(Icons.volume_up),
+                        onPressed: () => widget.onSpeak.call(widget.page.extractedText),
+                        color: ColorTokens.getColor('primary.400'),
                       ),
                     ],
                   ),
-                ),
-              ],
-            ),
-          ),
-          
-          // Text content
-          Expanded(
-            child: SingleChildScrollView(
-              child: Padding(  // Container 대신 Padding 사용
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: _buildSentences(widget.page.extractedText, widget.page.translatedText),
-                ),
+                  const SizedBox(height: 8),
+                  TextHighlighter(
+                    text: widget.page.extractedText,
+                    highlightedTexts: widget.highlightedTexts,
+                    isHighlightMode: widget.isHighlightMode,
+                    onHighlighted: widget.onHighlighted,
+                    highlightColor: ColorTokens.getColor('primary.100'),
+                    style: TypographyTokens.getStyle('body.large').copyWith(
+                      color: ColorTokens.getColor('text.body'),
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
               ),
-            ),
-          ),
-        ],
+            
+            // 번역 표시 (displayMode에 따라)
+            if (widget.displayMode == TextDisplayMode.translationOnly || widget.displayMode == TextDisplayMode.both)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '번역',
+                    style: TypographyTokens.getStyle('heading.h3').copyWith(
+                      color: ColorTokens.getColor('text.heading'),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    widget.page.translatedText,
+                    style: TypographyTokens.getStyle('body.large').copyWith(
+                      color: ColorTokens.getColor('text.body'),
+                      height: 1.5,
+                    ),
+                  ),
+                ],
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -279,9 +362,8 @@ class _NotePageState extends State<NotePage> {
                   isHighlightMode: widget.isHighlightMode,
                   highlightedTexts: widget.highlightedTexts,
                   onHighlighted: widget.onHighlighted,
-                  highlightColor: ColorTokens.getColor('tertiary.200'),
+                  highlightColor: ColorTokens.getColor('primary.100'),
                   style: TypographyTokens.getStyle('body.original'),
-                  contextMenuBuilder: null,
                 ),
               ),
               // TTS 버튼
@@ -352,12 +434,11 @@ class _NotePageState extends State<NotePage> {
           isHighlightMode: widget.isHighlightMode,
           highlightedTexts: widget.highlightedTexts,
           onHighlighted: widget.onHighlighted,
-          highlightColor: ColorTokens.getColor('tertiary.200'),
+          highlightColor: ColorTokens.getColor('primary.100'),
           style: TypographyTokens.getStyle('body.large').copyWith(
             color: ColorTokens.getColor('text.body'),
             height: 1.8,
           ),
-          contextMenuBuilder: null,
         );
       },
     );

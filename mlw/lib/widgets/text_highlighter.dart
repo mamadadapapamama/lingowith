@@ -4,21 +4,20 @@ import 'package:mlw/widgets/dictionary_lookup_sheet.dart';
 
 class TextHighlighter extends StatelessWidget {
   final String text;
-  final bool isHighlightMode;
   final Set<String> highlightedTexts;
+  final bool isHighlightMode;
   final Function(String) onHighlighted;
-  final Color highlightColor;
   final TextStyle style;
+  final Color highlightColor;
 
   const TextHighlighter({
     Key? key,
     required this.text,
-    required this.isHighlightMode,
     required this.highlightedTexts,
+    required this.isHighlightMode,
     required this.onHighlighted,
     required this.highlightColor,
-    required this.style,
-    Widget Function(BuildContext, EditableTextState)? contextMenuBuilder,
+    this.style = const TextStyle(),
   }) : super(key: key);
 
   @override
@@ -102,64 +101,46 @@ class TextHighlighter extends StatelessWidget {
     return SelectableText.rich(
       TextSpan(children: spans),
       style: style,
-      contextMenuBuilder: (context, editableTextState) {
-        try {
-          final TextEditingValue value = editableTextState.textEditingValue;
-          final TextSelection selection = value.selection;
-          
-          if (selection.isCollapsed || 
-              selection.baseOffset < 0 || 
-              selection.extentOffset > text.length) {
-            return Container();
-          }
-          
-          final String selectedText = value.text.substring(
-            selection.baseOffset, 
-            selection.extentOffset
-          );
-          
-          print('Selected text: $selectedText');
-          print('Is highlight mode: $isHighlightMode');
-          
-          return AdaptiveTextSelectionToolbar(
-            anchors: editableTextState.contextMenuAnchors,
-            children: [
-              TextButton(
-                onPressed: () {
-                  Clipboard.setData(ClipboardData(text: selectedText));
-                  editableTextState.hideToolbar();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Text copied')),
-                  );
-                },
-                child: const Text('Copy'),
-              ),
-              // 항상 하이라이트 버튼 표시 (조건 검사 제거)
-              TextButton(
-                onPressed: () {
-                  print('Highlight button pressed for: $selectedText');
-                  onHighlighted(selectedText);
-                  editableTextState.hideToolbar();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Text highlighted')),
-                  );
-                },
-                child: const Text('Highlight'),
-              ),
-              TextButton(
-                onPressed: () {
-                  _showDictionaryLookup(context, selectedText);
-                  editableTextState.hideToolbar();
-                },
-                child: const Text('Dictionary'),
-              ),
-            ],
-          );
-        } catch (e) {
-          print('Error in context menu: $e');
-          return Container();
+      onSelectionChanged: (selection, cause) {
+        if (isHighlightMode && selection.baseOffset != selection.extentOffset) {
+          // 텍스트가 선택되었을 때 처리
         }
       },
+      contextMenuBuilder: (context, editableTextState) {
+        final selectedText = editableTextState.textEditingValue.selection.textInside(editableTextState.textEditingValue.text);
+        
+        return AdaptiveTextSelectionToolbar(
+          anchors: editableTextState.contextMenuAnchors,
+          children: [
+            // 복사 버튼
+            InkWell(
+              onTap: () {
+                Clipboard.setData(ClipboardData(text: selectedText));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('텍스트가 복사되었습니다')),
+                );
+                editableTextState.hideToolbar();
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: const Text('복사'),
+              ),
+            ),
+            // 하이라이트 버튼
+            InkWell(
+              onTap: () {
+                onHighlighted(selectedText);
+                editableTextState.hideToolbar();
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: const Text('하이라이트'),
+              ),
+            ),
+          ],
+        );
+      },
+      selectionControls: MaterialTextSelectionControls(),
     );
   }
 

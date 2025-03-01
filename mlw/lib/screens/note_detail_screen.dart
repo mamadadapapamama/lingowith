@@ -16,6 +16,7 @@ import 'dart:convert';
 import 'package:mlw/screens/flashcard_screen.dart';
 import 'package:mlw/services/translator_service.dart';
 import 'dart:io';
+import 'dart:async';
 
 class NoteDetailScreen extends StatefulWidget {
   final String noteId;
@@ -68,6 +69,9 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   late String _noteId;
   late String _spaceId;
   
+  // 디바운스 타이머 추가
+  Timer? _saveTimer;
+
   @override
   void initState() {
     super.initState();
@@ -320,83 +324,53 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     }
   }
 
-  Future<void> _deletePage(int pageIndex) async {
-    try {
-      final updatedPages = List<note_model.Page>.from(_note!.pages)
-        ..removeAt(pageIndex);
+  void _deletePage(int pageIndex) {
+    if (_note == null || pageIndex >= _note!.pages.length) return;
+    
+    setState(() {
+      final updatedPages = List<note_model.Page>.from(_note!.pages);
+      updatedPages.removeAt(pageIndex);
+      _note = _note!.copyWith(pages: updatedPages);
       
-      final updatedNote = _note!.copyWith(
-        pages: updatedPages,
-        updatedAt: DateTime.now(),
-      );
-      
-      await firestore.collection('notes').doc(_note!.id).update(updatedNote.toJson());
-      
-      setState(() {
-        _note = updatedNote;
-      });
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('페이지가 삭제되었습니다')),
-        );
+      // 현재 페이지 인덱스 조정
+      if (_currentPageIndex >= updatedPages.length) {
+        _currentPageIndex = updatedPages.isEmpty ? 0 : updatedPages.length - 1;
       }
-    } catch (e) {
-      print('Error deleting page: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('페이지 삭제 중 오류가 발생했습니다: $e')),
-        );
-      }
-    }
+    });
+    
+    // Firestore 업데이트
+    _saveNote();
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('페이지가 삭제되었습니다')),
+    );
   }
 
-  void _showEditDialog(int pageIndex, String currentText) {
-    final textController = TextEditingController(text: currentText);
+  void _showEditDialog(int pageIndex, String text) {
+    final textController = TextEditingController(text: text);
     
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(
-          '텍스트 수정',
-          style: TextStyle(
-            color: ColorTokens.semantic['text']['body'],
-          ),
-        ),
+        title: const Text('텍스트 편집'),
         content: TextField(
           controller: textController,
-          maxLines: null,
-          decoration: InputDecoration(
-            hintText: '중국어 텍스트를 입력하세요',
-            hintStyle: TextStyle(
-              color: ColorTokens.semantic['text']['body'].withOpacity(0.5),
-            ),
-          ),
-          style: TextStyle(
-            color: ColorTokens.semantic['text']['body'],
+          maxLines: 10,
+          decoration: const InputDecoration(
+            border: OutlineInputBorder(),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(
-              '취소',
-              style: TextStyle(
-                color: ColorTokens.semantic['text']['body'],
-              ),
-            ),
+            child: const Text('취소'),
           ),
           TextButton(
             onPressed: () {
               Navigator.pop(context);
               _editPageText(pageIndex, textController.text);
             },
-            child: Text(
-              '저장',
-              style: TextStyle(
-                color: ColorTokens.semantic['text']['body'],
-              ),
-            ),
+            child: const Text('저장'),
           ),
         ],
       ),
@@ -770,6 +744,16 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
         SnackBar(content: Text('노트 저장 중 오류가 발생했습니다: $e')),
       );
     }
+  }
+
+  void _scheduleNoteSave() {
+    // 이전 타이머 취소
+    _saveTimer?.cancel();
+    
+    // 새 타이머 설정 (500ms 후 저장)
+    _saveTimer = Timer(const Duration(milliseconds: 500), () {
+      _saveNote();
+    });
   }
 }
 
