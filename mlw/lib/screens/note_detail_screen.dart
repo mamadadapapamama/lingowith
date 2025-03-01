@@ -191,6 +191,11 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
             
             await prefs.setString('note_$_noteId', jsonEncode(cacheData));
             print('노트 데이터 캐시에 저장 완료');
+            
+            print('로드된 노트 페이지 수: ${loadedNote.pages.length}');
+            if (loadedNote.pages.isNotEmpty) {
+              print('첫 번째 페이지 정보: ${loadedNote.pages[0].imageUrl}');
+            }
           } else {
             print('노트 데이터가 null입니다');
             setState(() {
@@ -516,6 +521,8 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    print('NoteDetailScreen build: ${_note?.id}');
+    
     // _note가 null인 경우 로딩 표시
     if (_note == null) {
       return Scaffold(
@@ -524,62 +531,23 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       );
     }
     
-    print('NoteDetailScreen build: $_noteId');
-    // 알고 있는 카드를 제외한 활성 플래시카드만 필터링
-    final activeFlashCards = _note!.flashCards.where(
-      (card) => !_note!.knownFlashCards.contains(card.front)
-    ).toList();
-
+    // 페이지 목록이 비어있는지 확인
+    final hasPages = _note!.pages.isNotEmpty;
+    print('노트 페이지 수: ${_note!.pages.length}');
+    
     return WillPopScope(
       onWillPop: _onWillPop,
       child: Scaffold(
-        body: SafeArea(
-          child: Column(
-            children: [
-              _buildAppBar(),
-              Expanded(
-                child: _note!.pages.isEmpty
-                  ? Center(
-                      child: Text(
-                        '페이지가 없습니다. 새 페이지를 추가하세요.',
-                        style: TextStyle(
-                          color: ColorTokens.semantic['text']['body'],
-                        ),
-                      ),
-                    )
-                  : NotePage(
-                      page: _note!.pages[_currentPageIndex],
-                      displayMode: _displayMode,
-                      isHighlightMode: _isHighlightMode,
-                      highlightedTexts: _highlightedTexts,
-                      onHighlighted: _handleTextSelection,
-                      onSpeak: (text) {
-                        setState(() {
-                          _currentPlayingIndex = _currentPageIndex;
-                        });
-                        _speak(text);
-                      },
-                      currentPlayingIndex: _currentPlayingIndex,
-                      onDeletePage: () => _deletePage(_currentPageIndex),
-                      onEditText: (text) => _showEditDialog(_currentPageIndex, text),
-                    ),
-              ),
-              _buildPageControls(),
-              if (activeFlashCards.isNotEmpty) ...[
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: FlashcardCounter(
-                    flashCards: activeFlashCards,
-                    noteTitle: _note!.title,
-                    noteId: _note!.id,
-                    knownCount: 0, // 이미 필터링했으므로 0으로 설정
-                    onTap: _navigateToFlashcardScreen,
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
-            ],
-          ),
+        appBar: _buildAppBar(),
+        body: Column(
+          children: [
+            if (hasPages) _buildPageControls(),
+            Expanded(
+              child: hasPages 
+                  ? _buildPageContent()
+                  : _buildEmptyState(),
+            ),
+          ],
         ),
       ),
     );
@@ -738,6 +706,63 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                   ? Theme.of(context).iconTheme.color
                   : Theme.of(context).disabledColor,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPageContent() {
+    // 현재 페이지 인덱스가 유효한지 확인
+    if (_currentPageIndex >= _note!.pages.length) {
+      _currentPageIndex = 0;
+    }
+    
+    // 현재 페이지 가져오기
+    final currentPage = _note!.pages[_currentPageIndex];
+    print('현재 페이지 정보: ${currentPage.imageUrl}');
+    
+    return NotePage(
+      page: currentPage,
+      displayMode: _displayMode,
+      isHighlightMode: _isHighlightMode,
+      highlightedTexts: _note!.highlightedTexts,
+      onTextSelected: _handleTextSelection,
+      onSpeakText: _speak,
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.note_add,
+            size: 64,
+            color: ColorTokens.getColor('base.300'),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            '페이지가 없습니다',
+            style: TypographyTokens.getStyle('heading.h2').copyWith(
+              color: ColorTokens.getColor('base.400'),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '이미지를 추가하여 새 페이지를 만들어보세요',
+            style: TypographyTokens.getStyle('body.medium').copyWith(
+              color: ColorTokens.getColor('base.400'),
+            ),
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.add_photo_alternate),
+            label: const Text('이미지 추가'),
+            onPressed: () {
+              // 이미지 추가 기능 구현
+            },
           ),
         ],
       ),
