@@ -5,7 +5,6 @@ import 'package:mlw/theme/tokens/color_tokens.dart';
 import 'package:mlw/theme/tokens/typography_tokens.dart';
 import 'dart:io';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:mlw/screens/image_viewer_screen.dart';
 import 'package:mlw/models/text_display_mode.dart';
 import 'package:mlw/widgets/dictionary_lookup_sheet.dart';
 
@@ -619,19 +618,6 @@ class _NotePageState extends State<NotePage> {
     _resetButtonStates();  // 모달 닫힐 때 상태 리셋
   }
 
-  void _openImageViewer(BuildContext context) async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => ImageViewerScreen(
-          imageUrl: widget.page.imageUrl,
-          extractedText: widget.page.extractedText,
-          translatedText: widget.page.translatedText,
-        ),
-      ),
-    );
-    _resetButtonStates();  // 화면 복귀 시 상태 리셋
-  }
 
   void _showDictionaryLookup(BuildContext context, String word) {
     showModalBottomSheet(

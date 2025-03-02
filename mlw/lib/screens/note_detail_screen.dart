@@ -8,16 +8,13 @@ import 'package:mlw/theme/tokens/color_tokens.dart';
 import 'package:mlw/theme/tokens/typography_tokens.dart';
 import 'package:mlw/models/text_display_mode.dart';
 import 'package:mlw/services/pinyin_service.dart';
-import 'package:mlw/widgets/flashcard_counter.dart';
 import 'package:mlw/services/image_processing_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mlw/repositories/note_repository.dart';
-import 'dart:convert';
 import 'package:mlw/screens/flashcard_screen.dart';
 import 'package:mlw/services/translator_service.dart';
 import 'dart:io';
 import 'dart:async';
-import 'package:image_picker/image_picker.dart';
 
 class NoteDetailScreen extends StatefulWidget {
   final String noteId;
@@ -333,6 +330,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   }
 
   Future<void> _addHighlight(String text) async {
+    // 올바른 translate 메서드 호출 (이름 있는 매개변수 사용)
     final translatedText = await _translatorService.translate(text, from: 'ko', to: 'zh');
     final pinyin = await pinyinService.getPinyin(text);
     
@@ -340,9 +338,9 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       front: text,
       back: translatedText,
       pinyin: pinyin,
-      id: _note!.id,
+      noteId: _note!.id,
       createdAt: DateTime.now(),
-      reviewCount: 0,
+      reviewCount: 0, id: '',
     );
 
     // 중복 플래시카드 방지
