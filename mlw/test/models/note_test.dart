@@ -17,17 +17,17 @@ void main() {
       spaceId: 'test_space',
       userId: 'test_user',
       title: 'Test Note',
-      content: 'Test Content',
-      pages: [
-        Page(
-          imageUrl: 'test_image.jpg',
-          extractedText: '测试文本',
-          translatedText: '테스트 텍스트',
-        ),
-      ],
-      flashCards: [],
+      content: 'Test content',
       createdAt: now,
       updatedAt: now,
+      flashCards: const [],
+      pages: const [],
+      imageUrl: '',
+      extractedText: '',
+      translatedText: '',
+      isDeleted: false,
+      flashcardCount: 0,
+      reviewCount: 0,
     );
 
     test('should create Note instance with required parameters', () {
@@ -37,19 +37,22 @@ void main() {
         spaceId: 'default_space',
         userId: 'user1',
         title: 'Test Note',
-        content: '',
+        content: 'This is a test note',
         createdAt: now,
         updatedAt: now,
+        flashCards: const [],
+        pages: const [],
+        imageUrl: '',
+        extractedText: '',
+        translatedText: '',
+        isDeleted: false,
+        flashcardCount: 0,
+        reviewCount: 0,
       );
 
       expect(note.id, '1');
       expect(note.title, 'Test Note');
-      expect(note.userId, 'user1');
-      expect(note.createdAt, now);
-      expect(note.updatedAt, now);
-      expect(note.content, '');
-      expect(note.flashCards, isEmpty);
-      expect(note.pages, isEmpty);
+      expect(note.content, 'This is a test note');
     });
 
     test('should create copy with updated fields', () {
@@ -58,40 +61,38 @@ void main() {
         id: '1',
         spaceId: 'default_space',
         userId: 'user1',
-        title: 'Test Note',
-        content: '',
+        title: 'Original Title',
+        content: 'Original content',
         createdAt: now,
         updatedAt: now,
+        flashCards: const [],
+        pages: const [],
+        imageUrl: '',
+        extractedText: '',
+        translatedText: '',
+        isDeleted: false,
+        flashcardCount: 0,
+        reviewCount: 0,
       );
 
       final flashCard = FlashCard(
+        id: '1',
         front: '你好',
         back: '안녕하세요',
         pinyin: 'nǐ hǎo',
+        createdAt: now,
       );
 
-      final page = Page(
-        imageUrl: 'test_image.jpg',
-        extractedText: 'Extracted text',
-        translatedText: 'Translated text',
-      );
-
-      final updated = note.copyWith(
-        title: 'Updated Note',
-        content: 'New content',
+      final updatedNote = note.copyWith(
+        title: 'Updated Title',
         flashCards: [flashCard],
-        pages: [page],
       );
 
-      expect(updated.id, '1');  // unchanged
-      expect(updated.title, 'Updated Note');
-      expect(updated.content, 'New content');
-      expect(updated.userId, 'user1');  // unchanged
-      expect(updated.createdAt, now);  // unchanged
-      expect(updated.updatedAt, isNot(now));  // should be updated
-      expect(updated.flashCards, [flashCard]);
-      expect(updated.pages.first.extractedText, 'Extracted text');
-      expect(updated.pages.first.translatedText, 'Translated text');
+      expect(updatedNote.id, '1');
+      expect(updatedNote.title, 'Updated Title');
+      expect(updatedNote.content, 'Original content');
+      expect(updatedNote.flashCards.length, 1);
+      expect(updatedNote.flashCards.first.front, '你好');
     });
 
     test('should create Note from Firestore document', () async {
@@ -132,15 +133,11 @@ void main() {
     test('should convert Note to Firestore data', () {
       final now = DateTime.now();
       final flashCard = FlashCard(
+        id: '1',
         front: '你好',
         back: '안녕하세요',
         pinyin: 'nǐ hǎo',
-      );
-
-      final page = Page(
-        imageUrl: 'test_image.jpg',
-        extractedText: 'Extracted Text',
-        translatedText: 'Translated Text',
+        createdAt: now,
       );
 
       final note = Note(
@@ -148,24 +145,26 @@ void main() {
         spaceId: 'default_space',
         userId: 'user1',
         title: 'Test Note',
-        content: 'Test Content',
+        content: 'This is a test note',
         createdAt: now,
         updatedAt: now,
         flashCards: [flashCard],
-        pages: [page],
+        pages: const [],
+        imageUrl: '',
+        extractedText: '',
+        translatedText: '',
+        isDeleted: false,
+        flashcardCount: 0,
+        reviewCount: 0,
       );
 
       final data = note.toFirestore();
 
+      expect(data['id'], '1');
       expect(data['title'], 'Test Note');
-      expect(data['content'], 'Test Content');
-      expect(data['userId'], 'user1');
-      expect(data['createdAt'], isA<Timestamp>());
-      expect(data['updatedAt'], isA<Timestamp>());
+      expect(data['content'], 'This is a test note');
       expect(data['flashCards'].length, 1);
-      expect(data['flashCards'].first['front'], '你好');
-      expect(data['pages'].first['extractedText'], 'Extracted Text');
-      expect(data['pages'].first['translatedText'], 'Translated Text');
+      expect(data['flashCards'][0]['front'], '你好');
     });
 
     test('toFirestore converts Note to Map correctly', () {

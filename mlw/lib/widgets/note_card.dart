@@ -11,7 +11,8 @@ import 'package:mlw/screens/flashcard_screen.dart';
 
 class NoteCard extends StatefulWidget {
   final note_model.Note note;
-  final VoidCallback onPressed;
+  final Function() onTap;
+  final Function() onPressed;
   final Function(String) onDelete;
   final Function(String, String) onTitleEdit;
   final VoidCallback? onRefresh;
@@ -19,6 +20,7 @@ class NoteCard extends StatefulWidget {
   const NoteCard({
     Key? key,
     required this.note,
+    required this.onTap,
     required this.onPressed,
     required this.onDelete,
     required this.onTitleEdit,
@@ -299,8 +301,15 @@ class _NoteCardState extends State<NoteCard> {
     }
   }
 
-  void _navigateToFlashcards() async {
-    final result = await Navigator.push(
+  void _navigateToFlashcards() {
+    if (widget.note.flashCards.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('플래시카드가 없습니다')),
+      );
+      return;
+    }
+    
+    Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => FlashcardScreen.fromParts(
@@ -310,13 +319,5 @@ class _NoteCardState extends State<NoteCard> {
         ),
       ),
     );
-    
-    // 플래시카드 화면에서 true를 반환받으면 홈 화면 새로고침
-    if (result == true) {
-      // 홈 화면 새로고침 요청 - 콜백 사용
-      if (widget.onRefresh != null) {
-        widget.onRefresh!();
-      }
-    }
   }
 }

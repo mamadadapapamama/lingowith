@@ -3,10 +3,18 @@ import 'package:http/http.dart' as http;
 import 'package:flutter/services.dart';
 
 class TranslatorService {
+  static final TranslatorService _instance = TranslatorService._internal();
+  
+  factory TranslatorService() {
+    return _instance;
+  }
+  
+  TranslatorService._internal();
+  
   final String _baseUrl = 'https://translation.googleapis.com/language/translate/v2';
   String? _apiKey;
   bool _initialized = false;
-
+  
   Future<void> initialize() async {
     if (_initialized) return;
     
@@ -27,7 +35,7 @@ class TranslatorService {
       throw Exception('번역 서비스 초기화 중 오류가 발생했습니다: $e');
     }
   }
-
+  
   Future<String> translate(String text, {String from = 'zh', String to = 'ko'}) async {
     if (text.isEmpty) return '';
     
@@ -62,11 +70,10 @@ class TranslatorService {
       }
     } catch (e) {
       print('번역 오류: $e');
-      // 오류 발생 시 원본 텍스트 반환
-      return text;
+      return text;  // 오류 시 원본 반환
     }
   }
-
+  
   Future<String> translateText(String text, {String from = 'zh', String to = 'ko'}) async {
     if (text.isEmpty) return '';
     
@@ -87,5 +94,3 @@ class TranslatorService {
     }
   }
 }
-
-final translatorService = TranslatorService();

@@ -7,6 +7,7 @@ import 'dart:io';
 class CreateNoteScreen extends StatefulWidget {
   final String spaceId;
   final String userId;
+  final String language;
   final String? imageUrl;
   final String? extractedText;
   final String? translatedText;
@@ -15,6 +16,7 @@ class CreateNoteScreen extends StatefulWidget {
     Key? key,
     required this.spaceId,
     required this.userId,
+    this.language = 'zh',
     this.imageUrl,
     this.extractedText,
     this.translatedText,

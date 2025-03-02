@@ -14,6 +14,7 @@ class FlashcardCounter extends StatelessWidget {
   final bool isInteractive;
   final bool alwaysShow;
   final VoidCallback? onTap;
+  final BuildContext? parentContext; // 부모 컨텍스트 추가
 
   const FlashcardCounter({
     Key? key,
@@ -24,6 +25,7 @@ class FlashcardCounter extends StatelessWidget {
     this.isInteractive = true,
     this.alwaysShow = false,
     this.onTap,
+    this.parentContext, // 선택적 파라미터로 추가
   }) : super(key: key);
 
   @override
@@ -78,18 +80,32 @@ class FlashcardCounter extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(100),
         onTap: onTap ?? () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => FlashcardScreen.fromParts(
-                flashCards: flashCards,
-                title: noteTitle,
-                noteId: noteId,
-              ),
-            ),
-          );
+          _navigateToFlashcards(context);
         },
         child: counter,
+      ),
+    );
+  }
+
+  void _navigateToFlashcards(BuildContext context) {
+    if (flashCards.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('플래시카드가 없습니다')),
+      );
+      return;
+    }
+    
+    // 부모 컨텍스트가 제공된 경우 사용, 그렇지 않으면 현재 컨텍스트 사용
+    final ctx = parentContext ?? context;
+    
+    Navigator.push(
+      ctx,
+      MaterialPageRoute(
+        builder: (context) => FlashcardScreen.fromParts(
+          flashCards: flashCards,
+          title: noteTitle,
+          noteId: noteId,
+        ),
       ),
     );
   }

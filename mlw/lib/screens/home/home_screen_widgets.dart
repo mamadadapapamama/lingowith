@@ -58,6 +58,7 @@ class NoteGridView extends StatelessWidget {
         print('노트 ${index + 1}/${notes.length}: ${note.id}, 제목: ${note.title}');
         return NoteCard(
           note: note,
+          onTap: () => onNoteTap(note),
           onPressed: () => onNoteTap(note),
           onDelete: (id) {
             // 노트 삭제 로직
@@ -72,4 +73,28 @@ class NoteGridView extends StatelessWidget {
       },
     );
   }
+}
+
+Widget _buildNoteList(List<note_model.Note> notes, Function(note_model.Note) onNoteTap) {
+  return ListView.builder(
+    padding: const EdgeInsets.all(16),
+    itemCount: notes.length,
+    itemBuilder: (context, index) {
+      final note = notes[index];
+      print('노트 ${index + 1}/${notes.length}: ${note.id}, 제목: ${note.title}');
+      return NoteCard(
+        note: note,
+        onTap: () => onNoteTap(note),
+        onPressed: () => onNoteTap(note),
+        onDelete: (id) {
+          // 노트 삭제 로직
+          print('노트 삭제: $id');
+        },
+        onTitleEdit: (id, newTitle) {
+          // 노트 제목 수정 로직
+          print('노트 제목 수정: $id, 새 제목: $newTitle');
+        },
+      );
+    },
+  );
 } 

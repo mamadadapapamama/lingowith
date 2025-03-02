@@ -22,6 +22,8 @@ class HomeScreenLogic {
   StreamSubscription<List<note_model.Note>>? _notesSubscription;
   NoteSpace? _currentNoteSpace;
   
+  Timer? _refreshTimer;
+  
   HomeScreenLogic({
     required this.auth,
     required this.noteRepository,
@@ -34,6 +36,7 @@ class HomeScreenLogic {
   
   void dispose() {
     _notesSubscription?.cancel();
+    _refreshTimer?.cancel();
   }
   
   // 캐시에서 데이터 로드
@@ -197,7 +200,7 @@ class HomeScreenLogic {
     
     // 새로운 스트림 구독
     _notesSubscription = noteRepository
-        .getNotes(spaceId)
+        .getNotesStream(spaceId)
         .listen(
           (notes) {
             print('노트 스트림 업데이트: ${notes.length}개');
@@ -209,7 +212,7 @@ class HomeScreenLogic {
           },
           onError: (e) {
             print('노트 스트림 오류: $e');
-            onErrorChanged('노트 목록을 가져오는 중 오류가 발생했습니다: $e');
+            onErrorChanged('노트 데이터 스트림 오류: $e');
             onLoadingChanged(false);
           },
         );
@@ -515,6 +518,30 @@ class HomeScreenLogic {
       print('노트 제목 수정 오류: $e');
       onErrorChanged('노트 제목 수정 중 오류가 발생했습니다: $e');
       onLoadingChanged(false);
+    }
+  }
+  
+  // 수정된 부분: listen 메서드 대신 주기적으로 데이터를 로드하는 방식으로 변경
+  void startNotesRefresh(String spaceId) {
+    // 기존 타이머가 있으면 취소
+    _refreshTimer?.cancel();
+    
+    // 즉시 한 번 로드
+    loadNotes(spaceId);
+    
+    // 주기적으로 데이터 로드 (30초마다)
+    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      loadNotes(spaceId);
+    });
+  }
+  
+  Future<void> loadNotes(String spaceId) async {
+    try {
+      final notes = await noteRepository.getNotes('', spaceId: spaceId);
+      onNotesChanged(notes);
+    } catch (e) {
+      print('노트 로드 오류: $e');
+      onErrorChanged('노트를 로드하는 중 오류가 발생했습니다: $e');
     }
   }
 } 

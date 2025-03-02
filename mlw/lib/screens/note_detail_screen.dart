@@ -60,6 +60,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   bool _isNoteModified = false;
   final NoteRepository _noteRepository = NoteRepository();
   final TranslatorService _translatorService = TranslatorService();
+  final ImageProcessingService _imageService = ImageProcessingService();
   
   late TextEditingController _titleController;
   late TextEditingController _contentController;
@@ -72,6 +73,9 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   
   // 디바운스 타이머 추가
   Timer? _saveTimer;
+  bool _isLoading = true;
+  String? _error;
+  bool _isCreatingFlashCard = false;
 
   @override
   void initState() {
@@ -123,11 +127,13 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     print('NoteDetailScreen initState: $_noteId');
     
     // 노트 데이터 로드
-    _loadNoteData();
+    _loadNote();
   }
 
-  Future<void> _loadNoteData() async {
+  Future<void> _loadNote() async {
     try {
+      setState(() => _isLoading = true);
+      
       print('노트 데이터 로드 시작: $_noteId');
       
       // 노트 ID가 비어있으면 로드하지 않음
@@ -272,6 +278,8 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     } catch (e) {
       print('노트 데이터 로드 오류: $e');
       print('스택 트레이스: ${StackTrace.current}');
+    } finally {
+      setState(() => _isLoading = false);
     }
   }
 
@@ -332,7 +340,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       front: text,
       back: translatedText,
       pinyin: pinyin,
-      noteId: _note!.id,
+      id: _note!.id,
       createdAt: DateTime.now(),
       reviewCount: 0,
     );
@@ -543,25 +551,27 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    print('NoteDetailScreen build: ${_note?.id}');
+    if (_isLoading) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('노트 로딩 중...')),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
     
-    // _note가 null인 경우 로딩 표시
+    if (_error != null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('오류')),
+        body: Center(child: Text('오류가 발생했습니다: $_error')),
+      );
+    }
+    
     if (_note == null) {
       return Scaffold(
-        appBar: AppBar(title: Text('노트 로딩 중...')),
-        body: Center(child: CircularProgressIndicator()),
+        appBar: AppBar(title: const Text('노트 없음')),
+        body: const Center(child: Text('노트를 찾을 수 없습니다')),
       );
     }
     
-    // 페이지가 없는 경우 빈 상태 표시
-    if (_note!.pages.isEmpty) {
-      return Scaffold(
-        appBar: _buildAppBar(),
-        body: _buildEmptyState(),
-      );
-    }
-    
-    // 정상적인 노트 표시
     return Scaffold(
       appBar: _buildAppBar(),
       body: _buildPageContent(),
@@ -782,7 +792,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     
     if (result == true) {
       print('플래시카드 화면에서 돌아옴, 노트 데이터 새로고침');
-      _loadNoteData();
+      _loadNote();
     }
   }
 
@@ -850,91 +860,40 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   }
 
   Future<void> _addImage() async {
+    if (_note == null) return;
+    
     try {
-      final ImagePicker picker = ImagePicker();
-      final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+      setState(() => _isLoading = true);
       
-      if (image == null) {
-        print('이미지 선택이 취소되었습니다');
-        return;
-      }
-      
-      print('이미지 선택됨: ${image.path}');
-      
-      // 이미지 처리 서비스 초기화
-      final imageProcessingService = ImageProcessingService(
-        translatorService: _translatorService,
-      );
-      await imageProcessingService.initialize();
-      
-      // 이미지 처리 중 로딩 표시
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-      
-      // 이미지 처리
-      final result = await imageProcessingService.processImage(File(image.path));
-      
-      // 로딩 다이얼로그 닫기
-      if (mounted) {
-        Navigator.pop(context);
-      }
+      // 이미지 선택 및 처리
+      final result = await _imageService.pickAndProcessImage();
       
       if (result == null) {
-        throw Exception('이미지 처리 결과가 null입니다');
-      }
-      
-      print('이미지 처리 완료:');
-      print('- 이미지 URL: ${result.imageUrl}');
-      print('- 추출된 텍스트 길이: ${result.extractedText.length}');
-      print('- 번역된 텍스트 길이: ${result.translatedText.length}');
-      
-      // 번역 텍스트가 비어있는 경우 번역 시도
-      String translatedText = result.translatedText;
-      if (translatedText.isEmpty && result.extractedText.isNotEmpty) {
-        try {
-          print('번역 텍스트가 비어있어 번역 시도...');
-          await _translatorService.initialize();
-          translatedText = await _translatorService.translateText(result.extractedText);
-          print('번역 완료: ${translatedText.substring(0, translatedText.length > 20 ? 20 : translatedText.length)}...');
-        } catch (e) {
-          print('번역 오류: $e');
-        }
+        setState(() => _isLoading = false);
+        return;
       }
       
       // 새 페이지 생성
       final newPage = note_model.Page(
         imageUrl: result.imageUrl,
         extractedText: result.extractedText,
-        translatedText: translatedText,
+        translatedText: result.translatedText,
       );
-      
-      // 페이지 목록 업데이트
-      final updatedPages = List<note_model.Page>.from(_note!.pages)..add(newPage);
       
       // 노트 업데이트
-      final updatedNote = _note!.copyWith(
-        pages: updatedPages,
-        updatedAt: DateTime.now(),
-      );
+      final updatedNote = await _noteRepository.addPage(_note!, newPage);
       
-      // Firestore 업데이트
-      await _noteRepository.updateNote(updatedNote);
-      
-      // UI 업데이트
       setState(() {
         _note = updatedNote;
-        _currentPageIndex = updatedPages.length - 1;  // 새 페이지로 이동
+        _currentPageIndex = updatedNote.pages.length - 1;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+        _isLoading = false;
       });
       
-      print('이미지 추가 완료: 페이지 수 ${updatedPages.length}');
-      
-    } catch (e) {
-      print('이미지 추가 오류: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('이미지 추가 중 오류가 발생했습니다: $e')),
       );
@@ -942,30 +901,16 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   }
 
   Future<void> _retranslate(String text) async {
-    if (text.isEmpty || _note == null || _note!.pages.isEmpty) {
-      return;
-    }
+    if (_note == null || _note!.pages.isEmpty || text.isEmpty) return;
     
     try {
-      // 로딩 표시
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
+      setState(() => _isLoading = true);
       
       // 번역 서비스 초기화
       await _translatorService.initialize();
       
       // 텍스트 번역
       final translatedText = await _translatorService.translateText(text);
-      
-      // 로딩 다이얼로그 닫기
-      if (mounted) {
-        Navigator.pop(context);
-      }
       
       // 현재 페이지 업데이트
       final currentPage = _note!.pages[_currentPageIndex];
@@ -975,42 +920,74 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
         translatedText: translatedText,
       );
       
-      // 페이지 목록 업데이트
-      final updatedPages = List<note_model.Page>.from(_note!.pages);
-      updatedPages[_currentPageIndex] = updatedPage;
-      
       // 노트 업데이트
-      final updatedNote = _note!.copyWith(
-        pages: updatedPages,
-        updatedAt: DateTime.now(),
-      );
+      final updatedNote = await _noteRepository.updatePage(_note!, _currentPageIndex, updatedPage);
       
-      // Firestore 업데이트
-      await _noteRepository.updateNote(updatedNote);
-      
-      // UI 업데이트
       setState(() {
         _note = updatedNote;
+        _isLoading = false;
       });
       
-      print('번역 재시도 완료: 페이지 $_currentPageIndex');
-      
-      // 성공 메시지 표시
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('번역이 완료되었습니다')),
       );
-      
     } catch (e) {
-      print('번역 재시도 오류: $e');
+      setState(() {
+        _error = e.toString();
+        _isLoading = false;
+      });
       
-      // 로딩 다이얼로그 닫기
-      if (mounted) {
-        Navigator.pop(context);
-      }
-      
-      // 오류 메시지 표시
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('번역 중 오류가 발생했습니다: $e')),
+      );
+    }
+  }
+
+  Future<void> _createFlashCard(String text) async {
+    if (text.isEmpty || _note == null) return;
+    
+    try {
+      setState(() {
+        _isCreatingFlashCard = true;
+      });
+      
+      // 번역 서비스 초기화
+      await _translatorService.initialize();
+      
+      // 텍스트 번역
+      final translatedText = await _translatorService.translate(text);
+      
+      // 병음 생성
+      final pinyinService = PinyinService();
+      final pinyin = await pinyinService.getPinyin(text);
+      
+      // 플래시카드 생성
+      final newFlashCard = flash_card_model.FlashCard(
+        id: DateTime.now().millisecondsSinceEpoch.toString(), // 고유 ID 생성
+        front: text,
+        back: translatedText,
+        pinyin: pinyin,
+        createdAt: DateTime.now(),
+      );
+      
+      // 노트에 플래시카드 추가
+      final updatedNote = await _noteRepository.addFlashCard(_note!, newFlashCard);
+      
+      setState(() {
+        _note = updatedNote;
+        _isCreatingFlashCard = false;
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('플래시카드가 추가되었습니다')),
+      );
+    } catch (e) {
+      setState(() {
+        _isCreatingFlashCard = false;
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('플래시카드 생성 중 오류가 발생했습니다: $e')),
       );
     }
   }

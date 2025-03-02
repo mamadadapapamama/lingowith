@@ -23,6 +23,7 @@ class _NoteSpaceSettingsScreenState extends State<NoteSpaceSettingsScreen> {
   final _nameController = TextEditingController();
   final _spaceRepository = NoteRepository();
   String _selectedLanguage = 'zh';
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -40,6 +41,10 @@ class _NoteSpaceSettingsScreenState extends State<NoteSpaceSettingsScreen> {
   Future<void> _saveChanges() async {
     if (_formKey.currentState!.validate()) {
       try {
+        setState(() {
+          _isSaving = true;
+        });
+        
         final updatedSpace = widget.noteSpace.copyWith(
           name: _nameController.text,
           language: _selectedLanguage,
@@ -49,7 +54,7 @@ class _NoteSpaceSettingsScreenState extends State<NoteSpaceSettingsScreen> {
         await _spaceRepository.updateNoteSpace(updatedSpace);
         
         if (mounted) {
-          Navigator.pop(context);
+          Navigator.pop(context, true);
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('노트 스페이스가 업데이트되었습니다.')),
           );
@@ -59,6 +64,12 @@ class _NoteSpaceSettingsScreenState extends State<NoteSpaceSettingsScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('업데이트 실패: $e')),
           );
+        }
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isSaving = false;
+          });
         }
       }
     }
@@ -100,7 +111,7 @@ class _NoteSpaceSettingsScreenState extends State<NoteSpaceSettingsScreen> {
         body: Form(
           key: _formKey,
           child: ListView(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(16),
             children: [
               Text(
                 'Name',
@@ -182,7 +193,7 @@ class _NoteSpaceSettingsScreenState extends State<NoteSpaceSettingsScreen> {
               ),
               const SizedBox(height: 32),
               ElevatedButton(
-                onPressed: _saveChanges,
+                onPressed: _isSaving ? null : _saveChanges,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: ColorTokens.getColor('button-primary'),
                   foregroundColor: ColorTokens.getColor('surface'),
@@ -191,10 +202,12 @@ class _NoteSpaceSettingsScreenState extends State<NoteSpaceSettingsScreen> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                child: Text(
-                  'Save Changes',
-                  style: TypographyTokens.getStyle('button.medium'),
-                ),
+                child: _isSaving
+                    ? const CircularProgressIndicator()
+                    : Text(
+                        'Save Changes',
+                        style: TypographyTokens.getStyle('button.medium'),
+                      ),
               ),
             ],
           ),

@@ -73,9 +73,13 @@ class NoteSpace {
       id: doc.id,
       userId: data['userId'] ?? '',
       name: data['name'] ?? '',
-      language: data['language'] ?? 'ko',
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
-      updatedAt: (data['updatedAt'] as Timestamp).toDate(),
+      language: data['language'] ?? 'zh',
+      createdAt: data['createdAt'] is Timestamp 
+          ? (data['createdAt'] as Timestamp).toDate() 
+          : DateTime.now(),
+      updatedAt: data['updatedAt'] is Timestamp
+          ? (data['updatedAt'] as Timestamp).toDate()
+          : DateTime.now(),
       isDeleted: data['isDeleted'] ?? false,
     );
   }
